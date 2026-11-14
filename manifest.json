@@ -9,6 +9,30 @@
     "imageUrl": "https://raw.githubusercontent.com/streamflix-dev/jellyfin-streamflix/main/Jellyfin.Plugin.StreamFlix/thumb.png",
     "versions": [
       {
+        "version": "0.7.7.0",
+        "changelog": "Build for Jellyfin 12.x (.NET 10).\n\n- Redesigned User Settings & Preferences: transform Jellyfin user settings (#/mypreferences* and #/userprofile) with a Profile Hero Card, subpage pill navigation, glass section cards, non-overlapping form controls, top-left brand navigation, and the per-device StreamFlix Home experience toggle\n- Streamlined Account Menu & Dedicated Active Devices Tab: declutter the main hub profile dropdown and add a tabbed Dashboard plugin navigation bar with a dedicated Active Devices & Sessions tab (All / Online Now / Guest Passes filters and per-device sign-out)\n- Reliable Phone-Only Guest Pass Native Share: add one-tap phone-only native Share directly on active Guest Pass rows and QR spotlight cards with reverse-proxy HTTPS origin resolution and clipboard fallback",
+        "targetAbi": "12.0.0.0",
+        "sourceUrl": "https://raw.githubusercontent.com/streamflix-dev/jellyfin-streamflix/main/dist/Jellyfin.Plugin.StreamFlix_0.7.7.0_12.0.0.zip",
+        "checksum": "f9b4a5262f0040465a607c28e08066b5",
+        "timestamp": "2026-11-14T22:58:58Z"
+      },
+      {
+        "version": "0.7.7.0",
+        "changelog": "Build for Jellyfin 10.11.x (.NET 9).\n\n- Redesigned User Settings & Preferences: transform Jellyfin user settings (#/mypreferences* and #/userprofile) with a Profile Hero Card, subpage pill navigation, glass section cards, non-overlapping form controls, top-left brand navigation, and the per-device StreamFlix Home experience toggle\n- Streamlined Account Menu & Dedicated Active Devices Tab: declutter the main hub profile dropdown and add a tabbed Dashboard plugin navigation bar with a dedicated Active Devices & Sessions tab (All / Online Now / Guest Passes filters and per-device sign-out)\n- Reliable Phone-Only Guest Pass Native Share: add one-tap phone-only native Share directly on active Guest Pass rows and QR spotlight cards with reverse-proxy HTTPS origin resolution and clipboard fallback",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://raw.githubusercontent.com/streamflix-dev/jellyfin-streamflix/main/dist/Jellyfin.Plugin.StreamFlix_0.7.7.0_10.11.0.zip",
+        "checksum": "6fbdd0c45014122756154165166e3610",
+        "timestamp": "2026-11-14T22:58:58Z"
+      },
+      {
+        "version": "0.7.7.0",
+        "changelog": "Build for Jellyfin 10.9 - 10.10 (.NET 8).\n\n- Redesigned User Settings & Preferences: transform Jellyfin user settings (#/mypreferences* and #/userprofile) with a Profile Hero Card, subpage pill navigation, glass section cards, non-overlapping form controls, top-left brand navigation, and the per-device StreamFlix Home experience toggle\n- Streamlined Account Menu & Dedicated Active Devices Tab: declutter the main hub profile dropdown and add a tabbed Dashboard plugin navigation bar with a dedicated Active Devices & Sessions tab (All / Online Now / Guest Passes filters and per-device sign-out)\n- Reliable Phone-Only Guest Pass Native Share: add one-tap phone-only native Share directly on active Guest Pass rows and QR spotlight cards with reverse-proxy HTTPS origin resolution and clipboard fallback",
+        "targetAbi": "10.9.0.0",
+        "sourceUrl": "https://raw.githubusercontent.com/streamflix-dev/jellyfin-streamflix/main/dist/Jellyfin.Plugin.StreamFlix_0.7.7.0_10.9.0.zip",
+        "checksum": "be1007675ddc007555c1df2f8b099535",
+        "timestamp": "2026-11-14T22:58:58Z"
+      },
+      {
         "version": "0.7.5.3",
         "changelog": "Build for Jellyfin 12.x (.NET 10).\n\n- Phone-Only Guest Pass Share Sheet & Mobile Polish: add a phone-only native Share Invite button (navigator.share) to Guest Pass QR cards, fix Guest Pass modal mobile clipping, and hide Jellyfin's redundant top-left drawer icon on StreamFlix views\n- Active Devices Manager (Per-Device Sign-Out): inspect signed-in TVs, phones, browsers, and Guest Passes (with This Device, Online / Playing badges, profile pills, and last active time) and revoke individual devices from the Account Menu or Dashboard without signing out the whole household\n- Seerr Download Progress & Media Requests Tracker: surface live Radarr/Sonarr download percentages on Seerr cards and modals, plus a Media Requests modal (All / In Progress / Available filters and one-click Open in library)",
         "targetAbi": "12.0.0.0",
