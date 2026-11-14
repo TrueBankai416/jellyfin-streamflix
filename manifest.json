@@ -9,6 +9,30 @@
     "imageUrl": "https://raw.githubusercontent.com/streamflix-dev/jellyfin-streamflix/main/Jellyfin.Plugin.StreamFlix/thumb.png",
     "versions": [
       {
+        "version": "0.7.5.3",
+        "changelog": "Build for Jellyfin 12.x (.NET 10).\n\n- Phone-Only Guest Pass Share Sheet & Mobile Polish: add a phone-only native Share Invite button (navigator.share) to Guest Pass QR cards, fix Guest Pass modal mobile clipping, and hide Jellyfin's redundant top-left drawer icon on StreamFlix views\n- Active Devices Manager (Per-Device Sign-Out): inspect signed-in TVs, phones, browsers, and Guest Passes (with This Device, Online / Playing badges, profile pills, and last active time) and revoke individual devices from the Account Menu or Dashboard without signing out the whole household\n- Seerr Download Progress & Media Requests Tracker: surface live Radarr/Sonarr download percentages on Seerr cards and modals, plus a Media Requests modal (All / In Progress / Available filters and one-click Open in library)",
+        "targetAbi": "12.0.0.0",
+        "sourceUrl": "https://raw.githubusercontent.com/streamflix-dev/jellyfin-streamflix/main/dist/Jellyfin.Plugin.StreamFlix_0.7.5.3_12.0.0.zip",
+        "checksum": "61382cc3257980312a2817efbe3870e3",
+        "timestamp": "2026-11-14T21:31:27Z"
+      },
+      {
+        "version": "0.7.5.3",
+        "changelog": "Build for Jellyfin 10.11.x (.NET 9).\n\n- Phone-Only Guest Pass Share Sheet & Mobile Polish: add a phone-only native Share Invite button (navigator.share) to Guest Pass QR cards, fix Guest Pass modal mobile clipping, and hide Jellyfin's redundant top-left drawer icon on StreamFlix views\n- Active Devices Manager (Per-Device Sign-Out): inspect signed-in TVs, phones, browsers, and Guest Passes (with This Device, Online / Playing badges, profile pills, and last active time) and revoke individual devices from the Account Menu or Dashboard without signing out the whole household\n- Seerr Download Progress & Media Requests Tracker: surface live Radarr/Sonarr download percentages on Seerr cards and modals, plus a Media Requests modal (All / In Progress / Available filters and one-click Open in library)",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://raw.githubusercontent.com/streamflix-dev/jellyfin-streamflix/main/dist/Jellyfin.Plugin.StreamFlix_0.7.5.3_10.11.0.zip",
+        "checksum": "15a3c5ce51c058196330aa631e583c60",
+        "timestamp": "2026-11-14T21:31:27Z"
+      },
+      {
+        "version": "0.7.5.3",
+        "changelog": "Build for Jellyfin 10.9 - 10.10 (.NET 8).\n\n- Phone-Only Guest Pass Share Sheet & Mobile Polish: add a phone-only native Share Invite button (navigator.share) to Guest Pass QR cards, fix Guest Pass modal mobile clipping, and hide Jellyfin's redundant top-left drawer icon on StreamFlix views\n- Active Devices Manager (Per-Device Sign-Out): inspect signed-in TVs, phones, browsers, and Guest Passes (with This Device, Online / Playing badges, profile pills, and last active time) and revoke individual devices from the Account Menu or Dashboard without signing out the whole household\n- Seerr Download Progress & Media Requests Tracker: surface live Radarr/Sonarr download percentages on Seerr cards and modals, plus a Media Requests modal (All / In Progress / Available filters and one-click Open in library)",
+        "targetAbi": "10.9.0.0",
+        "sourceUrl": "https://raw.githubusercontent.com/streamflix-dev/jellyfin-streamflix/main/dist/Jellyfin.Plugin.StreamFlix_0.7.5.3_10.9.0.zip",
+        "checksum": "50e508321f7fecd2d7444e181d3b1a90",
+        "timestamp": "2026-11-14T21:31:27Z"
+      },
+      {
         "version": "0.7.5.2",
         "changelog": "Build for Jellyfin 12.x (.NET 10).\n\n- Multi-Auth Profile Lock Badges: dynamically show Google, OIDC/SSO, or Jellyfin account-lock icons across profile tiles, menus, and settings, with support for Google, OIDC, and Jellyfin account locks\n- Sign Out All Devices & Security Hardening: revoke all Jellyfin device tokens alongside StreamFlix sessions on Sign Out All Devices, assign cryptographically randomized 256-bit passwords strictly to plugin-created Jellyfin accounts, block unverified OIDC username email spoofing, and require verified sessions for non-admin account locks\n- Streamlined Menu & Auto-Deleting Guest Passes: remove Movie Night Matcher clutter so Cast and Quick Connect fit cleanly, and automatically delete revoked or expired Guest Passes alongside their Jellyfin tokens",
         "targetAbi": "12.0.0.0",
