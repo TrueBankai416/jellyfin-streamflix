@@ -15,12 +15,12 @@ permissions:
   contents: write
 
 env:
-  PLUGIN_VERSION: "0.7.5.3"
+  PLUGIN_VERSION: "0.7.7.0"
   PLUGIN_GUID: "7cc1a505-91f6-4661-b4f9-7eee8be33b19"
   PLUGIN_NAME: "StreamFlix"
   PLUGIN_OVERVIEW: "Netflix-style UI, Household Profiles, Guest Passes & Seerr Requests for Jellyfin"
   PLUGIN_DESCRIPTION: "Transforms Jellyfin Web into StreamFlix: a Netflix-style cinema UI with flexible Google/OIDC/Jellyfin sign-in, toggleable QR Guest Passes, optional Seerr/Jellyseerr search requests, and 'Who's watching?' profiles mapped to real Jellyfin users."
-  PLUGIN_CHANGELOG: "- Phone-Only Guest Pass Share Sheet & Mobile Polish: add a phone-only native Share Invite button (navigator.share) to Guest Pass QR cards, fix Guest Pass modal mobile clipping, and hide Jellyfin's redundant top-left drawer icon on StreamFlix views\n- Active Devices Manager (Per-Device Sign-Out): inspect signed-in TVs, phones, browsers, and Guest Passes (with This Device, Online / Playing badges, profile pills, and last active time) and revoke individual devices from the Account Menu or Dashboard without signing out the whole household\n- Seerr Download Progress & Media Requests Tracker: surface live Radarr/Sonarr download percentages on Seerr cards and modals, plus a Media Requests modal (All / In Progress / Available filters and one-click Open in library)"
+  PLUGIN_CHANGELOG: "- Redesigned User Settings & Preferences: transform Jellyfin user settings (#/mypreferences* and #/userprofile) with a Profile Hero Card, subpage pill navigation, glass section cards, non-overlapping form controls, top-left brand navigation, and the per-device StreamFlix Home experience toggle\n- Streamlined Account Menu & Dedicated Active Devices Tab: declutter the main hub profile dropdown and add a tabbed Dashboard plugin navigation bar with a dedicated Active Devices & Sessions tab (All / Online Now / Guest Passes filters and per-device sign-out)\n- Reliable Phone-Only Guest Pass Native Share: add one-tap phone-only native Share directly on active Guest Pass rows and QR spotlight cards with reverse-proxy HTTPS origin resolution and clipboard fallback"
 
 jobs:
   build-and-publish:

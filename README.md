@@ -4,7 +4,7 @@
 
 **A Netflix-style web UI, flexible household sign-in gate (Google OAuth, OIDC, Jellyfin & QR Guest Passes), native Seerr requests, and household profiles backed by real Jellyfin users.**
 
-[![Version](https://img.shields.io/badge/version-0.7.5.3-E50914?style=flat-square)](manifest.json)
+[![Version](https://img.shields.io/badge/version-0.7.7-E50914?style=flat-square)](manifest.json)
 [![Jellyfin](https://img.shields.io/badge/Jellyfin-10.9%20%E2%80%93%2012.x-00A4DC?style=flat-square)](manifest.json)
 [![.NET](https://img.shields.io/badge/.NET-8.0%20%7C%209.0%20%7C%2010.0-512BD4?style=flat-square)](Jellyfin.Plugin.StreamFlix/Jellyfin.Plugin.StreamFlix.csproj)
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg?style=flat-square)](LICENSE)
@@ -41,7 +41,7 @@ Runs entirely inside your existing Jellyfin server — no reverse-proxy sidecar,
     <td width="50%" align="center" valign="top">
       <img src="docs/screenshots/home-account-menu.jpg" alt="StreamFlix Account Menu and Profile Switcher" />
       <br />
-      <sub><b>4. Account Menu &amp; Profile Switcher</b> — One-click profile switching, Media Requests, Active Devices, Cast &amp; Quick Connect</sub>
+      <sub><b>4. Account Menu &amp; Profile Switcher</b> — One-click profile switching, Settings, Media Requests, Cast &amp; Quick Connect</sub>
     </td>
     <td width="50%" align="center" valign="top">
       <img src="docs/screenshots/title-details.jpg" alt="StreamFlix Title Details Modal" />
@@ -77,7 +77,7 @@ Runs entirely inside your existing Jellyfin server — no reverse-proxy sidecar,
     <td width="50%" align="center" valign="top">
       <img src="docs/screenshots/admin-settings.png" alt="StreamFlix Admin Dashboard Settings" />
       <br />
-      <sub><b>10. Plugin Administration</b> — Progressive sign-in methods, Guest Passes, Seerr integration, user mapping &amp; custom branding</sub>
+      <sub><b>10. Plugin Administration</b> — Tabbed admin console with Active Devices, Sign-In &amp; SSO, Guest Passes, Home &amp; Hero, and Seerr</sub>
     </td>
   </tr>
 </table>
@@ -92,13 +92,14 @@ Runs entirely inside your existing Jellyfin server — no reverse-proxy sidecar,
 
 ### Flexible Household Sign-In, Guest Passes & Security
 - **Google OAuth, Custom OIDC (Beta), Jellyfin Login, or Hybrid Mode.** Household sign-in is always enforced before *"Who's watching?"*. Enable one or more progressive-disclosure **Sign-In Methods** — server-verified **Google Sign-In** (with one-click **Test OAuth Config**), self-hosted or cloud **Custom OpenID Connect (OIDC)** (`Authentik`, `Authelia`, `Pocket ID`, `Keycloak`, `Kanidm`, `Zitadel`, `Okta`, etc. via Authorization Code + PKCE `S256`, RSA/ECDSA JWKS verification, and one-click **Test OIDC Discovery**), **Jellyfin Username & Password Login**, or **Bypass Sign-In Gate on Home Network (LAN)**.
-- **Temporary Guest Passes with QR codes & phone-only native Share sheet.** Generate expiring invite links, pass codes, and zero-dependency server-rendered SVG QR codes locked to a single non-administrator profile with configurable duration (`4h`–`30d`) and device limits — plus a one-tap **Share Invite** button (`navigator.share`) shown exclusively on mobile phones. Link-preview bots cannot burn redemptions, guests cannot switch into other profiles, and revoking or expiring a pass automatically deletes it and terminates active Jellyfin sessions immediately.
+- **Temporary Guest Passes with QR codes & one-tap phone Share sheet.** Generate expiring invite links, pass codes, and zero-dependency server-rendered SVG QR codes locked to a single non-administrator profile with configurable duration (`4h`–`30d`) and device limits — plus a one-tap **Share** button (`navigator.share`) directly on active Guest Pass rows and QR spotlight cards on mobile phones (hidden on desktops, tablets, and TVs). Link-preview bots cannot burn redemptions, guests cannot switch into other profiles, and revoking or expiring a pass automatically deletes it and terminates active Jellyfin sessions immediately.
 - **Opt-in Admin-Only Password Fallback (off by default).** Optionally add a subtle **Admin Sign-In** link on SSO screens that strictly enforces `IsAdministrator` on the backend (rejecting non-admin and disabled Jellyfin accounts with HTTP `403`), with an optional **LAN-only** IP restriction.
 - **Multi-auth profile locks & randomized plugin passwords.** Protect any profile with a **4–8 digit PIN** (with target-scoped brute-force lockout) and/or lock it to a **Google email, OIDC email/username, or Jellyfin username** — displaying a matching provider badge on the profile tile. Dedicated Jellyfin users created by StreamFlix receive a cryptographically randomized 256-bit password automatically (while manually created Jellyfin accounts are never modified), secrets stay strictly server-side, and plugin configuration is mirrored atomically to persistent Jellyfin storage.
-- **Admin-only user management, Active Devices & global sign-out.** Only Jellyfin administrators can view server accounts, edit admin-linked profiles, manage Guest Passes, or change which Jellyfin user backs a profile. Administrators can inspect all signed-in Smart TVs, phones, browsers, and Guest Passes in **Active Devices** (with `This Device`, `Online` / `Playing` status, profile badges, and last active time) to **sign out individual devices** without disrupting the rest of the household — or trigger **Sign out all devices** to revoke every StreamFlix household session and Jellyfin device `AccessToken` server-wide.
+- **Admin-only user management, dedicated Active Devices tab & global sign-out.** Only Jellyfin administrators can view server accounts, edit admin-linked profiles, manage Guest Passes, or change which Jellyfin user backs a profile. Administrators can open the dedicated **Active Devices** tab in **Dashboard → Plugins → StreamFlix** (`?tab=devices`, also linked from User Settings) to filter `All Devices`, `Online Now`, and `Guest Passes`, inspect `This Device`, `Online` / `Playing` status, profile badges, and last active time, **sign out individual devices** without disrupting the rest of the household, or trigger **Sign out all devices** server-wide.
 
-### Real Multi-User Profiles
+### Real Multi-User Profiles & Redesigned Settings
 - **Separate history for everyone.** Every *"Who's watching?"* tile maps to its own Jellyfin Server User, keeping **Continue Watching, Next Up, My List, played state, and parental controls** completely independent.
+- **Redesigned User Settings & Preferences.** Opening **Settings** transforms Jellyfin's preference screens (`Profile`, `Display`, `Home`, `Playback`, `Subtitles`, `Controls`, and `Quick Connect`) into a cohesive dark-glass interface with an active **Profile Hero Card** (*Edit Profile* / *Switch Profile*), horizontal subpage switcher pills, the per-device **StreamFlix Home** experience toggle, and quick administrator links to **Active Devices** and **Plugin Settings**.
 - **Customizable branding, avatars & accents.** Customize the upper-left corner brand wordmark, choose from 64 categorized icons and 14 accent colors (with one-click Shuffle), and reorder profiles freely.
 - **Quick Connect & Cast built in.** Pair Smart TVs and other Jellyfin apps straight from the profile menu via **Quick Connect** — signing that device in as the active profile's Jellyfin user — or launch **Cast** in one click.
 

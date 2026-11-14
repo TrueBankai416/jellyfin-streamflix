@@ -4285,9 +4285,12 @@ public class StreamFlixController : ControllerBase
         return "active";
     }
 
-    private static object MapGuestPassAdmin(PluginConfiguration config, StreamFlixGuestPass pass)
+    private object MapGuestPassAdmin(PluginConfiguration config, StreamFlixGuestPass pass)
     {
         var liveProfile = FindProfile(config, pass.ProfileId);
+        var status = GetGuestPassStatus(pass);
+        var code = !pass.Revoked ? StreamFlixSessionService.ComputeGuestPassCode(config, pass) : string.Empty;
+        var shareUrl = !string.IsNullOrEmpty(code) ? BuildAbsoluteGuestPassUri(code) : string.Empty;
         return new
         {
             id = pass.Id,
@@ -4303,7 +4306,9 @@ public class StreamFlixController : ControllerBase
             lastRedeemedAtUtc = pass.LastRedeemedAtUtc,
             revoked = pass.Revoked,
             revokedAtUtc = pass.RevokedAtUtc,
-            status = GetGuestPassStatus(pass),
+            status,
+            code,
+            shareUrl,
         };
     }
 
@@ -4322,6 +4327,11 @@ public class StreamFlixController : ControllerBase
             {
                 scheme = fwdProto.ToLowerInvariant();
             }
+            else if (string.Equals(Request.Headers["X-Forwarded-Ssl"].ToString().Trim(), "on", StringComparison.OrdinalIgnoreCase)
+                || Request.Headers["CF-Visitor"].ToString().Contains("\"https\"", StringComparison.OrdinalIgnoreCase))
+            {
+                scheme = "https";
+            }
 
             var fwdHost = Request.Headers["X-Forwarded-Host"].ToString().Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).FirstOrDefault();
             if (!string.IsNullOrWhiteSpace(fwdHost) && IsSafeHostHeader(fwdHost))
@@ -4336,6 +4346,22 @@ public class StreamFlixController : ControllerBase
                 {
                     pathBase = fwdPrefix.TrimEnd('/');
                 }
+            }
+        }
+
+        if (string.Equals(scheme, "http", StringComparison.OrdinalIgnoreCase))
+        {
+            var originHeader = Request.Headers.Origin.ToString().Trim();
+            if (string.IsNullOrEmpty(originHeader))
+            {
+                originHeader = Request.Headers.Referer.ToString().Trim();
+            }
+
+            if (Uri.TryCreate(originHeader, UriKind.Absolute, out var originUri)
+                && string.Equals(originUri.Scheme, "https", StringComparison.OrdinalIgnoreCase)
+                && string.Equals(originUri.Authority, host, StringComparison.OrdinalIgnoreCase))
+            {
+                scheme = "https";
             }
         }
 
