@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
@@ -34,6 +35,17 @@ public static class StreamFlixSeerrService
 
     private static readonly Regex SafeTmdbImagePathRegex = new(@"^/[a-zA-Z0-9._-]+$", RegexOptions.Compiled);
 
+    private static readonly ConcurrentDictionary<string, CachedMediaMeta> MediaMetaCache = new(StringComparer.OrdinalIgnoreCase);
+
+    private sealed record CachedMediaMeta(
+        string Title,
+        string Year,
+        string PosterUrl,
+        string BackdropUrl,
+        bool IsAdult,
+        bool IsMatureForKids,
+        DateTime ExpiresAtUtc);
+
     public sealed record SeerrDiagnosticCheck(string Status, string Label, string Detail);
 
     public sealed record SeerrMediaItem(
@@ -47,6 +59,7 @@ public static class StreamFlixSeerrService
         string BackdropUrl,
         int MediaStatus,
         string StatusLabel,
+        int? DownloadProgress,
         string? JellyfinMediaId);
 
     public sealed record SeerrSeasonItem(
@@ -65,7 +78,25 @@ public static class StreamFlixSeerrService
         string BackdropUrl,
         int MediaStatus,
         string StatusLabel,
+        int? DownloadProgress,
         List<SeerrSeasonItem> Seasons);
+
+    public sealed record SeerrRequestEntry(
+        int RequestId,
+        int TmdbId,
+        string MediaType,
+        string Title,
+        string Year,
+        string PosterUrl,
+        string BackdropUrl,
+        int RequestStatus,
+        int MediaStatus,
+        string StatusKey,
+        string StatusLabel,
+        int? DownloadProgress,
+        List<int> Seasons,
+        string CreatedAt,
+        string? JellyfinMediaId);
 
     public static bool IsConfigured(PluginConfiguration config)
     {
@@ -276,16 +307,25 @@ public static class StreamFlixSeerrService
             var backdropUrl = BuildSafeTmdbImageUrl(JsonStr(el, "backdropPath"), "w1280");
 
             var mediaStatus = 1;
+            int? downloadProgress = null;
+            var isDownloading = false;
             string? jfMediaId = null;
             if (el.TryGetProperty("mediaInfo", out var mi) && mi.ValueKind == JsonValueKind.Object)
             {
                 mediaStatus = Math.Clamp(JsonInt(mi, "status", 1), 1, 6);
+                (isDownloading, downloadProgress) = ExtractDownloadProgress(mi);
                 var jfId = FirstNonEmpty(JsonStr(mi, "jellyfinMediaId"), JsonStr(mi, "jellyfinMediaId4k"));
                 if (!string.IsNullOrEmpty(jfId))
                 {
                     jfMediaId = jfId;
                 }
             }
+
+            StoreCachedMediaMeta(mediaType, tmdbId, title, year, posterUrl, backdropUrl, isAdult: false, isMatureForKids: HasMatureTmdbGenre(el));
+
+            var statusLabel = isDownloading && mediaStatus is 2 or 3
+                ? (downloadProgress.HasValue && downloadProgress.Value > 0 ? $"Downloading · {downloadProgress.Value}%" : "Downloading")
+                : MapStatusLabel(mediaStatus);
 
             items.Add(new SeerrMediaItem(
                 TmdbId: tmdbId,
@@ -297,7 +337,8 @@ public static class StreamFlixSeerrService
                 PosterUrl: posterUrl,
                 BackdropUrl: backdropUrl,
                 MediaStatus: mediaStatus,
-                StatusLabel: MapStatusLabel(mediaStatus),
+                StatusLabel: statusLabel,
+                DownloadProgress: isDownloading ? downloadProgress : null,
                 JellyfinMediaId: jfMediaId));
 
             if (items.Count >= 24)
@@ -337,13 +378,18 @@ public static class StreamFlixSeerrService
         var dateRaw = JsonStr(root, "firstAirDate");
         var year = dateRaw.Length >= 4 ? dateRaw.Substring(0, 4) : string.Empty;
         var overview = JsonStr(root, "overview").Trim();
+        var posterUrl = BuildSafeTmdbImageUrl(JsonStr(root, "posterPath"), "w500");
         var backdropUrl = BuildSafeTmdbImageUrl(JsonStr(root, "backdropPath"), "w1280");
+        StoreCachedMediaMeta("tv", tmdbId, title, year, posterUrl, backdropUrl, JsonBool(root, "adult"), HasMatureDetailGenres(root));
 
         var mediaStatus = 1;
+        int? downloadProgress = null;
+        var isDownloading = false;
         var seasonStatuses = new Dictionary<int, int>();
         if (root.TryGetProperty("mediaInfo", out var mi) && mi.ValueKind == JsonValueKind.Object)
         {
             mediaStatus = Math.Clamp(JsonInt(mi, "status", 1), 1, 6);
+            (isDownloading, downloadProgress) = ExtractDownloadProgress(mi);
             if (mi.TryGetProperty("seasons", out var miSeasons) && miSeasons.ValueKind == JsonValueKind.Array)
             {
                 foreach (var ms in miSeasons.EnumerateArray())
@@ -386,6 +432,10 @@ public static class StreamFlixSeerrService
         }
 
         seasons.Sort((a, b) => a.SeasonNumber.CompareTo(b.SeasonNumber));
+        var tvStatusLabel = isDownloading && mediaStatus is 2 or 3
+            ? (downloadProgress.HasValue && downloadProgress.Value > 0 ? $"Downloading · {downloadProgress.Value}%" : "Downloading")
+            : MapStatusLabel(mediaStatus);
+
         return new SeerrTvDetail(
             TmdbId: tmdbId,
             Title: title,
@@ -393,8 +443,359 @@ public static class StreamFlixSeerrService
             Overview: overview,
             BackdropUrl: backdropUrl,
             MediaStatus: mediaStatus,
-            StatusLabel: MapStatusLabel(mediaStatus),
+            StatusLabel: tvStatusLabel,
+            DownloadProgress: isDownloading ? downloadProgress : null,
             Seasons: seasons);
+    }
+
+    public static async Task<List<SeerrRequestEntry>> GetRecentRequestsAsync(
+        PluginConfiguration config,
+        bool isKidsProfile,
+        CancellationToken cancellationToken = default)
+    {
+        var entries = new List<SeerrRequestEntry>();
+        if (!IsConfigured(config))
+        {
+            return entries;
+        }
+
+        var baseUrl = NormalizeBaseUrl(config.SeerrUrl);
+        var apiKey = config.SeerrApiKey.Trim();
+        await ValidateSafeSeerrBaseUrlAsync(baseUrl, cancellationToken).ConfigureAwait(false);
+
+        using var req = BuildGetRequest($"{baseUrl}/api/v1/request?take=20&skip=0&sort=added", apiKey);
+        using var resp = await SeerrHttp.SendAsync(req, cancellationToken).ConfigureAwait(false);
+        if (!resp.IsSuccessStatusCode)
+        {
+            throw new InvalidOperationException($"Seerr requests endpoint returned HTTP {(int)resp.StatusCode}.");
+        }
+
+        var raw = await resp.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+        using var doc = JsonDocument.Parse(raw);
+        if (!doc.RootElement.TryGetProperty("results", out var results) || results.ValueKind != JsonValueKind.Array)
+        {
+            return entries;
+        }
+
+        var parsedRows = new List<(
+            int RequestId,
+            int RequestStatus,
+            string MediaType,
+            int TmdbId,
+            int MediaStatus,
+            bool IsDownloading,
+            int? DownloadProgress,
+            string? JellyfinMediaId,
+            List<int> Seasons,
+            string CreatedAt)>();
+
+        foreach (var el in results.EnumerateArray())
+        {
+            var reqId = JsonInt(el, "id", 0);
+            var reqStatus = Math.Clamp(JsonInt(el, "status", 1), 1, 5);
+            var createdAt = JsonStr(el, "createdAt");
+
+            var mediaType = FirstNonEmpty(JsonStr(el, "type")).ToLowerInvariant();
+            var tmdbId = 0;
+            var mediaStatus = 2;
+            var isDownloading = false;
+            int? dlProgress = null;
+            string? jfMediaId = null;
+
+            if (el.TryGetProperty("media", out var mediaEl) && mediaEl.ValueKind == JsonValueKind.Object)
+            {
+                tmdbId = JsonInt(mediaEl, "tmdbId", 0);
+                if (string.IsNullOrEmpty(mediaType))
+                {
+                    mediaType = JsonStr(mediaEl, "mediaType").Trim().ToLowerInvariant();
+                }
+
+                mediaStatus = Math.Clamp(JsonInt(mediaEl, "status", 2), 1, 6);
+                (isDownloading, dlProgress) = ExtractDownloadProgress(mediaEl);
+                var jfId = FirstNonEmpty(JsonStr(mediaEl, "jellyfinMediaId"), JsonStr(mediaEl, "jellyfinMediaId4k"));
+                if (!string.IsNullOrEmpty(jfId))
+                {
+                    jfMediaId = jfId;
+                }
+            }
+
+            if (tmdbId <= 0 || mediaType is not ("movie" or "tv"))
+            {
+                continue;
+            }
+
+            var reqSeasons = new List<int>();
+            if (el.TryGetProperty("seasons", out var sArr) && sArr.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var sEl in sArr.EnumerateArray())
+                {
+                    var sn = sEl.ValueKind == JsonValueKind.Number
+                        ? (sEl.TryGetInt32(out var directSn) ? directSn : 0)
+                        : JsonInt(sEl, "seasonNumber", 0);
+                    if (sn > 0 && sn <= 200 && !reqSeasons.Contains(sn))
+                    {
+                        reqSeasons.Add(sn);
+                    }
+                }
+
+                reqSeasons.Sort();
+            }
+
+            parsedRows.Add((reqId, reqStatus, mediaType, tmdbId, mediaStatus, isDownloading, dlProgress, jfMediaId, reqSeasons, createdAt));
+            if (parsedRows.Count >= 18)
+            {
+                break;
+            }
+        }
+
+        if (parsedRows.Count == 0)
+        {
+            return entries;
+        }
+
+        // Resolve missing TMDB title/poster metadata in bounded parallel (up to 4 concurrent calls, cached 15 minutes)
+        using var gate = new SemaphoreSlim(4, 4);
+        var distinctKeys = parsedRows
+            .Select(r => (r.MediaType, r.TmdbId))
+            .Distinct()
+            .ToList();
+
+        var fetchTasks = distinctKeys.Select(async pair =>
+        {
+            var cacheKey = $"{pair.MediaType}:{pair.TmdbId.ToString(CultureInfo.InvariantCulture)}";
+            if (MediaMetaCache.TryGetValue(cacheKey, out var cached) && cached.ExpiresAtUtc > DateTime.UtcNow)
+            {
+                return;
+            }
+
+            await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+            try
+            {
+                if (MediaMetaCache.TryGetValue(cacheKey, out cached) && cached.ExpiresAtUtc > DateTime.UtcNow)
+                {
+                    return;
+                }
+
+                using var metaReq = BuildGetRequest($"{baseUrl}/api/v1/{pair.MediaType}/{pair.TmdbId.ToString(CultureInfo.InvariantCulture)}", apiKey);
+                using var metaResp = await SeerrHttp.SendAsync(metaReq, cancellationToken).ConfigureAwait(false);
+                if (!metaResp.IsSuccessStatusCode)
+                {
+                    return;
+                }
+
+                using var mDoc = JsonDocument.Parse(await metaResp.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false));
+                var mRoot = mDoc.RootElement;
+                var mTitle = FirstNonEmpty(JsonStr(mRoot, "title"), JsonStr(mRoot, "name"), JsonStr(mRoot, "originalTitle"), JsonStr(mRoot, "originalName"));
+                var mDate = FirstNonEmpty(JsonStr(mRoot, "releaseDate"), JsonStr(mRoot, "firstAirDate"));
+                var mYear = mDate.Length >= 4 && int.TryParse(mDate.AsSpan(0, 4), out var yr) && yr >= 1888 && yr <= 2100
+                    ? yr.ToString(CultureInfo.InvariantCulture)
+                    : string.Empty;
+                var mPoster = BuildSafeTmdbImageUrl(JsonStr(mRoot, "posterPath"), "w500");
+                var mBackdrop = BuildSafeTmdbImageUrl(JsonStr(mRoot, "backdropPath"), "w1280");
+                StoreCachedMediaMeta(pair.MediaType, pair.TmdbId, mTitle, mYear, mPoster, mBackdrop, JsonBool(mRoot, "adult"), HasMatureDetailGenres(mRoot));
+            }
+            catch
+            {
+            }
+            finally
+            {
+                gate.Release();
+            }
+        });
+
+        await Task.WhenAll(fetchTasks).ConfigureAwait(false);
+
+        foreach (var row in parsedRows)
+        {
+            var cacheKey = $"{row.MediaType}:{row.TmdbId.ToString(CultureInfo.InvariantCulture)}";
+            MediaMetaCache.TryGetValue(cacheKey, out var meta);
+            if (meta != null && (meta.IsAdult || (isKidsProfile && meta.IsMatureForKids)))
+            {
+                continue;
+            }
+
+            var title = meta != null && !string.IsNullOrEmpty(meta.Title)
+                ? meta.Title
+                : $"{(row.MediaType == "tv" ? "Series" : "Movie")} #{row.TmdbId.ToString(CultureInfo.InvariantCulture)}";
+            var year = meta?.Year ?? string.Empty;
+            var posterUrl = meta?.PosterUrl ?? string.Empty;
+            var backdropUrl = meta?.BackdropUrl ?? string.Empty;
+
+            string statusKey;
+            string statusLabel;
+            if (row.RequestStatus == 3)
+            {
+                statusKey = "declined";
+                statusLabel = "Declined";
+            }
+            else if (row.RequestStatus == 4)
+            {
+                statusKey = "failed";
+                statusLabel = "Failed";
+            }
+            else if (row.MediaStatus == 5)
+            {
+                statusKey = "available";
+                statusLabel = "Available";
+            }
+            else if (row.MediaStatus == 4)
+            {
+                statusKey = "partial";
+                statusLabel = "Partially Available";
+            }
+            else if (row.IsDownloading)
+            {
+                statusKey = "downloading";
+                statusLabel = row.DownloadProgress.HasValue && row.DownloadProgress.Value > 0
+                    ? $"Downloading · {row.DownloadProgress.Value}%"
+                    : "Downloading";
+            }
+            else if (row.RequestStatus == 1)
+            {
+                statusKey = "pending";
+                statusLabel = "Pending Approval";
+            }
+            else if (row.MediaStatus == 3)
+            {
+                statusKey = "processing";
+                statusLabel = "Processing";
+            }
+            else
+            {
+                statusKey = "approved";
+                statusLabel = "Approved · Queued";
+            }
+
+            entries.Add(new SeerrRequestEntry(
+                RequestId: row.RequestId,
+                TmdbId: row.TmdbId,
+                MediaType: row.MediaType,
+                Title: title,
+                Year: year,
+                PosterUrl: posterUrl,
+                BackdropUrl: backdropUrl,
+                RequestStatus: row.RequestStatus,
+                MediaStatus: row.MediaStatus,
+                StatusKey: statusKey,
+                StatusLabel: statusLabel,
+                DownloadProgress: row.IsDownloading ? row.DownloadProgress : null,
+                Seasons: row.Seasons,
+                CreatedAt: row.CreatedAt,
+                JellyfinMediaId: row.JellyfinMediaId));
+        }
+
+        return entries;
+    }
+
+    private static void StoreCachedMediaMeta(
+        string mediaType,
+        int tmdbId,
+        string title,
+        string year,
+        string posterUrl,
+        string backdropUrl,
+        bool isAdult,
+        bool isMatureForKids)
+    {
+        if (tmdbId <= 0 || string.IsNullOrEmpty(title))
+        {
+            return;
+        }
+
+        if (MediaMetaCache.Count > 300)
+        {
+            var now = DateTime.UtcNow;
+            foreach (var kv in MediaMetaCache)
+            {
+                if (kv.Value.ExpiresAtUtc <= now)
+                {
+                    MediaMetaCache.TryRemove(kv.Key, out _);
+                }
+            }
+        }
+
+        var key = $"{mediaType}:{tmdbId.ToString(CultureInfo.InvariantCulture)}";
+        MediaMetaCache[key] = new CachedMediaMeta(
+            Title: title,
+            Year: year,
+            PosterUrl: posterUrl,
+            BackdropUrl: backdropUrl,
+            IsAdult: isAdult,
+            IsMatureForKids: isMatureForKids,
+            ExpiresAtUtc: DateTime.UtcNow.AddMinutes(15));
+    }
+
+    private static (bool IsDownloading, int? ProgressPercent) ExtractDownloadProgress(JsonElement mediaObj)
+    {
+        if (mediaObj.ValueKind != JsonValueKind.Object)
+        {
+            return (false, null);
+        }
+
+        long totalSize = 0;
+        long totalLeft = 0;
+        var hasAnyItem = false;
+
+        foreach (var propName in new[] { "downloadStatus", "downloadStatus4k" })
+        {
+            if (!mediaObj.TryGetProperty(propName, out var arr) || arr.ValueKind != JsonValueKind.Array)
+            {
+                continue;
+            }
+
+            foreach (var item in arr.EnumerateArray())
+            {
+                if (item.ValueKind != JsonValueKind.Object)
+                {
+                    continue;
+                }
+
+                hasAnyItem = true;
+                var size = JsonLong(item, "size");
+                var left = JsonLong(item, "sizeLeft");
+                if (size > 0)
+                {
+                    totalSize += size;
+                    totalLeft += Math.Clamp(left, 0, size);
+                }
+            }
+        }
+
+        if (!hasAnyItem)
+        {
+            return (false, null);
+        }
+
+        if (totalSize > 0)
+        {
+            var pct = (int)Math.Clamp(Math.Round((1.0 - ((double)totalLeft / totalSize)) * 100.0), 0, 100);
+            return (true, pct);
+        }
+
+        return (true, null);
+    }
+
+    private static bool HasMatureDetailGenres(JsonElement root)
+    {
+        if (HasMatureTmdbGenre(root))
+        {
+            return true;
+        }
+
+        if (root.TryGetProperty("genres", out var gArr) && gArr.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var g in gArr.EnumerateArray())
+            {
+                var gid = JsonInt(g, "id", 0);
+                var gName = JsonStr(g, "name");
+                if (gid == 27 || string.Equals(gName, "Horror", StringComparison.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 
     public static async Task<(bool Ok, int MediaStatus, string StatusLabel, string Message)> SubmitRequestAsync(
@@ -665,6 +1066,24 @@ public static class StreamFlixSeerrService
             }
 
             if (prop.ValueKind == JsonValueKind.String && int.TryParse(prop.GetString(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var sv))
+            {
+                return sv;
+            }
+        }
+
+        return fallback;
+    }
+
+    private static long JsonLong(JsonElement obj, string propName, long fallback = 0)
+    {
+        if (obj.ValueKind == JsonValueKind.Object && obj.TryGetProperty(propName, out var prop))
+        {
+            if (prop.ValueKind == JsonValueKind.Number && prop.TryGetInt64(out var v))
+            {
+                return v;
+            }
+
+            if (prop.ValueKind == JsonValueKind.String && long.TryParse(prop.GetString(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var sv))
             {
                 return sv;
             }

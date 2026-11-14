@@ -115,6 +115,14 @@
             .bfx-portal-backdrop .bfx-btn-sm { padding:5px 9px; font-size:.8em; }
             .bfx-portal-backdrop .bfx-uri { display:flex; align-items:center; gap:8px; margin:6px 0; }
             .bfx-portal-backdrop .bfx-uri code { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; background:rgba(0,0,0,.35); border:1px solid rgba(255,255,255,.1); padding:6px 10px; border-radius:5px; font-size:.85em; }
+            .bfx-gp-phone-share-btn { width:100%; justify-content:center; margin:8px 0 6px; padding:10px 14px !important; font-weight:800 !important; box-sizing:border-box; }
+            @media (min-width: 641px), (hover: hover) and (pointer: fine) { #StreamFlixConfigPage .bfx-gp-phone-share-btn, .bfx-portal-backdrop .bfx-gp-phone-share-btn { display:none !important; } }
+            #StreamFlixConfigPage .bfx-devices-list { display:flex; flex-direction:column; gap:8px; margin-top:8px; }
+            #StreamFlixConfigPage .bfx-device-row { display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; background:rgba(0,0,0,.28); border:1px solid rgba(255,255,255,.1); border-radius:8px; padding:10px 12px; }
+            #StreamFlixConfigPage .bfx-device-row.is-self { border-color:rgba(229,9,20,.45); }
+            #StreamFlixConfigPage .bfx-device-main { flex:1; min-width:190px; }
+            #StreamFlixConfigPage .bfx-device-title { font-weight:700; display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
+            #StreamFlixConfigPage .bfx-device-sub { font-size:.8em; opacity:.68; margin-top:3px; }
             @keyframes bfxShimmer { 0% { background-position:200% 0; } 100% { background-position:-200% 0; } }
             @media (prefers-reduced-motion: reduce) { #StreamFlixConfigPage .bfx-skeleton { animation:none; } }
         </style>
@@ -409,6 +417,17 @@
                                     <button type="button" class="bfx-btn bfx-btn-danger" id="StreamFlixRevokeAllBtn">⚠ Sign out all devices</button>
                                 </div>
                             </div>
+
+                            <details class="bfx-details" id="StreamFlixActiveDevicesDetails" style="margin:12px 0 0;">
+                                <summary>Active signed-in devices (TVs, phones, browsers &amp; Guest Passes) <span class="bfx-pill" id="StreamFlixDevicesCountPill" style="margin-left:6px;">View</span></summary>
+                                <div class="bfx-row" style="justify-content:space-between; margin-bottom:8px;">
+                                    <div class="fieldDescription" style="margin:0;">Sign out any individual device without logging out the rest of your household.</div>
+                                    <button type="button" class="bfx-btn bfx-btn-sm" id="StreamFlixRefreshDevicesBtn">↻ Refresh</button>
+                                </div>
+                                <div class="bfx-devices-list" id="StreamFlixActiveDevicesList">
+                                    <div class="bfx-empty">Expand to view active devices…</div>
+                                </div>
+                            </details>
                         </div>
                     </div>
 
@@ -633,6 +652,7 @@
                 <h4 id="StreamFlixQrModalTitle">Guest Pass Ready</h4>
                 <p id="StreamFlixQrModalSub" style="margin-bottom:8px;"></p>
                 <div class="bfx-qr-box" id="StreamFlixQrSvgHost" aria-label="Guest Pass QR Code"></div>
+                <button type="button" class="bfx-btn bfx-btn-red bfx-gp-phone-share-btn hide" id="StreamFlixQrPhoneShareBtn">📤 Share Invite</button>
                 <div class="fieldDescription">1-click invite link (phones &amp; browsers)</div>
                 <div class="bfx-uri"><code id="StreamFlixQrShareUrl"></code><button type="button" class="bfx-btn bfx-btn-sm" data-copy="StreamFlixQrShareUrl">Copy Link</button></div>
                 <div class="fieldDescription" style="margin-top:8px;">Manual pass code (Smart TVs &amp; Sign-In screen)</div>
@@ -651,6 +671,8 @@
                 var profiles = [];
                 var guestPasses = [];
                 var eligibleGuestProfiles = [];
+                var activeDevices = [];
+                var lastQrSharePayload = null;
                 var lastPublic = null;
                 var availableLibraries = [];
                 var selectedHeroLibIds = [];
@@ -694,6 +716,23 @@
                 function safeHexColor(value) {
                     var s = String(value == null ? '' : value).trim();
                     return /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(s) ? s : '#E50914';
+                }
+
+                function canUsePhoneShare() {
+                    try {
+                        if (typeof navigator === 'undefined' || typeof navigator.share !== 'function') {
+                            return false;
+                        }
+                        var ua = navigator.userAgent || '';
+                        if (/iPad|Macintosh|Windows NT|CrOS|Linux x86_64/i.test(ua) && !/Phone|iPhone|iPod|Android.*Mobile/i.test(ua)) {
+                            return false;
+                        }
+                        var isCoarsePhone = Boolean(window.matchMedia && window.matchMedia('(max-width: 640px) and (pointer: coarse)').matches);
+                        var isPhoneUa = /iPhone|iPod|Android.*Mobile|Windows Phone|Mobile.*Firefox/i.test(ua) && (window.innerWidth || 1024) <= 640;
+                        return isCoarsePhone || isPhoneUa;
+                    } catch (e) {
+                        return false;
+                    }
                 }
 
                 function toast(message) {
@@ -788,11 +827,16 @@
                         return;
                     }
                     var pass = info.pass || {};
+                    lastQrSharePayload = info;
                     $('#StreamFlixQrModalTitle').textContent = (pass.label || 'Guest Pass') + ' — Ready to Share';
                     var expText = pass.expiresAtUtc ? new Date(pass.expiresAtUtc).toLocaleString() : '';
                     $('#StreamFlixQrModalSub').textContent = 'Locked to profile "' + (pass.profileName || 'Guest') + '"' + (expText ? ' · Expires ' + expText : '');
                     $('#StreamFlixQrShareUrl').textContent = info.shareUrl || '';
                     $('#StreamFlixQrPassCode').textContent = info.code || '';
+                    var phoneShareBtn = $('#StreamFlixQrPhoneShareBtn');
+                    if (phoneShareBtn) {
+                        phoneShareBtn.classList.toggle('hide', !(canUsePhoneShare() && info.shareUrl));
+                    }
                     renderSafeQrSvg($('#StreamFlixQrSvgHost'), info.qrSvg || '');
                     qrModalOpen = true;
                     var qrModal = $('#StreamFlixQrModal');
@@ -1618,6 +1662,146 @@
                                 toast((err && err.message) || 'Could not sign out all devices.');
                             });
                     });
+                });
+
+                $('#StreamFlixQrPhoneShareBtn').addEventListener('click', function () {
+                    if (!canUsePhoneShare() || !lastQrSharePayload || !lastQrSharePayload.shareUrl) {
+                        return;
+                    }
+                    var pass = lastQrSharePayload.pass || {};
+                    var brand = ($('#CustomBrandName').value || '').trim() || 'StreamFlix';
+                    var shareTitle = (pass.label || 'Guest Pass') + ' — ' + brand;
+                    var shareText = 'Join ' + brand + ' on the "' + (pass.profileName || 'Guest') + '" profile'
+                        + (lastQrSharePayload.code ? ' (TV Pass Code: ' + lastQrSharePayload.code + ')' : '') + ':';
+                    try {
+                        navigator.share({
+                            title: shareTitle,
+                            text: shareText,
+                            url: lastQrSharePayload.shareUrl
+                        }).catch(function () {});
+                    } catch (eShare) {}
+                });
+
+                function getLocalConfigDeviceId() {
+                    try {
+                        if (window.ApiClient) {
+                            if (typeof window.ApiClient.deviceId === 'function' && window.ApiClient.deviceId()) {
+                                return window.ApiClient.deviceId();
+                            }
+                            if (window.ApiClient._deviceId) {
+                                return window.ApiClient._deviceId;
+                            }
+                        }
+                        return localStorage.getItem('_deviceId2') || '';
+                    } catch (e) {
+                        return '';
+                    }
+                }
+
+                function renderActiveDevicesList() {
+                    var host = $('#StreamFlixActiveDevicesList');
+                    if (!host) {
+                        return;
+                    }
+                    setPill('StreamFlixDevicesCountPill', activeDevices.length > 0 ? 'ok' : '', activeDevices.length + ' signed in');
+                    if (!activeDevices.length) {
+                        host.innerHTML = '<div class="bfx-empty">No signed-in devices reported right now.</div>';
+                        return;
+                    }
+                    host.innerHTML = activeDevices.map(function (d, idx) {
+                        var badges = ''
+                            + (d.isCurrentDevice ? '<span class="bfx-badge red">THIS DEVICE</span>' : '')
+                            + (d.nowPlaying
+                                ? '<span class="bfx-badge green">▶ ' + esc(d.nowPlaying) + '</span>'
+                                : (d.isLive ? '<span class="bfx-badge green">ONLINE</span>' : ''))
+                            + (d.isGuestPass ? '<span class="bfx-badge amber">' + esc(d.guestPassLabel ? ('GUEST · ' + d.guestPassLabel) : 'GUEST PASS') + '</span>' : '')
+                            + (d.isAdminUser ? '<span class="bfx-badge indigo">ADMIN</span>' : '');
+                        var who = d.profileName
+                            ? ('Profile: <strong>' + esc((d.profileEmoji ? d.profileEmoji + ' ' : '') + d.profileName) + '</strong>')
+                            : (d.jellyfinUsername ? ('User: <strong>' + esc(d.jellyfinUsername) + '</strong>') : 'Session');
+                        var lastSeen = d.lastActivityUtc ? new Date(d.lastActivityUtc).toLocaleString() : '';
+                        return ''
+                            + '<div class="bfx-device-row' + (d.isCurrentDevice ? ' is-self' : '') + '" data-dev-idx="' + idx + '">'
+                            + '  <div class="bfx-device-main">'
+                            + '    <div class="bfx-device-title"><span>' + esc(d.deviceName || 'Unknown Device') + '</span>' + badges + '</div>'
+                            + '    <div class="bfx-device-sub">' + who + ' · ' + esc(d.appName || 'Jellyfin Client') + (lastSeen ? ' · Last active: ' + esc(lastSeen) : '') + '</div>'
+                            + '  </div>'
+                            + '  <button type="button" class="bfx-btn bfx-btn-sm bfx-btn-danger" data-dev-revoke="' + idx + '">' + (d.isCurrentDevice ? 'Sign out here' : 'Sign out') + '</button>'
+                            + '</div>';
+                    }).join('');
+                }
+
+                function loadActiveDevices() {
+                    var host = $('#StreamFlixActiveDevicesList');
+                    if (host && !activeDevices.length) {
+                        host.innerHTML = '<div class="bfx-empty">Loading signed-in devices…</div>';
+                    }
+                    var devId = getLocalConfigDeviceId();
+                    return streamflixApi('GET', 'Devices?currentDeviceId=' + encodeURIComponent(devId))
+                        .then(function (res) {
+                            activeDevices = (res && Array.isArray(res.devices)) ? res.devices : [];
+                            renderActiveDevicesList();
+                        })
+                        .catch(function (err) {
+                            if (host) {
+                                host.innerHTML = '<div class="bfx-empty">' + esc((err && err.message) || 'Could not load active devices.') + '</div>';
+                            }
+                        });
+                }
+
+                $('#StreamFlixActiveDevicesDetails').addEventListener('toggle', function () {
+                    if ($('#StreamFlixActiveDevicesDetails').open) {
+                        loadActiveDevices();
+                    }
+                });
+                $('#StreamFlixRefreshDevicesBtn').addEventListener('click', function () {
+                    loadActiveDevices();
+                });
+                $('#StreamFlixActiveDevicesList').addEventListener('click', function (e) {
+                    var btn = e.target.closest('button[data-dev-revoke]');
+                    if (!btn) {
+                        return;
+                    }
+                    var idx = parseInt(btn.getAttribute('data-dev-revoke'), 10);
+                    var target = activeDevices[idx];
+                    if (!target || !target.deviceId) {
+                        return;
+                    }
+                    var runRevoke = function () {
+                        btn.disabled = true;
+                        streamflixApi('POST', 'Devices/Revoke', {
+                            deviceId: target.deviceId,
+                            userId: target.userId || ''
+                        }).then(function (res) {
+                            if ((res && res.wasCurrentDevice) || target.isCurrentDevice) {
+                                toast('Signed out this browser. Returning to Sign In…');
+                                clearCurrentBrowserAuth();
+                                setTimeout(function () {
+                                    window.location.replace(window.location.pathname + '#/home');
+                                }, 320);
+                                return;
+                            }
+                            activeDevices = activeDevices.filter(function (x, i) { return i !== idx; });
+                            renderActiveDevicesList();
+                            toast('Signed out "' + (target.deviceName || 'device') + '".');
+                        }).catch(function (err) {
+                            btn.disabled = false;
+                            toast((err && err.message) || 'Could not sign out device.');
+                        });
+                    };
+                    if (target.isCurrentDevice) {
+                        confirmAction(
+                            'Sign out this browser session right now? You will need to sign in again.',
+                            'Sign out this device?',
+                            'Sign out'
+                        ).then(function (ok) {
+                            if (ok) {
+                                runRevoke();
+                            }
+                        });
+                    } else {
+                        runRevoke();
+                    }
                 });
 
                 function renderDiagnosticOutput(outBox, res, fallbackSummary) {

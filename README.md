@@ -4,7 +4,7 @@
 
 **A Netflix-style web UI, flexible household sign-in gate (Google OAuth, OIDC, Jellyfin & QR Guest Passes), native Seerr requests, and household profiles backed by real Jellyfin users.**
 
-[![Version](https://img.shields.io/badge/version-0.7.5.2-E50914?style=flat-square)](manifest.json)
+[![Version](https://img.shields.io/badge/version-0.7.5.3-E50914?style=flat-square)](manifest.json)
 [![Jellyfin](https://img.shields.io/badge/Jellyfin-10.9%20%E2%80%93%2012.x-00A4DC?style=flat-square)](manifest.json)
 [![.NET](https://img.shields.io/badge/.NET-8.0%20%7C%209.0%20%7C%2010.0-512BD4?style=flat-square)](Jellyfin.Plugin.StreamFlix/Jellyfin.Plugin.StreamFlix.csproj)
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg?style=flat-square)](LICENSE)
@@ -41,7 +41,7 @@ Runs entirely inside your existing Jellyfin server — no reverse-proxy sidecar,
     <td width="50%" align="center" valign="top">
       <img src="docs/screenshots/home-account-menu.jpg" alt="StreamFlix Account Menu and Profile Switcher" />
       <br />
-      <sub><b>4. Account Menu &amp; Profile Switcher</b> — One-click profile switching, Cast, Quick Connect &amp; StreamFlix Home toggle</sub>
+      <sub><b>4. Account Menu &amp; Profile Switcher</b> — One-click profile switching, Media Requests, Active Devices, Cast &amp; Quick Connect</sub>
     </td>
     <td width="50%" align="center" valign="top">
       <img src="docs/screenshots/title-details.jpg" alt="StreamFlix Title Details Modal" />
@@ -92,10 +92,10 @@ Runs entirely inside your existing Jellyfin server — no reverse-proxy sidecar,
 
 ### Flexible Household Sign-In, Guest Passes & Security
 - **Google OAuth, Custom OIDC (Beta), Jellyfin Login, or Hybrid Mode.** Household sign-in is always enforced before *"Who's watching?"*. Enable one or more progressive-disclosure **Sign-In Methods** — server-verified **Google Sign-In** (with one-click **Test OAuth Config**), self-hosted or cloud **Custom OpenID Connect (OIDC)** (`Authentik`, `Authelia`, `Pocket ID`, `Keycloak`, `Kanidm`, `Zitadel`, `Okta`, etc. via Authorization Code + PKCE `S256`, RSA/ECDSA JWKS verification, and one-click **Test OIDC Discovery**), **Jellyfin Username & Password Login**, or **Bypass Sign-In Gate on Home Network (LAN)**.
-- **Temporary Guest Passes with local SVG QR codes.** Generate expiring invite links and zero-dependency, server-rendered QR codes locked to a single non-administrator profile with configurable duration (`4h`–`30d`) and device limits. Link-preview bots cannot burn redemptions, guests cannot switch into other profiles, and revoking or expiring a pass automatically deletes it and terminates active Jellyfin sessions immediately.
+- **Temporary Guest Passes with QR codes & phone-only native Share sheet.** Generate expiring invite links, pass codes, and zero-dependency server-rendered SVG QR codes locked to a single non-administrator profile with configurable duration (`4h`–`30d`) and device limits — plus a one-tap **Share Invite** button (`navigator.share`) shown exclusively on mobile phones. Link-preview bots cannot burn redemptions, guests cannot switch into other profiles, and revoking or expiring a pass automatically deletes it and terminates active Jellyfin sessions immediately.
 - **Opt-in Admin-Only Password Fallback (off by default).** Optionally add a subtle **Admin Sign-In** link on SSO screens that strictly enforces `IsAdministrator` on the backend (rejecting non-admin and disabled Jellyfin accounts with HTTP `403`), with an optional **LAN-only** IP restriction.
 - **Multi-auth profile locks & randomized plugin passwords.** Protect any profile with a **4–8 digit PIN** (with target-scoped brute-force lockout) and/or lock it to a **Google email, OIDC email/username, or Jellyfin username** — displaying a matching provider badge on the profile tile. Dedicated Jellyfin users created by StreamFlix receive a cryptographically randomized 256-bit password automatically (while manually created Jellyfin accounts are never modified), secrets stay strictly server-side, and plugin configuration is mirrored atomically to persistent Jellyfin storage.
-- **Admin-only user management & global device sign-out.** Only Jellyfin administrators can view server accounts, edit admin-linked profiles, manage Guest Passes, change which Jellyfin user backs a profile, or trigger **Sign out all devices** (revoking both StreamFlix household sessions and every Jellyfin device `AccessToken` across browsers, mobile apps, and Smart TVs).
+- **Admin-only user management, Active Devices & global sign-out.** Only Jellyfin administrators can view server accounts, edit admin-linked profiles, manage Guest Passes, or change which Jellyfin user backs a profile. Administrators can inspect all signed-in Smart TVs, phones, browsers, and Guest Passes in **Active Devices** (with `This Device`, `Online` / `Playing` status, profile badges, and last active time) to **sign out individual devices** without disrupting the rest of the household — or trigger **Sign out all devices** to revoke every StreamFlix household session and Jellyfin device `AccessToken` server-wide.
 
 ### Real Multi-User Profiles
 - **Separate history for everyone.** Every *"Who's watching?"* tile maps to its own Jellyfin Server User, keeping **Continue Watching, Next Up, My List, played state, and parental controls** completely independent.
@@ -103,7 +103,7 @@ Runs entirely inside your existing Jellyfin server — no reverse-proxy sidecar,
 - **Quick Connect & Cast built in.** Pair Smart TVs and other Jellyfin apps straight from the profile menu via **Quick Connect** — signing that device in as the active profile's Jellyfin user — or launch **Cast** in one click.
 
 ### Cinematic Home, Seerr Requests & Discovery
-- **Native Seerr / Jellyseerr / Overseerr integration.** Connect your Seerr instance in plugin settings (with one-click **Test Seerr Connection** and SSRF protection) to surface *Available to Request* Movie & TV Season cards directly inside Live Search — keeping your API key strictly on the server with optional Kids/Guest profile gates and zero navbar clutter.
+- **Native Seerr / Jellyseerr / Overseerr requests & live download tracker.** Connect your Seerr instance in plugin settings (with one-click **Test Seerr Connection** and SSRF protection) to surface *Available to Request* Movie & TV Season cards directly inside Live Search, see live Radarr/Sonarr download progress (`Downloading · X%`) right on cards and request modals, and follow requests in the **Media Requests** tracker (`All` / `In Progress` / `Available` filters with one-click **Open** in library) — keeping your API key strictly on the server with optional Kids/Guest profile gates.
 - **Configurable Hero Billboard & Surprise Me.** Edge-to-edge hero with configurable slide count, auto-rotation interval (`0` to pause), content type, and library source filtering — paired with a frosted category bar (`Home`, `Shows`, `Movies`, `Top 10`, `My List`, `/` quick search, and a **Surprise Me** random unwatched title picker with **Shuffle Again**).
 - **Dynamic Top 10 with `#1`–`#10` badges.** Choose server-wide most played, highest community rating, recently added, daily spotlight, or per-session randomized picks — complete with bold Netflix-style `#1`–`#10` rank badges.
 - **Rich More Info & hover previews.** Detailed modals showcase ClearLogo title artwork, movie/series taglines, resume progress, audio/subtitle stream pickers, and **clickable Genre, Director & Cast chips** to browse matching titles in one click — alongside rich hover cards with one-click **Remove from Continue Watching (`×`)** + Undo.
@@ -114,7 +114,7 @@ Runs entirely inside your existing Jellyfin server — no reverse-proxy sidecar,
 - **Seamless binge watching.** End-of-episode **Next Episode** countdown card (*Play Next* / *Watch Credits*) so multi-episode sessions keep flowing automatically.
 
 ### Desktop, Phone & Smart TV Ready
-- **Mobile-tuned.** Single-row category bar with tap-to-expand search, touch-swipe hero billboard, 3-up snap-scrolling poster rows, bottom-sheet modals, and a collision-free landscape player.
+- **Mobile-tuned.** Clean distraction-free header chrome, phone-only native invite sharing, single-row category bar with tap-to-expand search, touch-swipe hero billboard, 3-up snap-scrolling poster rows, safe-area-aware modals, and a collision-free landscape player.
 - **10-foot Smart TV mode.** Automatically activates on `.layout-tv`, TV browsers, or `?tv=1` with overscan-safe margins, oversized poster/profile tiles, crisp focus halos, and full 2D spatial D-pad / remote navigation.
 
 ---
@@ -187,7 +187,7 @@ Pushing code changes to `main` triggers [`.github/workflows/build-plugin.yml`](.
     │   ├── PluginConfiguration.cs       # Profiles, multi-auth, Guest Pass & Seerr config
     │   └── configPage.html              # Admin UI (Dashboard → Plugins → StreamFlix)
     ├── Controllers/
-    │   └── StreamFlixController.cs      # Auth, OIDC, Guest Pass, Seerr & profile endpoints
+    │   └── StreamFlixController.cs      # Auth, OIDC, Guest Pass, Active Devices, Seerr & profile endpoints
     ├── Services/
     │   ├── StreamFlixOidcService.cs     # OIDC Relying Party (PKCE S256, discovery & JWKS verification)
     │   ├── StreamFlixQrCode.cs          # Zero-dependency ISO/IEC 18004 SVG QR code encoder
