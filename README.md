@@ -4,7 +4,7 @@
 
 **A Netflix-style web UI, flexible household sign-in gate (Google OAuth, OIDC, Jellyfin & QR Guest Passes), native Seerr requests, and household profiles backed by real Jellyfin users.**
 
-[![Version](https://img.shields.io/badge/version-0.9.1.1-E50914?style=flat-square)](manifest.json)
+[![Version](https://img.shields.io/badge/version-0.9.1.2-E50914?style=flat-square)](manifest.json)
 [![Jellyfin](https://img.shields.io/badge/Jellyfin-10.9%20%E2%80%93%2012.x-00A4DC?style=flat-square)](manifest.json)
 [![.NET](https://img.shields.io/badge/.NET-8.0%20%7C%209.0%20%7C%2010.0-512BD4?style=flat-square)](Jellyfin.Plugin.StreamFlix/Jellyfin.Plugin.StreamFlix.csproj)
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg?style=flat-square)](LICENSE)
@@ -41,7 +41,7 @@ Runs entirely inside your existing Jellyfin server — no reverse-proxy sidecar,
     <td width="50%" align="center" valign="top">
       <img src="docs/screenshots/home-account-menu.jpg" alt="StreamFlix Account Menu and Profile Switcher" />
       <br />
-      <sub><b>4. Account Menu &amp; Profile Switcher</b> — One-click profile switching, Watch Together, Settings, Phone Client Settings, Media Requests &amp; Cast</sub>
+      <sub><b>4. Account Menu &amp; Profile Switcher</b> — One-click profile switching, Watch Together, Settings, Phone Client Settings, Media Requests, Cast &amp; Quick Connect</sub>
     </td>
     <td width="50%" align="center" valign="top">
       <img src="docs/screenshots/title-details.jpg" alt="StreamFlix Title Details Modal" />
@@ -102,7 +102,7 @@ Runs entirely inside your existing Jellyfin server — no reverse-proxy sidecar,
 - **Dedicated Kids Profile Mode & Parental Exit Lock.** Activating a Kids profile launches a child-safe, colorful experience with a vibrant **`KIDS`** header badge, interactive **Kids World filter bubbles** (`Animation`, `Family`, `Adventure`, `Silly & Funny`, `Magic & Fantasy`, `Quick Watch`), defense-in-depth maturity filtering alongside Jellyfin's server-side `MaxParentalAgeRating`, and locked-down settings/admin routes. Leaving Kids mode (or switching into an adult profile) enforces a configurable **Parental Exit Lock** — verifying any adult profile PIN on the server, or presenting a 4-word **Grown-Up Check** so households without PINs never lock themselves out.
 - **First-Party Watch Together with 1-Click Guest Invites.** Host or join real-time synced watch parties powered by StreamFlix's dedicated server-authoritative sync engine directly from any **Title Details** modal, the **Account Menu**, or the **Video Player OSD** — keeping the top bar uncluttered when idle and surfacing a live status indicator *only* while actively in a room. Choose **Everyone** vs **Host Only** playback controls, **Start at 0:00** vs **Resume**, share 6-character room codes or 1-click `?watchparty=` household links, or generate a **6-hour Guest Pass + Watch Party** combo link for friends without an account.
 - **Redesigned User Settings & Phone Client Settings.** Opening **Settings** transforms Jellyfin's preference screens (`Profile`, `Display`, `Home`, `Playback`, `Subtitles`, and `Controls`) into a cohesive dark-glass interface with an active **Profile Hero Card** (*Edit Profile* / *Switch Profile*), non-clipping section switcher pills, the per-device **StreamFlix Home** experience toggle, quick administrator links to **Active Devices** and **Plugin Settings**, and direct **Client Settings** access on phones (bridging into Jellyfin Android / iOS `NativeShell.openClientSettings` or phone device settings).
-- **Customizable branding, avatars, accents & Cast.** Customize the upper-left corner brand wordmark, choose from 64 categorized icons and 14 accent colors (with one-click Shuffle), reorder profiles freely, and launch **Cast** in one click.
+- **Customizable branding, avatars, accents, Cast & Quick Connect.** Customize the upper-left corner brand wordmark, choose from 64 categorized icons and 14 accent colors (with one-click Shuffle), reorder profiles freely, launch **Cast** in one click, and authorize Smart TVs or apps directly from the Account Pill Menu with a 6-character **Quick Connect** code.
 
 ### Cinematic Home, Seerr Requests & Discovery
 - **Native Seerr / Jellyseerr / Overseerr requests & live download tracker.** Connect your Seerr instance in plugin settings (with one-click **Test Seerr Connection** and SSRF protection) to surface *Available to Request* Movie & TV Season cards directly inside Live Search, see live Radarr/Sonarr download progress (`Downloading · X%`) right on cards and request modals, and follow requests in the **Media Requests** tracker (`All` / `In Progress` / `Available` filters with one-click **Open** in library) — keeping your API key strictly on the server with optional Kids/Guest profile gates.

@@ -234,6 +234,122 @@
         } catch (e) {}
     }
 
+    /* Jellyfin Quick Connect: authorize another device (TV, phone, app) with the code it displays */
+    function openQuickConnectModal() {
+        var active = state.activeProfile || {};
+        var len = 6;
+        var boxesHtml = '';
+        for (var i = 0; i < len; i++) {
+            boxesHtml += '<span class="streamflix-pin-box"></span>';
+        }
+        var m = openModal(''
+            + '<div class="streamflix-qc-badge">' + icon('tv') + '</div>'
+            + '<h2>Quick Connect</h2>'
+            + '<p class="streamflix-modal-text">On your TV or other device, choose <strong>Quick Connect</strong> on the Jellyfin sign-in screen and enter the code it shows. It will sign in as <strong>' + escapeHtml(active.name || 'this profile') + '</strong>.</p>'
+            + '<label class="streamflix-pin-pad streamflix-qc-pad">'
+            + '  <input type="text" class="streamflix-pin-input streamflix-qc-input" inputmode="numeric" autocomplete="one-time-code" maxlength="' + len + '" aria-label="Quick Connect code" />'
+            + '  <span class="streamflix-pin-boxes">' + boxesHtml + '</span>'
+            + '</label>'
+            + '<div class="streamflix-pin-msg" aria-live="assertive"></div>'
+            + '<div class="streamflix-modal-actions streamflix-modal-actions-center">'
+            + '  <button type="button" class="streamflix-ghost-btn" data-act="cancel">Cancel</button>'
+            + '  <button type="button" class="streamflix-btn-primary" data-act="ok" disabled>Connect</button>'
+            + '</div>', { className: 'streamflix-modal-pin streamflix-modal-qc' });
+
+        var input = m.modal.querySelector('.streamflix-qc-input');
+        var boxEls = m.modal.querySelectorAll('.streamflix-pin-box');
+        var msg = m.modal.querySelector('.streamflix-pin-msg');
+        var okBtn = m.modal.querySelector('[data-act="ok"]');
+        var busy = false;
+
+        function paint() {
+            var v = input.value;
+            var focused = document.activeElement === input;
+            for (var k = 0; k < boxEls.length; k++) {
+                boxEls[k].textContent = v.charAt(k) || '';
+                boxEls[k].classList.toggle('filled', k < v.length);
+                boxEls[k].classList.toggle('active', focused && k === Math.min(v.length, len - 1));
+            }
+            okBtn.disabled = busy || input.disabled || v.length < len;
+        }
+
+        function fail(text) {
+            msg.textContent = text;
+            m.modal.classList.remove('streamflix-shake');
+            void m.modal.offsetWidth;
+            m.modal.classList.add('streamflix-shake');
+            try { input.focus(); input.select(); } catch (e) {}
+            paint();
+        }
+
+        function submit() {
+            var code = input.value;
+            if (busy || code.length < len) {
+                return;
+            }
+            busy = true;
+            m.modal.classList.add('streamflix-busy');
+            msg.textContent = '';
+            paint();
+            apiFetch('/QuickConnect/Authorize?code=' + encodeURIComponent(code), { method: 'POST' }).then(function () {
+                busy = false;
+                m.modal.classList.remove('streamflix-busy');
+                m.modal.innerHTML = ''
+                    + '<div class="streamflix-qc-badge streamflix-qc-success">' + icon('check') + '</div>'
+                    + '<h2>Device connected</h2>'
+                    + '<p class="streamflix-modal-text">Your device is now signed in as <strong>' + escapeHtml(active.name || 'this profile') + '</strong>.</p>'
+                    + '<div class="streamflix-modal-actions streamflix-modal-actions-center"><button type="button" class="streamflix-btn-primary" data-act="done">Done</button></div>';
+                m.modal.querySelector('[data-act="done"]').addEventListener('click', function () { m.close(true); });
+                setTimeout(function () { m.close(true); }, 2600);
+            }).catch(function (err) {
+                busy = false;
+                m.modal.classList.remove('streamflix-busy');
+                var status = err && err.status;
+                if (status === 404 || status === 400) {
+                    fail('That code wasn\'t found or has expired. Check the code on your device and try again.');
+                } else if (status === 401 || status === 403) {
+                    fail('Quick Connect isn\'t available. An administrator can turn it on in Dashboard → General.');
+                } else {
+                    fail((err && err.message) || 'Couldn\'t connect the device. Please try again.');
+                }
+            });
+        }
+
+        input.addEventListener('input', function () {
+            input.value = input.value.replace(/[^0-9a-z]/gi, '').toUpperCase().slice(0, len);
+            if (msg.textContent && !busy && !input.disabled) {
+                msg.textContent = '';
+            }
+            paint();
+            if (input.value.length === len) {
+                submit();
+            }
+        });
+        input.addEventListener('focus', paint);
+        input.addEventListener('blur', paint);
+        input.addEventListener('keydown', function (ev) {
+            if (ev.key === 'Enter') {
+                submit();
+            }
+        });
+        okBtn.addEventListener('click', submit);
+        m.modal.querySelector('[data-act="cancel"]').addEventListener('click', function () { m.close(false); });
+
+        apiFetch('/QuickConnect/Enabled').then(function (enabled) {
+            if (enabled === false || enabled === 'false') {
+                input.disabled = true;
+                msg.textContent = 'Quick Connect is turned off on this server. An administrator can enable it in Dashboard → General.';
+                paint();
+            }
+        }).catch(function () {});
+
+        setTimeout(function () {
+            try { input.focus(); } catch (e) {}
+            paint();
+        }, 40);
+        return m;
+    }
+
     /* Client Settings bridge for Jellyfin Mobile (Android / iOS), Jellyfin Media Player & Phone Web/PWA */
     function hasNativeClientSettingsBridge() {
         try {
@@ -625,7 +741,8 @@
         var tilesHtml = ''
             + (isPhoneSheet && state.cinemaHubEnabled !== false ? ddTile('streamflix-dd-mylist', 'bookmark', 'My List', 'Saved movies & shows', 'is-mylist') : '')
             + (canPhoneSurprise ? ddTile('streamflix-dd-surprise', 'shuffle', 'Surprise Me', 'Pick something great to watch', 'is-surprise') : '')
-            + (castBtnNative ? ddTile('streamflix-dd-cast', 'cast', castInfo.connected ? 'Casting' : 'Cast', castInfo.connected ? ('Connected to ' + (castInfo.deviceName || 'another device')) : 'Play on a TV, Chromecast or another device', 'is-cast' + (castInfo.connected ? ' is-live' : '')) : '');
+            + (castBtnNative ? ddTile('streamflix-dd-cast', 'cast', castInfo.connected ? 'Casting' : 'Cast', castInfo.connected ? ('Connected to ' + (castInfo.deviceName || 'another device')) : 'Play on a TV, Chromecast or another device', 'is-cast' + (castInfo.connected ? ' is-live' : '')) : '')
+            + (!isGuest && !isKidsActive ? ddTile('streamflix-dd-quick-connect', 'tv', 'Quick Connect', 'Sign in on a TV or another device with a 6-digit code', 'is-qc') : '');
 
         var kidsLockNeeded = isKidsActive && typeof isKidsExitLockRequired === 'function' && isKidsExitLockRequired()
             && !(typeof getValidKidsExitSession === 'function' && getValidKidsExitSession());
@@ -738,6 +855,9 @@
         // Cast reuses Jellyfin's own picker (Chromecast, AirPlay, other sessions)
         bind('streamflix-dd-cast', function () {
             openNativeHeaderMenu('cast');
+        });
+        bind('streamflix-dd-quick-connect', function () {
+            openQuickConnectModal();
         });
         bind('streamflix-dd-client-settings', function () {
             openClientSettingsAction();
