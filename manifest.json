@@ -9,6 +9,30 @@
     "imageUrl": "https://raw.githubusercontent.com/streamflix-dev/jellyfin-streamflix/main/Jellyfin.Plugin.StreamFlix/thumb.png",
     "versions": [
       {
+        "version": "0.9.1.1",
+        "changelog": "Build for Jellyfin 12.x (.NET 10).\n\n- Watch Together Room Serialization Fix & Elevated Cinema Lounge UI: add explicit camelCase JSON property attributes on server Watch Party DTOs/snapshots plus client-side camelCase/PascalCase normalization to eliminate the null roomId error, and redesign the Watch Together modal with segmented Playback Controls & Start Position switches, full-width inputs, non-wrapping buttons, and a live room deck\n- Settings Layout & Anti-Clipping Overhaul: fix Profile & Password (#userProfilePage) avatar flex collision so the subpage header never pushes Jellyfin's avatar silhouette off-screen, switch Settings section pills to clean multi-row wrapping so tab labels never clip, and ensure mobile hero actions & category pills never clip\n- Remove Broken Quick Connect & Surface Phone Client Settings: remove broken Quick Connect tiles/tabs/rows across the Account Menu and Settings, and surface Client Settings directly in the phone Account Sheet and Settings overview (supporting Jellyfin Mobile Android/iOS NativeShell.openClientSettings plus a clean phone web fallback)",
+        "targetAbi": "12.0.0.0",
+        "sourceUrl": "https://raw.githubusercontent.com/streamflix-dev/jellyfin-streamflix/main/dist/Jellyfin.Plugin.StreamFlix_0.9.1.1_12.0.0.zip",
+        "checksum": "909c9df321e8eedab0248c754ca4d0a0",
+        "timestamp": "2026-11-15T04:18:15Z"
+      },
+      {
+        "version": "0.9.1.1",
+        "changelog": "Build for Jellyfin 10.11.x (.NET 9).\n\n- Watch Together Room Serialization Fix & Elevated Cinema Lounge UI: add explicit camelCase JSON property attributes on server Watch Party DTOs/snapshots plus client-side camelCase/PascalCase normalization to eliminate the null roomId error, and redesign the Watch Together modal with segmented Playback Controls & Start Position switches, full-width inputs, non-wrapping buttons, and a live room deck\n- Settings Layout & Anti-Clipping Overhaul: fix Profile & Password (#userProfilePage) avatar flex collision so the subpage header never pushes Jellyfin's avatar silhouette off-screen, switch Settings section pills to clean multi-row wrapping so tab labels never clip, and ensure mobile hero actions & category pills never clip\n- Remove Broken Quick Connect & Surface Phone Client Settings: remove broken Quick Connect tiles/tabs/rows across the Account Menu and Settings, and surface Client Settings directly in the phone Account Sheet and Settings overview (supporting Jellyfin Mobile Android/iOS NativeShell.openClientSettings plus a clean phone web fallback)",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://raw.githubusercontent.com/streamflix-dev/jellyfin-streamflix/main/dist/Jellyfin.Plugin.StreamFlix_0.9.1.1_10.11.0.zip",
+        "checksum": "51f6f53512ff51147eeebdfd78ce4f02",
+        "timestamp": "2026-11-15T04:18:15Z"
+      },
+      {
+        "version": "0.9.1.1",
+        "changelog": "Build for Jellyfin 10.9 - 10.10 (.NET 8).\n\n- Watch Together Room Serialization Fix & Elevated Cinema Lounge UI: add explicit camelCase JSON property attributes on server Watch Party DTOs/snapshots plus client-side camelCase/PascalCase normalization to eliminate the null roomId error, and redesign the Watch Together modal with segmented Playback Controls & Start Position switches, full-width inputs, non-wrapping buttons, and a live room deck\n- Settings Layout & Anti-Clipping Overhaul: fix Profile & Password (#userProfilePage) avatar flex collision so the subpage header never pushes Jellyfin's avatar silhouette off-screen, switch Settings section pills to clean multi-row wrapping so tab labels never clip, and ensure mobile hero actions & category pills never clip\n- Remove Broken Quick Connect & Surface Phone Client Settings: remove broken Quick Connect tiles/tabs/rows across the Account Menu and Settings, and surface Client Settings directly in the phone Account Sheet and Settings overview (supporting Jellyfin Mobile Android/iOS NativeShell.openClientSettings plus a clean phone web fallback)",
+        "targetAbi": "10.9.0.0",
+        "sourceUrl": "https://raw.githubusercontent.com/streamflix-dev/jellyfin-streamflix/main/dist/Jellyfin.Plugin.StreamFlix_0.9.1.1_10.9.0.zip",
+        "checksum": "0fe67c466fc7e63f4583d264e4e7c4e3",
+        "timestamp": "2026-11-15T04:18:15Z"
+      },
+      {
         "version": "0.7.9.1",
         "changelog": "Build for Jellyfin 12.x (.NET 10).\n\n- Complete Watch Together Overhaul (First-Party Server-Authoritative Sync Engine): replace Jellyfin's broken SyncPlay integration with a dedicated StreamFlix Watch Party engine featuring instant-wake long-polling across reverse proxies, server-monotonic RTT-compensated timeline sync, smooth Direct Play + HLS transcode seeking, exact 0:00 Start-from-Beginning vs Resume timestamp alignment across all viewers, 6-character Room Codes, Host-Controls-Only toggle, automatic room-wide media/episode transitions, and 1-tap autoplay-blocked sync recovery\n- Zero-Truncation Account Menu & Modal Polish: move Watch Together out of the horizontal quick-tile bar into a full-width Account Menu row with a live room indicator so Cast, Quick Connect, and Watch Together labels never truncate on any screen",
         "targetAbi": "12.0.0.0",
