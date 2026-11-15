@@ -120,7 +120,7 @@
         -webkit-line-clamp: 2 !important;
         margin-bottom: 14px !important;
     }
-    .streamflix-hero-actions { gap: 8px; flex-wrap: nowrap; }
+    .streamflix-hero-actions { gap: 8px; flex-wrap: wrap; }
     .streamflix-hero-play,
     .streamflix-hero-secondary {
         height: 42px !important;

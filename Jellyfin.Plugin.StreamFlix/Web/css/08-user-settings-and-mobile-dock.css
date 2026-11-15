@@ -19,18 +19,20 @@ body.bfx-settings-route #languagePreferencesPage:not(.hide),
 body.bfx-settings-route #playbackPreferencesPage:not(.hide),
 body.bfx-settings-route #subtitlePreferencesPage:not(.hide),
 body.bfx-settings-route #controlsPreferencesPage:not(.hide),
-body.bfx-settings-route #myPreferencesQuickConnectPage:not(.hide),
 body.bfx-settings-route .bfx-prefs-subpage-enhanced:not(.hide) {
     padding-top: 68px !important;
     padding-bottom: calc(64px + env(safe-area-inset-bottom, 0px)) !important;
+    overflow-x: hidden !important;
     box-sizing: border-box !important;
 }
 
+body.bfx-settings-route #myPreferencesMenuPage > .padded-left,
 body.bfx-settings-route #myPreferencesMenuPage .readOnlyContent,
 body.bfx-settings-route #myPreferencesMenuPage .content-primary,
+body.bfx-settings-route #userProfilePage > .padded-left,
 body.bfx-settings-route #userProfilePage .readOnlyContent,
+body.bfx-settings-route #controlsPreferencesPage > .padded-left,
 body.bfx-settings-route #controlsPreferencesPage .readOnlyContent,
-body.bfx-settings-route #myPreferencesQuickConnectPage .readOnlyContent,
 body.bfx-settings-route #displayPreferencesPage > .padded-left,
 body.bfx-settings-route #homePreferencesPage > .padded-left,
 body.bfx-settings-route #languagePreferencesPage > .padded-left,
@@ -45,6 +47,13 @@ body.bfx-settings-route .bfx-prefs-subpage-enhanced .readOnlyContent {
     padding-left: clamp(16px, 4vw, 32px) !important;
     padding-right: clamp(16px, 4vw, 32px) !important;
     box-sizing: border-box !important;
+}
+
+/* Avoid double horizontal padding when .readOnlyContent sits inside .padded-left (e.g. #userProfilePage) */
+body.bfx-settings-route .padded-left .readOnlyContent {
+    max-width: 100% !important;
+    padding-left: 0 !important;
+    padding-right: 0 !important;
 }
 
 body.bfx-settings-route #displayPreferencesPage form,
@@ -275,27 +284,37 @@ body.bfx-settings-route .bfx-prefs-subpage-enhanced form {
     color: #ffffff !important;
 }
 
-/* Feature Toggle Card (<Brand> Home) & Admin Quick Card */
+/* Feature Toggle Card (<Brand> Home), Client Settings Card & Admin Quick Card */
 .bfx-prefs-feature-card,
+.bfx-prefs-client-card,
 .bfx-prefs-admin-card,
 .bfx-prefs-context-card {
     display: flex;
     align-items: center;
     gap: 14px;
+    width: 100%;
     padding: 15px 18px;
     border-radius: 16px;
     background: rgba(255, 255, 255, 0.04);
     border: 1px solid rgba(255, 255, 255, 0.09);
     margin-bottom: 12px;
     box-sizing: border-box;
-    transition: background 0.16s ease, border-color 0.16s ease;
+    font-family: inherit;
+    text-align: left;
+    transition: background 0.16s ease, border-color 0.16s ease, transform 0.16s ease;
 }
-.bfx-prefs-feature-card {
+.bfx-prefs-feature-card,
+.bfx-prefs-client-card {
     cursor: pointer;
 }
-.bfx-prefs-feature-card:hover {
-    background: rgba(255, 255, 255, 0.065);
-    border-color: rgba(255, 255, 255, 0.16);
+.bfx-prefs-feature-card:hover,
+.bfx-prefs-client-card:hover {
+    background: rgba(255, 255, 255, 0.068);
+    border-color: rgba(255, 255, 255, 0.17);
+}
+.bfx-prefs-client-card:hover .bfx-prefs-row-chev {
+    color: #e5e7eb;
+    transform: translateX(2px);
 }
 .bfx-prefs-admin-card {
     background: linear-gradient(135deg, rgba(99, 102, 241, 0.1) 0%, rgba(255, 255, 255, 0.03) 100%);
@@ -324,6 +343,11 @@ body.bfx-settings-route .bfx-prefs-subpage-enhanced form {
     align-items: center;
     justify-content: center;
     flex-shrink: 0;
+}
+.bfx-prefs-feature-ico.is-client {
+    background: rgba(14, 165, 233, 0.16);
+    border-color: rgba(56, 189, 248, 0.36);
+    color: #7dd3fc;
 }
 .bfx-prefs-feature-ico.is-admin {
     background: rgba(99, 102, 241, 0.18);
@@ -399,11 +423,14 @@ body.bfx-settings-route .bfx-prefs-subpage-enhanced form {
 }
 
 /* ---------- Enhanced Native Menu Rows (#myPreferencesMenuPage) ---------- */
-#myPreferencesMenuPage.bfx-prefs-menu-enhanced .headerUsername {
+#myPreferencesMenuPage.bfx-prefs-menu-enhanced .headerUsername,
+#myPreferencesMenuPage [data-bfx-row-kind="quickconnect"],
+#myPreferencesMenuPage .lnkQuickConnectPreferences,
+#myPreferencesMenuPage [data-bfx-empty-section="1"] {
     display: none !important;
 }
 
-#myPreferencesMenuPage.bfx-prefs-menu-enhanced .verticalSection:not(.hide) {
+#myPreferencesMenuPage.bfx-prefs-menu-enhanced .verticalSection:not(.hide):not([data-bfx-empty-section="1"]) {
     background: rgba(255, 255, 255, 0.035) !important;
     border: 1px solid rgba(255, 255, 255, 0.085) !important;
     border-radius: 16px !important;
@@ -422,8 +449,8 @@ body.bfx-settings-route .bfx-prefs-subpage-enhanced form {
     padding: 8px 12px 4px 12px !important;
 }
 
-#myPreferencesMenuPage.bfx-prefs-menu-enhanced a.emby-button:not(.hide),
-#myPreferencesMenuPage.bfx-prefs-menu-enhanced .listItem-border:not(.hide) {
+#myPreferencesMenuPage.bfx-prefs-menu-enhanced a.emby-button:not(.hide):not([data-bfx-row-kind="quickconnect"]),
+#myPreferencesMenuPage.bfx-prefs-menu-enhanced .listItem-border:not(.hide):not([data-bfx-row-kind="quickconnect"]) {
     display: block !important;
     margin: 2px 0 !important;
     padding: 0 !important;
@@ -434,8 +461,8 @@ body.bfx-settings-route .bfx-prefs-subpage-enhanced form {
     transition: background 0.16s ease, transform 0.16s ease !important;
 }
 
-#myPreferencesMenuPage.bfx-prefs-menu-enhanced a.emby-button:not(.hide):hover,
-#myPreferencesMenuPage.bfx-prefs-menu-enhanced .listItem-border:not(.hide):hover {
+#myPreferencesMenuPage.bfx-prefs-menu-enhanced a.emby-button:not(.hide):not([data-bfx-row-kind="quickconnect"]):hover,
+#myPreferencesMenuPage.bfx-prefs-menu-enhanced .listItem-border:not(.hide):not([data-bfx-row-kind="quickconnect"]):hover {
     background: rgba(255, 255, 255, 0.065) !important;
 }
 
@@ -471,6 +498,7 @@ body.bfx-settings-route .bfx-prefs-subpage-enhanced form {
     border-color: rgba(229, 9, 20, 0.32) !important;
     color: #fca5a5 !important;
 }
+#myPreferencesMenuPage.bfx-prefs-menu-enhanced [data-bfx-row-kind="clientsettings"] .listItemIcon,
 #myPreferencesMenuPage.bfx-prefs-menu-enhanced [data-bfx-row-kind="display"] .listItemIcon {
     background: rgba(14, 165, 233, 0.15) !important;
     border-color: rgba(56, 189, 248, 0.32) !important;
@@ -481,7 +509,8 @@ body.bfx-settings-route .bfx-prefs-subpage-enhanced form {
     border-color: rgba(251, 191, 36, 0.32) !important;
     color: #fcd34d !important;
 }
-#myPreferencesMenuPage.bfx-prefs-menu-enhanced [data-bfx-row-kind="playback"] .listItemIcon {
+#myPreferencesMenuPage.bfx-prefs-menu-enhanced [data-bfx-row-kind="playback"] .listItemIcon,
+#myPreferencesMenuPage.bfx-prefs-menu-enhanced [data-bfx-row-kind="downloads"] .listItemIcon {
     background: rgba(16, 185, 129, 0.15) !important;
     border-color: rgba(52, 211, 153, 0.32) !important;
     color: #6ee7b7 !important;
@@ -496,8 +525,8 @@ body.bfx-settings-route .bfx-prefs-subpage-enhanced form {
     border-color: rgba(34, 211, 238, 0.32) !important;
     color: #67e8f9 !important;
 }
-#myPreferencesMenuPage.bfx-prefs-menu-enhanced [data-bfx-row-kind="quickconnect"] .listItemIcon,
-#myPreferencesMenuPage.bfx-prefs-menu-enhanced [data-bfx-row-kind="dashboard"] .listItemIcon {
+#myPreferencesMenuPage.bfx-prefs-menu-enhanced [data-bfx-row-kind="dashboard"] .listItemIcon,
+#myPreferencesMenuPage.bfx-prefs-menu-enhanced [data-bfx-row-kind="server"] .listItemIcon {
     background: rgba(99, 102, 241, 0.17) !important;
     border-color: rgba(129, 140, 248, 0.36) !important;
     color: #a5b4fc !important;
@@ -594,21 +623,19 @@ body.bfx-settings-route .bfx-prefs-subpage-enhanced form {
     line-height: 1.4 !important;
 }
 
+/* Wrap cleanly instead of horizontal clipping so no tab label (e.g. Playback) is ever cut off */
 .bfx-prefs-tabs {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
-    gap: 5px;
-    padding: 5px;
+    gap: 6px;
+    padding: 6px;
     border-radius: 14px;
     background: rgba(255, 255, 255, 0.04);
     border: 1px solid rgba(255, 255, 255, 0.09);
-    overflow-x: auto;
-    scrollbar-width: none;
+    overflow: visible;
     margin-bottom: 14px;
     box-sizing: border-box;
-}
-.bfx-prefs-tabs::-webkit-scrollbar {
-    display: none;
 }
 
 .bfx-prefs-tab {
@@ -640,6 +667,70 @@ body.bfx-settings-route .bfx-prefs-subpage-enhanced form {
 body.bfx-settings-subpage #userProfilePage .username,
 body.bfx-settings-subpage #userProfilePage .sectionTitle.username {
     display: none !important;
+}
+
+/* Tame Jellyfin's raw 200px avatar box & inline flex row on #userProfilePage (#fldImage) so it never clips */
+body.bfx-settings-subpage #userProfilePage #fldImage:not(.hide) {
+    display: flex !important;
+    flex-wrap: wrap !important;
+    align-items: center !important;
+    gap: 16px !important;
+    max-width: 100% !important;
+    width: 100% !important;
+    margin: 0 0 16px 0 !important;
+    padding: 16px 20px !important;
+    border-radius: 16px !important;
+    background: rgba(255, 255, 255, 0.035) !important;
+    border: 1px solid rgba(255, 255, 255, 0.085) !important;
+    box-sizing: border-box !important;
+}
+body.bfx-settings-subpage #userProfilePage #fldImage #image {
+    width: 76px !important;
+    height: 76px !important;
+    min-width: 76px !important;
+    border-radius: 16px !important;
+    overflow: hidden !important;
+    background: rgba(255, 255, 255, 0.06) !important;
+    border: 1px solid rgba(255, 255, 255, 0.14) !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    flex-shrink: 0 !important;
+    margin: 0 !important;
+}
+body.bfx-settings-subpage #userProfilePage #fldImage #image > div,
+body.bfx-settings-subpage #userProfilePage #fldImage #image > img {
+    width: 100% !important;
+    height: 100% !important;
+    max-width: 100% !important;
+    max-height: 100% !important;
+    background-size: cover !important;
+    background-position: center !important;
+    object-fit: cover !important;
+    margin: 0 !important;
+}
+body.bfx-settings-subpage #userProfilePage #fldImage #image .material-icons {
+    font-size: 40px !important;
+    width: auto !important;
+    height: auto !important;
+    line-height: 1 !important;
+    color: rgba(255, 255, 255, 0.55) !important;
+}
+body.bfx-settings-subpage #userProfilePage #fldImage > div:not(#image) {
+    margin: 0 !important;
+    display: flex !important;
+    flex-wrap: wrap !important;
+    align-items: center !important;
+    gap: 10px !important;
+    flex: 1 1 180px !important;
+    min-width: 0 !important;
+}
+body.bfx-settings-subpage #userProfilePage #btnAddImage,
+body.bfx-settings-subpage #userProfilePage #btnDeleteImage {
+    margin: 0 !important;
+    padding: 0 16px !important;
+    min-height: 40px !important;
+    white-space: nowrap !important;
 }
 
 body.bfx-settings-subpage .verticalSection:not(.hide) {
@@ -830,6 +921,152 @@ body.bfx-settings-route button:focus-visible {
     outline-offset: 2px !important;
 }
 
+/* ---------- Client Settings Sheet (Phone Web / PWA Fallback) ---------- */
+.bfx-client-settings-modal {
+    max-width: 440px !important;
+    width: 100% !important;
+}
+.bfx-cs-head {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-bottom: 16px;
+}
+.bfx-cs-head-ico {
+    width: 46px;
+    height: 46px;
+    border-radius: 14px;
+    background: linear-gradient(135deg, rgba(14, 165, 233, 0.22) 0%, rgba(99, 102, 241, 0.22) 100%);
+    border: 1px solid rgba(56, 189, 248, 0.38);
+    color: #7dd3fc;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+.bfx-cs-head-ico svg {
+    width: 22px;
+    height: 22px;
+}
+.bfx-cs-head-copy {
+    flex: 1 1 0%;
+    min-width: 0;
+}
+.bfx-cs-head-copy h2 {
+    margin: 0 !important;
+    font-size: 20px !important;
+    font-weight: 800 !important;
+    line-height: 1.2 !important;
+}
+.bfx-cs-head-copy .streamflix-modal-text {
+    margin: 3px 0 0 0 !important;
+    font-size: 13px !important;
+    color: #9ca3af !important;
+}
+.bfx-cs-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 16px;
+}
+.bfx-cs-row {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 14px;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.045);
+    border: 1px solid rgba(255, 255, 255, 0.09);
+    color: #ffffff;
+    font-family: inherit;
+    text-align: left;
+    cursor: pointer;
+    box-sizing: border-box;
+    transition: background 0.16s ease, border-color 0.16s ease, transform 0.16s ease;
+}
+.bfx-cs-row:hover,
+.bfx-cs-row:focus-visible {
+    background: rgba(255, 255, 255, 0.09);
+    border-color: rgba(255, 255, 255, 0.2);
+    outline: none;
+}
+.bfx-cs-row-ico {
+    width: 38px;
+    height: 38px;
+    border-radius: 11px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    color: #f3f4f6;
+}
+.bfx-cs-row-ico svg {
+    width: 18px;
+    height: 18px;
+}
+.bfx-cs-row-ico.is-brand {
+    background: rgba(229, 9, 20, 0.16);
+    border-color: rgba(229, 9, 20, 0.34);
+    color: #fca5a5;
+}
+.bfx-cs-row-ico.is-play {
+    background: rgba(16, 185, 129, 0.16);
+    border-color: rgba(52, 211, 153, 0.34);
+    color: #6ee7b7;
+}
+.bfx-cs-row-ico.is-sub {
+    background: rgba(168, 85, 247, 0.16);
+    border-color: rgba(192, 132, 252, 0.34);
+    color: #d8b4fe;
+}
+.bfx-cs-row-ico.is-disp {
+    background: rgba(14, 165, 233, 0.16);
+    border-color: rgba(56, 189, 248, 0.34);
+    color: #7dd3fc;
+}
+.bfx-cs-row-ico.is-srv {
+    background: rgba(99, 102, 241, 0.16);
+    border-color: rgba(129, 140, 248, 0.34);
+    color: #a5b4fc;
+}
+.bfx-cs-row-body {
+    flex: 1 1 0%;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+}
+.bfx-cs-row-title {
+    font-size: 14.5px;
+    font-weight: 700;
+    color: #ffffff;
+    line-height: 1.25;
+}
+.bfx-cs-row-sub {
+    margin-top: 2px;
+    font-size: 12px;
+    color: #9ca3af;
+    line-height: 1.35;
+}
+.bfx-cs-row-chev {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: #6b7280;
+    flex-shrink: 0;
+    transition: transform 0.16s ease, color 0.16s ease;
+}
+.bfx-cs-row-chev svg {
+    width: 16px;
+    height: 16px;
+}
+.bfx-cs-row:hover .bfx-cs-row-chev {
+    color: #e5e7eb;
+    transform: translateX(2px);
+}
+
 @media (max-width: 640px) {
     .bfx-prefs-profile-card,
     .bfx-prefs-admin-card,
@@ -854,10 +1091,17 @@ body.bfx-settings-route button:focus-visible {
         padding-top: 6px;
     }
     .bfx-prefs-profile-actions > .bfx-prefs-pill-btn,
-    .bfx-prefs-admin-actions > .bfx-prefs-pill-btn {
-        flex: 1 1 0%;
+    .bfx-prefs-admin-actions > .bfx-prefs-pill-btn,
+    .bfx-prefs-context-card > .bfx-prefs-pill-btn {
+        flex: 1 1 136px;
+        min-height: 38px;
+        height: auto;
+        padding: 8px 12px;
+        white-space: normal;
+        text-align: center;
     }
-    .bfx-prefs-feature-card {
+    .bfx-prefs-feature-card,
+    .bfx-prefs-client-card {
         padding: 14px;
         gap: 12px;
     }
@@ -1060,8 +1304,11 @@ body.bfx-settings-route button:focus-visible {
         grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
         gap: 8px !important;
     }
+    html:not(.layout-tv) body.bfx-phone-mode:not(.bfx-tv-mode) #streamflix-account-dropdown .bfx-dd-tiles > .bfx-dd-tile:last-child:nth-child(odd) {
+        grid-column: 1 / -1 !important;
+    }
 
-    /* De-clutter Mobile Subnav: clean individual Netflix-style category pills, no redundant Home/Top10/Search/Shuffle icons */
+    /* De-clutter Mobile Subnav: clean individual Netflix-style category pills, edge-to-edge scroll without gutter clipping */
     html:not(.layout-tv) body.bfx-phone-mode.bfx-mobile-dock-ready:not(.bfx-tv-mode) .streamflix-subnav {
         padding: 6px var(--bfx-gutter) 8px var(--bfx-gutter) !important;
         gap: 8px !important;
@@ -1072,7 +1319,10 @@ body.bfx-settings-route button:focus-visible {
         box-shadow: none !important;
         backdrop-filter: none !important;
         -webkit-backdrop-filter: none !important;
-        padding: 0 !important;
+        margin-left: calc(-1 * var(--bfx-gutter)) !important;
+        margin-right: calc(-1 * var(--bfx-gutter)) !important;
+        padding: 2px var(--bfx-gutter) !important;
+        max-width: calc(100% + 2 * var(--bfx-gutter)) !important;
         gap: 8px !important;
     }
     html:not(.layout-tv) body.bfx-phone-mode.bfx-mobile-dock-ready:not(.bfx-tv-mode) .streamflix-FilterPills .streamflix-pill[data-cat-id="all"],
@@ -1126,8 +1376,7 @@ body.bfx-settings-route button:focus-visible {
     html:not(.layout-tv) body.bfx-phone-mode.bfx-mobile-dock-ready.bfx-settings-route:not(.bfx-tv-mode) #languagePreferencesPage:not(.hide),
     html:not(.layout-tv) body.bfx-phone-mode.bfx-mobile-dock-ready.bfx-settings-route:not(.bfx-tv-mode) #playbackPreferencesPage:not(.hide),
     html:not(.layout-tv) body.bfx-phone-mode.bfx-mobile-dock-ready.bfx-settings-route:not(.bfx-tv-mode) #subtitlePreferencesPage:not(.hide),
-    html:not(.layout-tv) body.bfx-phone-mode.bfx-mobile-dock-ready.bfx-settings-route:not(.bfx-tv-mode) #controlsPreferencesPage:not(.hide),
-    html:not(.layout-tv) body.bfx-phone-mode.bfx-mobile-dock-ready.bfx-settings-route:not(.bfx-tv-mode) #myPreferencesQuickConnectPage:not(.hide) {
+    html:not(.layout-tv) body.bfx-phone-mode.bfx-mobile-dock-ready.bfx-settings-route:not(.bfx-tv-mode) #controlsPreferencesPage:not(.hide) {
         padding-bottom: calc(104px + env(safe-area-inset-bottom, 0px)) !important;
     }
     html:not(.layout-tv) body.bfx-phone-mode.bfx-mobile-dock-ready:not(.bfx-tv-mode) #streamflix-toast-host {

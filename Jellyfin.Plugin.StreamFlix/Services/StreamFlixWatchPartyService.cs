@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using System.Security.Cryptography;
+using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
@@ -105,81 +106,118 @@ public static class StreamFlixWatchPartyService
 
     public sealed class RoomSnapshot
     {
+        [JsonPropertyName("roomId")]
         public string RoomId { get; init; } = string.Empty;
 
+        [JsonPropertyName("groupId")]
         public string GroupId { get; init; } = string.Empty;
 
+        [JsonPropertyName("name")]
         public string Name { get; init; } = string.Empty;
 
+        [JsonPropertyName("groupName")]
         public string GroupName { get; init; } = string.Empty;
 
+        [JsonPropertyName("version")]
         public long Version { get; init; }
 
+        [JsonPropertyName("serverNowUtcMs")]
         public long ServerNowUtcMs { get; init; }
 
+        [JsonPropertyName("hostParticipantId")]
         public string HostParticipantId { get; init; } = string.Empty;
 
+        [JsonPropertyName("hostName")]
         public string HostName { get; init; } = string.Empty;
 
+        [JsonPropertyName("hostControlOnly")]
         public bool HostControlOnly { get; init; }
 
+        [JsonPropertyName("itemId")]
         public string ItemId { get; init; } = string.Empty;
 
+        [JsonPropertyName("itemName")]
         public string ItemName { get; init; } = string.Empty;
 
+        [JsonPropertyName("seriesName")]
         public string SeriesName { get; init; } = string.Empty;
 
+        [JsonPropertyName("seasonNumber")]
         public int? SeasonNumber { get; init; }
 
+        [JsonPropertyName("episodeNumber")]
         public int? EpisodeNumber { get; init; }
 
+        [JsonPropertyName("itemType")]
         public string ItemType { get; init; } = string.Empty;
 
+        [JsonPropertyName("runTimeTicks")]
         public long? RunTimeTicks { get; init; }
 
+        [JsonPropertyName("isPlaying")]
         public bool IsPlaying { get; init; }
 
+        [JsonPropertyName("state")]
         public string State { get; init; } = "Ready";
 
+        [JsonPropertyName("basePositionSeconds")]
         public double BasePositionSeconds { get; init; }
 
+        [JsonPropertyName("expectedPositionSeconds")]
         public double ExpectedPositionSeconds { get; init; }
 
+        [JsonPropertyName("stateUpdatedAtUtcMs")]
         public long StateUpdatedAtUtcMs { get; init; }
 
+        [JsonPropertyName("lastActionId")]
         public string LastActionId { get; init; } = string.Empty;
 
+        [JsonPropertyName("lastActionKind")]
         public string LastActionKind { get; init; } = string.Empty;
 
+        [JsonPropertyName("lastActorParticipantId")]
         public string LastActorParticipantId { get; init; } = string.Empty;
 
+        [JsonPropertyName("lastActionBy")]
         public string LastActionBy { get; init; } = string.Empty;
 
+        [JsonPropertyName("lastActionText")]
         public string LastActionText { get; init; } = string.Empty;
 
+        [JsonPropertyName("lastActionAtUtcMs")]
         public long LastActionAtUtcMs { get; init; }
 
+        [JsonPropertyName("participantCount")]
         public int ParticipantCount { get; init; }
 
+        [JsonPropertyName("participants")]
         public List<ParticipantSnapshot> Participants { get; init; } = new();
     }
 
     public sealed class ParticipantSnapshot
     {
+        [JsonPropertyName("participantId")]
         public string ParticipantId { get; init; } = string.Empty;
 
+        [JsonPropertyName("profileId")]
         public string ProfileId { get; init; } = string.Empty;
 
+        [JsonPropertyName("displayName")]
         public string DisplayName { get; init; } = string.Empty;
 
+        [JsonPropertyName("avatarEmoji")]
         public string AvatarEmoji { get; init; } = string.Empty;
 
+        [JsonPropertyName("avatarColorHex")]
         public string AvatarColorHex { get; init; } = string.Empty;
 
+        [JsonPropertyName("isHost")]
         public bool IsHost { get; init; }
 
+        [JsonPropertyName("positionSeconds")]
         public double PositionSeconds { get; init; }
 
+        [JsonPropertyName("isBuffering")]
         public bool IsBuffering { get; init; }
     }
 

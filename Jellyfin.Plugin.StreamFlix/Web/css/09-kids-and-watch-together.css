@@ -386,20 +386,59 @@ button.headerSyncButton {
     box-sizing: border-box;
 }
 
-/* Watch Together Modal */
+/* Watch Together Modal — Elevated Cinema Lounge & Live Room Deck */
 .bfx-wp-modal {
-    max-width: 560px !important;
+    max-width: 540px !important;
     width: calc(100vw - 28px) !important;
+    padding: 24px 24px 22px !important;
+    border-radius: 20px !important;
+    background:
+        radial-gradient(120% 190px at 0% 0%, rgba(229, 9, 20, 0.14) 0%, rgba(18, 18, 22, 0) 68%),
+        linear-gradient(180deg, #17171c 0%, #111115 100%) !important;
+    border: 1px solid rgba(255, 255, 255, 0.11) !important;
+    box-shadow: 0 28px 72px rgba(0, 0, 0, 0.78), inset 0 1px 0 rgba(255, 255, 255, 0.07) !important;
+    box-sizing: border-box !important;
 }
+.bfx-wp-modal.is-wp-live {
+    max-width: 560px !important;
+    background:
+        radial-gradient(120% 210px at 0% 0%, rgba(16, 185, 129, 0.15) 0%, rgba(18, 18, 22, 0) 70%),
+        linear-gradient(180deg, #15191c 0%, #101216 100%) !important;
+    border-color: rgba(52, 211, 153, 0.24) !important;
+}
+
+.bfx-wp-modal .streamflix-btn-primary,
+.bfx-wp-modal .streamflix-ghost-btn,
+.bfx-wp-modal .streamflix-btn-danger {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 8px !important;
+    white-space: nowrap !important;
+    flex-shrink: 0;
+    border-radius: 11px !important;
+    font-family: inherit;
+    line-height: 1.15;
+    box-sizing: border-box;
+}
+.bfx-wp-modal .streamflix-btn-primary svg,
+.bfx-wp-modal .streamflix-ghost-btn svg,
+.bfx-wp-modal .streamflix-btn-danger svg {
+    width: 15px;
+    height: 15px;
+    flex-shrink: 0;
+}
+
 .bfx-wp-loading {
     display: flex;
     align-items: center;
     justify-content: center;
     gap: 12px;
-    padding: 36px 16px;
+    padding: 40px 16px;
     color: #cbd5e1;
     font-size: 14px;
 }
+
 .bfx-wp-header {
     display: flex;
     align-items: flex-start;
@@ -410,47 +449,192 @@ button.headerSyncButton {
 .bfx-wp-title-wrap {
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 13px;
+    min-width: 0;
 }
 .bfx-wp-hero-ico {
-    width: 42px;
-    height: 42px;
-    border-radius: 12px;
+    width: 46px;
+    height: 46px;
+    border-radius: 14px;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    background: linear-gradient(135deg, rgba(229, 9, 20, 0.22) 0%, rgba(244, 63, 94, 0.12) 100%);
-    border: 1px solid rgba(229, 9, 20, 0.38);
-    color: #ff4d57;
+    background: linear-gradient(145deg, rgba(229, 9, 20, 0.26) 0%, rgba(244, 63, 94, 0.1) 100%);
+    border: 1px solid rgba(229, 9, 20, 0.42);
+    box-shadow: 0 8px 20px rgba(229, 9, 20, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.12);
+    color: #ff5a64;
     flex-shrink: 0;
 }
+.bfx-wp-hero-ico.is-live {
+    background: linear-gradient(145deg, rgba(16, 185, 129, 0.26) 0%, rgba(20, 184, 166, 0.1) 100%);
+    border-color: rgba(52, 211, 153, 0.46);
+    box-shadow: 0 8px 20px rgba(16, 185, 129, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.12);
+    color: #34d399;
+}
 .bfx-wp-hero-ico svg {
-    width: 21px;
-    height: 21px;
+    width: 22px;
+    height: 22px;
+}
+.bfx-wp-title-copy {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+.bfx-wp-head-kicker {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 10.5px;
+    font-weight: 800;
+    letter-spacing: 0.11em;
+    text-transform: uppercase;
+    color: #f87171;
+    margin-bottom: 2px;
+}
+.bfx-wp-head-kicker.is-live {
+    color: #6ee7b7;
+}
+.bfx-wp-main-title {
+    margin: 0;
+    font-size: 21px;
+    font-weight: 850;
+    letter-spacing: -0.02em;
+    line-height: 1.18;
+    color: #ffffff;
+}
+.bfx-wp-main-sub {
+    margin: 3px 0 0 0;
+    font-size: 13px;
+    line-height: 1.38;
+    color: #9ca3af;
 }
 .bfx-wp-header-actions {
     display: inline-flex;
     align-items: center;
     gap: 6px;
+    flex-shrink: 0;
 }
 .bfx-wp-icon-btn {
     width: 36px !important;
     height: 36px !important;
     padding: 0 !important;
-    display: inline-flex !important;
-    align-items: center !important;
-    justify-content: center !important;
     border-radius: 10px !important;
+    background: rgba(255, 255, 255, 0.05) !important;
+    border: 1px solid rgba(255, 255, 255, 0.11) !important;
+    color: #d1d5db !important;
+    transition: background 0.16s ease, border-color 0.16s ease, color 0.16s ease, transform 0.16s ease !important;
 }
+.bfx-wp-icon-btn:hover {
+    background: rgba(255, 255, 255, 0.12) !important;
+    border-color: rgba(255, 255, 255, 0.25) !important;
+    color: #ffffff !important;
+}
+@keyframes bfxWpSpinOnce {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+.bfx-wp-icon-btn.is-spinning svg {
+    animation: bfxWpSpinOnce 0.55s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Labels, Inputs & Segmented Controls */
+.bfx-wp-field-block {
+    margin-bottom: 13px;
+}
+.bfx-wp-field-label,
 .bfx-wp-section-label {
     display: block;
-    font-size: 11.5px;
+    font-size: 11px;
     font-weight: 800;
-    letter-spacing: 0.07em;
+    letter-spacing: 0.08em;
     text-transform: uppercase;
     color: #94a3b8;
-    margin-bottom: 8px;
+    margin-bottom: 7px;
 }
+.bfx-wp-input {
+    height: 46px !important;
+    padding: 0 14px !important;
+    border-radius: 12px !important;
+    border: 1px solid rgba(255, 255, 255, 0.14) !important;
+    background: rgba(9, 10, 14, 0.68) !important;
+    color: #f8fafc !important;
+    font-size: 14.5px !important;
+    font-weight: 600 !important;
+    transition: border-color 0.16s ease, box-shadow 0.16s ease, background 0.16s ease !important;
+    box-sizing: border-box !important;
+}
+.bfx-wp-input:focus {
+    border-color: rgba(229, 9, 20, 0.72) !important;
+    background: rgba(12, 13, 18, 0.9) !important;
+    box-shadow: 0 0 0 3px rgba(229, 9, 20, 0.16) !important;
+}
+.bfx-wp-input::placeholder {
+    text-transform: none !important;
+    letter-spacing: normal !important;
+    font-family: inherit !important;
+    font-weight: 450 !important;
+    font-size: 13.5px !important;
+    color: rgba(148, 163, 184, 0.68) !important;
+}
+.bfx-wp-code-input.is-code-mode {
+    text-transform: uppercase;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-weight: 800 !important;
+    letter-spacing: 0.09em;
+}
+
+.bfx-wp-seg-group {
+    margin-bottom: 14px;
+}
+.bfx-wp-seg-track {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px;
+    padding: 4px;
+    border-radius: 12px;
+    background: rgba(9, 10, 14, 0.62);
+    border: 1px solid rgba(255, 255, 255, 0.09);
+}
+.bfx-wp-seg-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    height: 36px;
+    padding: 0 10px;
+    border-radius: 9px;
+    border: 1px solid transparent;
+    background: transparent;
+    color: #94a3b8;
+    font-family: inherit;
+    font-size: 12.5px;
+    font-weight: 700;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: background 0.16s ease, color 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease;
+}
+.bfx-wp-seg-btn svg {
+    width: 14px;
+    height: 14px;
+    flex-shrink: 0;
+}
+.bfx-wp-seg-btn:hover:not(.is-active) {
+    color: #e2e8f0;
+    background: rgba(255, 255, 255, 0.04);
+}
+.bfx-wp-seg-btn.is-active {
+    background: rgba(255, 255, 255, 0.1);
+    border-color: rgba(255, 255, 255, 0.18);
+    color: #ffffff;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.28);
+}
+.bfx-wp-seg-btn.is-amber.is-active {
+    background: rgba(245, 158, 11, 0.17);
+    border-color: rgba(251, 191, 36, 0.42);
+    color: #fde68a;
+}
+
+/* Selected Title Context Banner */
 .bfx-wp-target-banner {
     display: flex;
     align-items: center;
@@ -458,23 +642,23 @@ button.headerSyncButton {
     padding: 10px 13px;
     margin-bottom: 14px;
     border-radius: 12px;
-    background: rgba(255, 255, 255, 0.05);
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: linear-gradient(90deg, rgba(229, 9, 20, 0.12) 0%, rgba(255, 255, 255, 0.04) 100%);
+    border: 1px solid rgba(229, 9, 20, 0.26);
 }
 .bfx-wp-target-ico {
-    width: 32px;
-    height: 32px;
-    border-radius: 9px;
+    width: 34px;
+    height: 34px;
+    border-radius: 10px;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    background: rgba(229, 9, 20, 0.2);
-    color: #ff4d57;
+    background: rgba(229, 9, 20, 0.22);
+    color: #ff5a64;
     flex-shrink: 0;
 }
 .bfx-wp-target-ico svg {
-    width: 15px;
-    height: 15px;
+    width: 16px;
+    height: 16px;
 }
 .bfx-wp-target-copy {
     display: flex;
@@ -482,67 +666,342 @@ button.headerSyncButton {
     min-width: 0;
 }
 .bfx-wp-target-kicker {
-    font-size: 11px;
+    font-size: 10.5px;
     font-weight: 700;
-    color: #94a3b8;
+    letter-spacing: 0.03em;
+    color: #fda4af;
 }
 .bfx-wp-target-copy strong {
-    font-size: 14px;
+    font-size: 13.5px;
+    font-weight: 800;
     color: #f8fafc;
     white-space: normal;
     overflow-wrap: anywhere;
 }
 
+/* Cards & Primary / Secondary CTAs */
 .bfx-wp-create-card,
 .bfx-wp-active-card {
     padding: 16px;
-    border-radius: 15px;
+    border-radius: 16px;
     background: rgba(255, 255, 255, 0.035);
     border: 1px solid rgba(255, 255, 255, 0.09);
-    margin-bottom: 16px;
+    margin-bottom: 12px;
 }
 .bfx-wp-active-card {
-    background: linear-gradient(180deg, rgba(16, 185, 129, 0.08) 0%, rgba(255, 255, 255, 0.03) 100%);
-    border-color: rgba(52, 211, 153, 0.26);
+    background: linear-gradient(180deg, rgba(16, 185, 129, 0.075) 0%, rgba(255, 255, 255, 0.025) 100%);
+    border-color: rgba(52, 211, 153, 0.24);
+    margin-bottom: 0;
 }
-.bfx-wp-create-row,
+
+.bfx-wp-create-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 2px;
+}
+.bfx-wp-cta-primary {
+    flex: 1 1 200px;
+    width: 100%;
+    height: 46px;
+    padding: 0 18px;
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    background: linear-gradient(135deg, #e50914 0%, #bf0811 100%);
+    box-shadow: 0 10px 24px rgba(229, 9, 20, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+    color: #ffffff;
+    font-family: inherit;
+    font-size: 14.5px;
+    font-weight: 800;
+    letter-spacing: 0.01em;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 9px;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: transform 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease;
+    box-sizing: border-box;
+}
+.bfx-wp-cta-primary:hover:not(:disabled) {
+    filter: brightness(1.08);
+    transform: translateY(-1px);
+    box-shadow: 0 14px 28px rgba(229, 9, 20, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.24);
+}
+.bfx-wp-cta-primary svg,
+.bfx-wp-cta-secondary svg {
+    width: 17px;
+    height: 17px;
+    flex-shrink: 0;
+}
+.bfx-wp-cta-secondary {
+    flex: 1 1 175px;
+    height: 46px;
+    padding: 0 16px;
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    background: rgba(255, 255, 255, 0.06);
+    color: #f1f5f9;
+    font-family: inherit;
+    font-size: 13.5px;
+    font-weight: 700;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: background 0.15s ease, border-color 0.15s ease;
+    box-sizing: border-box;
+}
+.bfx-wp-cta-secondary:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.12);
+    border-color: rgba(255, 255, 255, 0.28);
+}
+
+/* Join with Room Code or Invite Link */
+.bfx-wp-join-code-box {
+    padding: 14px 16px;
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.028);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    margin-bottom: 12px;
+}
+.bfx-wp-join-row,
 .bfx-wp-invite-row {
     display: flex;
     align-items: center;
     gap: 8px;
 }
-.bfx-wp-create-row .streamflix-input,
+.bfx-wp-join-row .streamflix-input,
 .bfx-wp-invite-row .streamflix-input {
     flex: 1 1 auto;
     min-width: 0;
 }
-.bfx-wp-link-input {
-    font-size: 12.5px !important;
-    color: #cbd5e1 !important;
+.bfx-wp-join-submit-btn {
+    height: 46px;
+    padding: 0 18px;
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    background: rgba(255, 255, 255, 0.09);
+    color: #ffffff;
+    font-family: inherit;
+    font-size: 13.5px;
+    font-weight: 800;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    white-space: nowrap;
+    flex-shrink: 0;
+    cursor: pointer;
+    transition: background 0.16s ease, border-color 0.16s ease, transform 0.16s ease;
+    box-sizing: border-box;
 }
+.bfx-wp-join-submit-btn svg {
+    width: 15px;
+    height: 15px;
+    flex-shrink: 0;
+}
+.bfx-wp-join-submit-btn:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.17);
+    border-color: rgba(255, 255, 255, 0.34);
+    transform: translateY(-1px);
+}
+
+/* Compact Idle Status Strip & Active Household Rooms List */
+.bfx-wp-idle-foot {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    padding: 10px 13px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.022);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    color: #94a3b8;
+    font-size: 12.5px;
+    line-height: 1.35;
+}
+.bfx-wp-idle-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: rgba(148, 163, 184, 0.45);
+    flex-shrink: 0;
+}
+.bfx-wp-rooms-section {
+    margin-top: 2px;
+}
+.bfx-wp-rooms-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+.bfx-wp-room-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 11px 13px;
+    border-radius: 13px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.09);
+    transition: border-color 0.16s ease, background 0.16s ease;
+}
+.bfx-wp-room-row:hover {
+    background: rgba(255, 255, 255, 0.06);
+    border-color: rgba(52, 211, 153, 0.32);
+}
+.bfx-wp-room-meta {
+    min-width: 0;
+    flex: 1 1 auto;
+}
+.bfx-wp-room-row-title {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 7px;
+    font-size: 14px;
+    font-weight: 750;
+    color: #f8fafc;
+}
+.bfx-wp-mini-code {
+    padding: 2px 6px;
+    border-radius: 6px;
+    background: rgba(16, 185, 129, 0.15);
+    border: 1px solid rgba(52, 211, 153, 0.32);
+    color: #a7f3d0;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+}
+.bfx-wp-room-row-sub {
+    font-size: 12px;
+    color: #94a3b8;
+    margin-top: 3px;
+    white-space: normal;
+    overflow-wrap: anywhere;
+}
+
+/* Active Live Room Deck */
 .bfx-wp-active-top {
     display: flex;
     align-items: flex-start;
     justify-content: space-between;
     gap: 12px;
-    margin-bottom: 14px;
+    margin-bottom: 15px;
 }
-.bfx-wp-live-pill {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    font-size: 11px;
-    font-weight: 800;
-    letter-spacing: 0.06em;
-    color: #6ee7b7;
-    margin-bottom: 4px;
+.bfx-wp-active-heading {
+    min-width: 0;
+    flex: 1 1 auto;
 }
 .bfx-wp-room-name {
     margin: 0;
     font-size: 19px;
-    font-weight: 800;
+    font-weight: 850;
+    letter-spacing: -0.01em;
     color: #ffffff;
 }
+.bfx-wp-code-row {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 8px;
+}
+.bfx-wp-code-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    height: 32px;
+    padding: 0 11px;
+    border-radius: 9px;
+    border: 1px solid rgba(52, 211, 153, 0.42);
+    background: rgba(16, 185, 129, 0.15);
+    color: #ecfdf5;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.16s ease, border-color 0.16s ease, transform 0.16s ease;
+}
+.bfx-wp-code-badge:hover {
+    background: rgba(16, 185, 129, 0.25);
+    border-color: rgba(110, 231, 183, 0.7);
+    transform: translateY(-1px);
+}
+.bfx-wp-code-prefix {
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    color: #6ee7b7;
+}
+.bfx-wp-code-val {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 13px;
+    font-weight: 900;
+    letter-spacing: 0.1em;
+    color: #ffffff;
+}
+.bfx-wp-code-badge svg {
+    width: 13px;
+    height: 13px;
+    color: #a7f3d0;
+    flex-shrink: 0;
+}
+
+.bfx-wp-host-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 32px;
+    padding: 0 11px;
+    border-radius: 9px;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    background: rgba(255, 255, 255, 0.055);
+    color: #cbd5e1;
+    font-family: inherit;
+    font-size: 12px;
+    font-weight: 700;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: background 0.16s ease, border-color 0.16s ease, color 0.16s ease;
+}
+.bfx-wp-host-toggle:hover {
+    background: rgba(255, 255, 255, 0.1);
+}
+.bfx-wp-host-toggle.is-locked {
+    border-color: rgba(251, 191, 36, 0.45);
+    background: rgba(245, 158, 11, 0.16);
+    color: #fde68a;
+}
+.bfx-wp-host-toggle svg {
+    width: 13px;
+    height: 13px;
+    flex-shrink: 0;
+}
+
+.bfx-wp-leave-btn {
+    height: 36px !important;
+    padding: 0 13px !important;
+    font-size: 12.5px !important;
+}
+.bfx-wp-inline-btn,
+.bfx-wp-action-pill {
+    height: 40px !important;
+    padding: 0 15px !important;
+    font-size: 13px !important;
+    font-weight: 750 !important;
+}
+.bfx-wp-link-input {
+    height: 40px !important;
+    padding: 0 12px !important;
+    border-radius: 11px !important;
+    background: rgba(9, 10, 14, 0.65) !important;
+    border: 1px solid rgba(255, 255, 255, 0.12) !important;
+    font-size: 12.5px !important;
+    color: #cbd5e1 !important;
+}
+
 .bfx-wp-members-wrap {
     margin-bottom: 14px;
 }
@@ -557,286 +1016,85 @@ button.headerSyncButton {
     gap: 7px;
     padding: 4px 10px 4px 5px;
     border-radius: 999px;
-    background: rgba(255, 255, 255, 0.07);
-    border: 1px solid rgba(255, 255, 255, 0.11);
+    background: rgba(255, 255, 255, 0.065);
+    border: 1px solid rgba(255, 255, 255, 0.12);
     font-size: 12.5px;
-    font-weight: 600;
+    font-weight: 650;
     color: #f1f5f9;
 }
 .bfx-wp-member-av {
-    width: 21px;
-    height: 21px;
+    width: 22px;
+    height: 22px;
     border-radius: 50%;
     display: inline-flex;
     align-items: center;
     justify-content: center;
     background: #10b981;
-    color: #042f2e;
-    font-size: 11px;
-    font-weight: 900;
-}
-.bfx-wp-play-cta {
-    width: 100%;
-    justify-content: center;
-    height: 44px;
-    margin-bottom: 14px;
-    font-size: 14.5px !important;
-}
-.bfx-wp-invite-box {
-    padding-top: 12px;
-    border-top: 1px solid rgba(255, 255, 255, 0.08);
-}
-
-/* Optional 6h Guest Pass + Watch Party Combo Card */
-.bfx-wp-guest-card {
-    margin-top: 12px;
-    padding: 12px;
-    border-radius: 12px;
-    background: rgba(255, 255, 255, 0.04);
-    border: 1px dashed rgba(255, 255, 255, 0.16);
-}
-.bfx-wp-guest-card.is-ready {
-    border-style: solid;
-    border-color: rgba(56, 189, 248, 0.35);
-    background: rgba(56, 189, 248, 0.07);
-}
-.bfx-wp-guest-row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-    flex-wrap: wrap;
-}
-.bfx-wp-guest-title,
-.bfx-wp-kicker {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    font-size: 13px;
-    font-weight: 700;
-    color: #f1f5f9;
-}
-.bfx-wp-guest-title svg,
-.bfx-wp-kicker svg {
-    width: 15px;
-    height: 15px;
-    color: #38bdf8;
-}
-.bfx-wp-guest-controls {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    flex-wrap: wrap;
-}
-.bfx-wp-guest-select {
-    height: 36px !important;
-    padding: 0 28px 0 10px !important;
-    font-size: 12.5px !important;
-}
-
-/* Active Rooms List */
-.bfx-wp-rooms-list {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-}
-.bfx-wp-room-row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-    padding: 11px 13px;
-    border-radius: 12px;
-    background: rgba(255, 255, 255, 0.04);
-    border: 1px solid rgba(255, 255, 255, 0.08);
-}
-.bfx-wp-room-meta {
-    min-width: 0;
-}
-.bfx-wp-room-row-title {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-size: 14px;
-    font-weight: 700;
-    color: #f8fafc;
-}
-.bfx-wp-room-row-sub {
-    font-size: 12px;
-    color: #94a3b8;
-    margin-top: 2px;
-    white-space: normal;
-    overflow-wrap: anywhere;
-}
-.bfx-wp-empty {
-    padding: 18px 14px;
-    border-radius: 12px;
-    background: rgba(255, 255, 255, 0.025);
-    border: 1px dashed rgba(255, 255, 255, 0.1);
-    text-align: center;
-    font-size: 13px;
-    color: #94a3b8;
-}
-
-/* Watch Party Overhaul: Room Code Pill, Start Position Selector, Controls & OSD Sync Overlays */
-.bfx-wp-code-row {
-    display: flex;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 8px;
-    margin-top: 6px;
-}
-.bfx-wp-code-badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    height: 28px;
-    padding: 0 10px;
-    border-radius: 8px;
-    border: 1px solid rgba(52, 211, 153, 0.38);
-    background: rgba(16, 185, 129, 0.14);
-    color: #d1fae5;
-    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-    font-size: 12.5px;
-    font-weight: 800;
-    letter-spacing: 0.08em;
-    cursor: pointer;
-    transition: background 0.16s ease, border-color 0.16s ease;
-}
-.bfx-wp-code-badge:hover {
-    background: rgba(16, 185, 129, 0.24);
-    border-color: rgba(110, 231, 183, 0.65);
-}
-.bfx-wp-code-badge svg {
-    width: 13px;
-    height: 13px;
-    opacity: 0.85;
-}
-.bfx-wp-host-toggle {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    height: 28px;
-    padding: 0 10px;
-    border-radius: 8px;
-    border: 1px solid rgba(255, 255, 255, 0.14);
-    background: rgba(255, 255, 255, 0.05);
-    color: #cbd5e1;
-    font-family: inherit;
-    font-size: 12px;
-    font-weight: 700;
-    cursor: pointer;
-    transition: background 0.16s ease, border-color 0.16s ease, color 0.16s ease;
-}
-.bfx-wp-host-toggle.is-locked {
-    border-color: rgba(251, 191, 36, 0.45);
-    background: rgba(245, 158, 11, 0.15);
-    color: #fde68a;
-}
-.bfx-wp-host-toggle svg {
-    width: 13px;
-    height: 13px;
-}
-
-.bfx-wp-startpos-wrap {
-    margin: 12px 0 14px 0;
-}
-.bfx-wp-startpos-pills {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-}
-.bfx-wp-startpos-pill {
-    flex: 1 1 180px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 7px;
-    min-height: 38px;
-    padding: 6px 12px;
-    border-radius: 10px;
-    border: 1px solid rgba(255, 255, 255, 0.13);
-    background: rgba(255, 255, 255, 0.04);
-    color: #cbd5e1;
-    font-family: inherit;
-    font-size: 12.5px;
-    font-weight: 700;
-    cursor: pointer;
-    text-align: center;
-    transition: background 0.16s ease, border-color 0.16s ease, color 0.16s ease;
-}
-.bfx-wp-startpos-pill:hover {
-    background: rgba(255, 255, 255, 0.08);
-}
-.bfx-wp-startpos-pill.is-selected {
-    border-color: rgba(229, 9, 20, 0.65);
-    background: rgba(229, 9, 20, 0.18);
-    color: #ffffff;
-}
-
-.bfx-wp-create-actions {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-    margin-top: 12px;
-}
-.bfx-wp-create-actions > button {
-    flex: 1 1 180px;
-    justify-content: center;
-    min-height: 42px;
-}
-
-.bfx-wp-join-code-box {
-    margin-bottom: 14px;
-    padding: 12px 14px;
-    border-radius: 13px;
-    background: rgba(255, 255, 255, 0.03);
-    border: 1px solid rgba(255, 255, 255, 0.08);
-}
-.bfx-wp-code-input {
-    text-transform: uppercase;
-    font-weight: 700 !important;
-    letter-spacing: 0.06em;
-}
-
-.bfx-wp-member-av.has-emoji {
     color: #ffffff;
     font-size: 12px;
+    flex-shrink: 0;
 }
 .bfx-wp-member-tag {
     padding: 1px 6px;
     border-radius: 999px;
-    background: rgba(255, 255, 255, 0.12);
+    background: rgba(255, 255, 255, 0.13);
     color: #e2e8f0;
     font-size: 10px;
     font-weight: 800;
     letter-spacing: 0.04em;
     text-transform: uppercase;
 }
+.bfx-wp-member-tag.is-host {
+    background: rgba(16, 185, 129, 0.22);
+    color: #a7f3d0;
+}
 .bfx-wp-member-tag.is-buffering {
     background: rgba(245, 158, 11, 0.22);
     color: #fde68a;
 }
 
-.bfx-wp-nowplaying-card {
+.bfx-wp-nowplaying-card,
+.bfx-wp-lobby-ready {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    flex-wrap: wrap;
-    gap: 10px;
-    padding: 11px 13px;
+    gap: 12px;
+    padding: 12px 14px;
     margin-bottom: 14px;
-    border-radius: 12px;
+    border-radius: 13px;
     background: rgba(16, 185, 129, 0.1);
     border: 1px solid rgba(52, 211, 153, 0.28);
+}
+.bfx-wp-lobby-ready {
+    background: rgba(255, 255, 255, 0.035);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+.bfx-wp-lobby-ready-copy {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    min-width: 0;
+}
+.bfx-wp-lobby-ready-copy strong {
+    font-size: 13.5px;
+    font-weight: 800;
+    color: #f8fafc;
+}
+.bfx-wp-lobby-ready-copy span {
+    font-size: 12px;
+    line-height: 1.4;
+    color: #94a3b8;
 }
 .bfx-wp-nowplaying-meta {
     display: flex;
     flex-direction: column;
-    gap: 2px;
+    gap: 3px;
     min-width: 0;
 }
 .bfx-wp-nowplaying-kicker {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
     font-size: 11px;
     font-weight: 800;
     letter-spacing: 0.05em;
@@ -845,7 +1103,7 @@ button.headerSyncButton {
 }
 .bfx-wp-nowplaying-title {
     font-size: 14px;
-    font-weight: 700;
+    font-weight: 750;
     color: #ffffff;
     white-space: normal;
     overflow-wrap: anywhere;
@@ -854,7 +1112,68 @@ button.headerSyncButton {
     display: inline-flex;
     align-items: center;
     gap: 8px;
+    flex-shrink: 0;
+}
+.bfx-wp-switch-box {
+    margin-bottom: 14px;
+}
+
+.bfx-wp-invite-box {
+    padding-top: 13px;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+/* Optional 6h Guest Pass + Watch Party Combo Card */
+.bfx-wp-guest-card {
+    margin-top: 12px;
+    padding: 12px 14px;
+    border-radius: 13px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px dashed rgba(255, 255, 255, 0.15);
+}
+.bfx-wp-guest-card.is-ready {
+    border-style: solid;
+    border-color: rgba(56, 189, 248, 0.35);
+    background: rgba(56, 189, 248, 0.075);
+}
+.bfx-wp-guest-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
     flex-wrap: wrap;
+}
+.bfx-wp-guest-copy {
+    min-width: 0;
+    flex: 1 1 200px;
+}
+.bfx-wp-guest-title,
+.bfx-wp-kicker {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    font-weight: 750;
+    color: #f1f5f9;
+}
+.bfx-wp-guest-title svg,
+.bfx-wp-kicker svg {
+    width: 15px;
+    height: 15px;
+    color: #38bdf8;
+    flex-shrink: 0;
+}
+.bfx-wp-guest-controls {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+.bfx-wp-guest-select {
+    height: 38px !important;
+    padding: 0 28px 0 10px !important;
+    border-radius: 10px !important;
+    font-size: 12.5px !important;
 }
 
 /* Subtle In-Player OSD Sync Toast Banner */
@@ -936,15 +1255,23 @@ button.headerSyncButton {
         padding: 0 13px;
         font-size: 12.5px;
     }
-    .bfx-wp-create-row,
+    .bfx-wp-modal {
+        padding: 18px 16px 18px !important;
+    }
+    .bfx-wp-seg-track {
+        grid-template-columns: 1fr;
+    }
+    .bfx-wp-join-row,
     .bfx-wp-invite-row,
-    .bfx-wp-active-top {
+    .bfx-wp-nowplaying-card,
+    .bfx-wp-lobby-ready {
         flex-wrap: wrap;
     }
-    .bfx-wp-create-row > button,
-    .bfx-wp-invite-row > button {
+    .bfx-wp-join-row > .bfx-wp-join-submit-btn,
+    .bfx-wp-invite-row > button,
+    .bfx-wp-lobby-ready > button {
         flex: 1 1 auto;
-        justify-content: center;
+        width: 100%;
     }
 }
 

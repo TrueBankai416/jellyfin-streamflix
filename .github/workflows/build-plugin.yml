@@ -15,12 +15,12 @@ permissions:
   contents: write
 
 env:
-  PLUGIN_VERSION: "0.7.9.1"
+  PLUGIN_VERSION: "0.9.1.1"
   PLUGIN_GUID: "7cc1a505-91f6-4661-b4f9-7eee8be33b19"
   PLUGIN_NAME: "StreamFlix"
   PLUGIN_OVERVIEW: "Netflix-style UI, Household Profiles, Guest Passes & Seerr Requests for Jellyfin"
   PLUGIN_DESCRIPTION: "Transforms Jellyfin Web into StreamFlix: a Netflix-style cinema UI with flexible Google/OIDC/Jellyfin sign-in, dedicated Kids profiles, real-time synced Watch Together, toggleable QR Guest Passes, optional Seerr/Jellyseerr search requests, and 'Who's watching?' profiles mapped to real Jellyfin users."
-  PLUGIN_CHANGELOG: "- Complete Watch Together Overhaul (First-Party Server-Authoritative Sync Engine): replace Jellyfin's broken SyncPlay integration with a dedicated StreamFlix Watch Party engine featuring instant-wake long-polling across reverse proxies, server-monotonic RTT-compensated timeline sync, smooth Direct Play + HLS transcode seeking, exact 0:00 Start-from-Beginning vs Resume timestamp alignment across all viewers, 6-character Room Codes, Host-Controls-Only toggle, automatic room-wide media/episode transitions, and 1-tap autoplay-blocked sync recovery\n- Zero-Truncation Account Menu & Modal Polish: move Watch Together out of the horizontal quick-tile bar into a full-width Account Menu row with a live room indicator so Cast, Quick Connect, and Watch Together labels never truncate on any screen"
+  PLUGIN_CHANGELOG: "- Watch Together Room Serialization Fix & Elevated Cinema Lounge UI: add explicit camelCase JSON property attributes on server Watch Party DTOs/snapshots plus client-side camelCase/PascalCase normalization to eliminate the null roomId error, and redesign the Watch Together modal with segmented Playback Controls & Start Position switches, full-width inputs, non-wrapping buttons, and a live room deck\n- Settings Layout & Anti-Clipping Overhaul: fix Profile & Password (#userProfilePage) avatar flex collision so the subpage header never pushes Jellyfin's avatar silhouette off-screen, switch Settings section pills to clean multi-row wrapping so tab labels never clip, and ensure mobile hero actions & category pills never clip\n- Remove Broken Quick Connect & Surface Phone Client Settings: remove broken Quick Connect tiles/tabs/rows across the Account Menu and Settings, and surface Client Settings directly in the phone Account Sheet and Settings overview (supporting Jellyfin Mobile Android/iOS NativeShell.openClientSettings plus a clean phone web fallback)"
 
 jobs:
   build-and-publish:

@@ -630,6 +630,10 @@
     margin-top: 24px;
 }
 .streamflix-btn-primary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
     padding: 11px 24px;
     border-radius: 6px;
     border: none;
@@ -639,8 +643,18 @@
     font-weight: 800;
     cursor: pointer;
 }
+.streamflix-btn-primary .bfx-icon,
+.streamflix-btn-danger .bfx-icon {
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
+}
 .streamflix-btn-primary:hover { background: var(--streamflix-red-hover); }
 .streamflix-btn-danger {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
     padding: 11px 16px;
     border-radius: 6px;
     border: 1px solid rgba(229, 9, 20, 0.55);

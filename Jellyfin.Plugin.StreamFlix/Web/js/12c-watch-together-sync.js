@@ -99,8 +99,84 @@
         if (m && m[1]) {
             return m[1].toUpperCase();
         }
+        if (s.indexOf('://') !== -1 || s.indexOf('/') !== -1) {
+            return '';
+        }
         var cleaned = s.replace(/[^A-Za-z0-9-]/g, '').toUpperCase();
         return isValidWatchPartyRoomCode(cleaned) ? cleaned : '';
+    }
+
+    function normalizeWatchPartyRoomSnapshot(raw) {
+        if (!raw || typeof raw !== 'object') {
+            return null;
+        }
+        var rid = String(raw.roomId || raw.RoomId || raw.groupId || raw.GroupId || '').trim().toUpperCase();
+        if (!rid) {
+            return null;
+        }
+        var rawParts = Array.isArray(raw.participants)
+            ? raw.participants
+            : (Array.isArray(raw.Participants) ? raw.Participants : []);
+        var parts = rawParts.map(function (p) {
+            if (!p || typeof p !== 'object') {
+                return null;
+            }
+            return {
+                participantId: String(p.participantId || p.ParticipantId || ''),
+                profileId: String(p.profileId || p.ProfileId || ''),
+                displayName: String(p.displayName || p.DisplayName || 'Viewer'),
+                avatarEmoji: String(p.avatarEmoji || p.AvatarEmoji || '🎬'),
+                avatarColorHex: String(p.avatarColorHex || p.AvatarColorHex || '#E50914'),
+                isHost: Boolean(p.isHost !== undefined ? p.isHost : p.IsHost),
+                positionSeconds: Number(p.positionSeconds !== undefined ? p.positionSeconds : (p.PositionSeconds || 0)) || 0,
+                isBuffering: Boolean(p.isBuffering !== undefined ? p.isBuffering : p.IsBuffering)
+            };
+        }).filter(Boolean);
+
+        var rName = String(raw.name || raw.Name || raw.groupName || raw.GroupName || 'Watch Party');
+        var sNum = raw.seasonNumber !== undefined ? raw.seasonNumber : raw.SeasonNumber;
+        var eNum = raw.episodeNumber !== undefined ? raw.episodeNumber : raw.EpisodeNumber;
+        var rtTicks = raw.runTimeTicks !== undefined ? raw.runTimeTicks : raw.RunTimeTicks;
+        var pCount = Number(raw.participantCount !== undefined ? raw.participantCount : raw.ParticipantCount) || parts.length || 1;
+
+        return {
+            roomId: rid,
+            groupId: rid,
+            name: rName,
+            groupName: rName,
+            version: Number(raw.version !== undefined ? raw.version : (raw.Version || 0)) || 0,
+            serverNowUtcMs: Number(raw.serverNowUtcMs !== undefined ? raw.serverNowUtcMs : (raw.ServerNowUtcMs || Date.now())) || Date.now(),
+            hostParticipantId: String(raw.hostParticipantId || raw.HostParticipantId || ''),
+            hostName: String(raw.hostName || raw.HostName || ''),
+            hostControlOnly: Boolean(raw.hostControlOnly !== undefined ? raw.hostControlOnly : raw.HostControlOnly),
+            itemId: String(raw.itemId || raw.ItemId || ''),
+            itemName: String(raw.itemName || raw.ItemName || ''),
+            seriesName: String(raw.seriesName || raw.SeriesName || ''),
+            seasonNumber: sNum != null ? Number(sNum) : null,
+            episodeNumber: eNum != null ? Number(eNum) : null,
+            itemType: String(raw.itemType || raw.ItemType || ''),
+            runTimeTicks: rtTicks != null ? Number(rtTicks) : null,
+            isPlaying: Boolean(raw.isPlaying !== undefined ? raw.isPlaying : raw.IsPlaying),
+            state: String(raw.state || raw.State || 'Lobby'),
+            basePositionSeconds: Number(raw.basePositionSeconds !== undefined ? raw.basePositionSeconds : (raw.BasePositionSeconds || 0)) || 0,
+            expectedPositionSeconds: Number(raw.expectedPositionSeconds !== undefined ? raw.expectedPositionSeconds : (raw.ExpectedPositionSeconds || 0)) || 0,
+            stateUpdatedAtUtcMs: Number(raw.stateUpdatedAtUtcMs !== undefined ? raw.stateUpdatedAtUtcMs : (raw.StateUpdatedAtUtcMs || 0)) || 0,
+            lastActionId: String(raw.lastActionId || raw.LastActionId || ''),
+            lastActionKind: String(raw.lastActionKind || raw.LastActionKind || ''),
+            lastActorParticipantId: String(raw.lastActorParticipantId || raw.LastActorParticipantId || ''),
+            lastActionBy: String(raw.lastActionBy || raw.LastActionBy || ''),
+            lastActionText: String(raw.lastActionText || raw.LastActionText || ''),
+            lastActionAtUtcMs: Number(raw.lastActionAtUtcMs !== undefined ? raw.lastActionAtUtcMs : (raw.LastActionAtUtcMs || 0)) || 0,
+            participantCount: pCount,
+            participants: parts
+        };
+    }
+
+    function normalizeWatchPartyRoomsArray(rawList) {
+        if (!Array.isArray(rawList)) {
+            return [];
+        }
+        return rawList.map(normalizeWatchPartyRoomSnapshot).filter(Boolean);
     }
 
     function setJoinedWatchPartyGroupId(roomId) {
@@ -434,7 +510,8 @@
         }
     }
 
-    function applyIncomingRoomSnapshot(room, rttMs) {
+    function applyIncomingRoomSnapshot(rawRoom, rttMs) {
+        var room = normalizeWatchPartyRoomSnapshot(rawRoom);
         if (!room || !room.roomId) {
             return null;
         }
@@ -565,7 +642,8 @@
                         if (!wpSync.loopRunning || watchPartyState.joinedGroupId !== roomId) {
                             return;
                         }
-                        if (!res || res.active === false || !res.room) {
+                        var incomingRoom = res && (res.room || res.Room);
+                        if (!res || res.active === false || res.Active === false || !incomingRoom) {
                             setJoinedWatchPartyGroupId('');
                             watchPartyState.activeGroup = null;
                             stopWatchPartySyncEngine();
@@ -575,7 +653,7 @@
                             }
                             return;
                         }
-                        applyIncomingRoomSnapshot(res.room, rtt);
+                        applyIncomingRoomSnapshot(incomingRoom, rtt);
                         step(40);
                     })
                     .catch(function (err) {
@@ -652,13 +730,15 @@
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(body)
         }).then(function (res) {
-            if (res && res.room) {
-                return applyIncomingRoomSnapshot(res.room, Date.now() - t0);
+            var cmdRoom = res && (res.room || res.Room);
+            if (cmdRoom) {
+                return applyIncomingRoomSnapshot(cmdRoom, Date.now() - t0);
             }
             return null;
         }).catch(function (err) {
-            if (err && err.status === 403 && err.data && err.data.room) {
-                applyIncomingRoomSnapshot(err.data.room, 0);
+            var errRoom = err && err.data && (err.data.room || err.data.Room);
+            if (err && err.status === 403 && errRoom) {
+                applyIncomingRoomSnapshot(errRoom, 0);
                 showWatchPartyOsdBanner(err.message || 'Controls are locked to the host.');
             }
             return null;

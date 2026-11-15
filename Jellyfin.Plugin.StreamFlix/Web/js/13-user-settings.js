@@ -38,12 +38,6 @@
             title: 'Controls',
             subtitle: 'Keyboard shortcuts, remote keys & controller navigation',
             selector: '#controlsPreferencesPage:not(.hide), .controlsPreferencesPage:not(.hide)'
-        },
-        quickconnect: {
-            icon: 'smartphone',
-            title: 'Quick Connect',
-            subtitle: 'Authorize a Smart TV or another device using a 6-digit code',
-            selector: '#myPreferencesQuickConnectPage:not(.hide), #quickConnectPreferencesPage:not(.hide)'
         }
     };
 
@@ -51,6 +45,14 @@
         var rawHash = String(window.location.hash || '');
         var h = rawHash.toLowerCase();
         if (h.indexOf('configurationpage') !== -1 || h.indexOf('dashboard') !== -1) {
+            return '';
+        }
+        if (h.indexOf('mypreferencesquickconnect') !== -1) {
+            try {
+                window.location.replace('#/mypreferencesmenu');
+            } catch (e) {
+                window.location.hash = '#/mypreferencesmenu';
+            }
             return '';
         }
         if (h.indexOf('mypreferencesmenu') !== -1) {
@@ -70,9 +72,6 @@
         }
         if (h.indexOf('mypreferencescontrols') !== -1) {
             return 'controls';
-        }
-        if (h.indexOf('mypreferencesquickconnect') !== -1) {
-            return 'quickconnect';
         }
         if (h.indexOf('userprofile') !== -1 || h.indexOf('myprofile') !== -1) {
             var uidMatch = rawHash.match(/[?&]userid=([^&#]+)/i);
@@ -207,11 +206,46 @@
         });
     }
 
+    function findPrefsContentHost(pageEl) {
+        if (!pageEl) {
+            return null;
+        }
+        var children = pageEl.children || [];
+        for (var i = 0; i < children.length; i++) {
+            var ch = children[i];
+            if (ch && ch.classList
+                && (ch.classList.contains('padded-left') || ch.classList.contains('content-primary'))
+                && ch.id !== 'fldImage'
+                && ch.tagName !== 'FORM') {
+                return ch;
+            }
+        }
+        var padded = pageEl.querySelector('.padded-left:not(#fldImage):not(form), .content-primary:not(#fldImage):not(form)');
+        if (padded) {
+            return padded;
+        }
+        var ro = pageEl.querySelector('.readOnlyContent:not(#fldImage):not(form)');
+        if (ro) {
+            return ro;
+        }
+        var formEl = pageEl.querySelector('form');
+        if (formEl && formEl.parentNode && formEl.parentNode !== document.body && formEl.parentNode.id !== 'fldImage') {
+            return formEl.parentNode;
+        }
+        return pageEl;
+    }
+
     function enhanceNativePrefsMenuRows(menuPage) {
         if (!menuPage) {
-            return;
+            return false;
         }
         menuPage.classList.add('bfx-prefs-menu-enhanced');
+        var hasNativeClientApi = Boolean(
+            (window.NativeShell && typeof window.NativeShell.openClientSettings === 'function')
+            || (window.NativeInterface && typeof window.NativeInterface.openClientSettings === 'function')
+        );
+        var hasVisibleNativeClientRow = false;
+
         var rows = menuPage.querySelectorAll('a.emby-button, .listItem-border');
         for (var i = 0; i < rows.length; i++) {
             var row = rows[i];
@@ -228,6 +262,22 @@
             if (cls.indexOf('lnkuserprofile') !== -1 || href.indexOf('userprofile') !== -1 || rawLabel === 'profile') {
                 rowKind = 'profile';
                 rowSub = 'Password, Jellyfin avatar & account security';
+            } else if (cls.indexOf('clientsettings') !== -1 || cls.indexOf('lnkclientsettings') !== -1 || rawLabel === 'client settings') {
+                rowKind = 'clientsettings';
+                rowSub = 'App video player, downloads & device options';
+                if (hasNativeClientApi) {
+                    row.classList.remove('hide');
+                    var parentSec = row.closest('.verticalSection');
+                    if (parentSec) {
+                        parentSec.classList.remove('hide');
+                    }
+                }
+                if (!row.classList.contains('hide')) {
+                    hasVisibleNativeClientRow = true;
+                }
+            } else if (cls.indexOf('downloadsettings') !== -1 || cls.indexOf('lnkdownloadpreferences') !== -1 || rawLabel === 'downloads' || rawLabel === 'download settings') {
+                rowKind = 'downloads';
+                rowSub = 'Offline media storage & sync preferences';
             } else if (cls.indexOf('lnkdisplaypreferences') !== -1 || href.indexOf('mypreferencesdisplay') !== -1 || rawLabel === 'display') {
                 rowKind = 'display';
                 rowSub = 'Language, date format, theme & browsing layout';
@@ -243,22 +293,25 @@
             } else if (cls.indexOf('lnkcontrolspreferences') !== -1 || href.indexOf('mypreferencescontrols') !== -1 || rawLabel === 'controls') {
                 rowKind = 'controls';
                 rowSub = 'Keyboard shortcuts & controller navigation';
-            } else if (cls.indexOf('lnkquickconnectpreferences') !== -1 || href.indexOf('mypreferencesquickconnect') !== -1 || rawLabel === 'quick connect') {
+            } else if (cls.indexOf('lnkquickconnectpreferences') !== -1 || cls.indexOf('quickconnect') !== -1 || href.indexOf('mypreferencesquickconnect') !== -1 || rawLabel === 'quick connect') {
                 rowKind = 'quickconnect';
-                rowSub = 'Authorize a TV or another device with a 6-digit code';
+                row.classList.add('hide');
             } else if (cls.indexOf('lnkdashboard') !== -1 || href.indexOf('dashboard') !== -1 || rawLabel === 'dashboard') {
                 rowKind = 'dashboard';
                 rowSub = 'Server administration, libraries, users & plugins';
             } else if (cls.indexOf('btnlogout') !== -1 || rawLabel === 'sign out' || rawLabel === 'log out') {
                 rowKind = 'logout';
                 rowSub = 'Sign out of ' + getBrandName() + ' on this device';
-            } else if (cls.indexOf('btnselectserver') !== -1 || rawLabel === 'select server') {
+            } else if (cls.indexOf('btnselectserver') !== -1 || cls.indexOf('selectserver') !== -1 || rawLabel === 'select server') {
                 rowKind = 'server';
                 rowSub = 'Switch or manage connected Jellyfin servers';
             }
 
             if (rowKind && row.getAttribute('data-bfx-row-kind') !== rowKind) {
                 row.setAttribute('data-bfx-row-kind', rowKind);
+            }
+            if (rowKind === 'quickconnect') {
+                continue;
             }
 
             if (rowKind === 'logout' && row.getAttribute('data-bfx-logout-bound') !== '1') {
@@ -302,6 +355,32 @@
                 innerItem.appendChild(chev);
             }
         }
+
+        // Collapse any native .verticalSection whose rows are all hidden (e.g. Quick Connect section)
+        var sections = menuPage.querySelectorAll('.verticalSection');
+        for (var s = 0; s < sections.length; s++) {
+            var sec = sections[s];
+            if (!sec || sec.closest('#bfx-prefs-hero')) {
+                continue;
+            }
+            var secRows = sec.querySelectorAll('a.emby-button, .listItem-border');
+            if (secRows.length > 0) {
+                var anyVisible = false;
+                for (var r = 0; r < secRows.length; r++) {
+                    if (!secRows[r].classList.contains('hide') && secRows[r].getAttribute('data-bfx-row-kind') !== 'quickconnect') {
+                        anyVisible = true;
+                        break;
+                    }
+                }
+                if (anyVisible) {
+                    sec.removeAttribute('data-bfx-empty-section');
+                } else {
+                    sec.setAttribute('data-bfx-empty-section', '1');
+                }
+            }
+        }
+
+        return hasVisibleNativeClientRow;
     }
 
     function clearUserPreferencesEnhancements() {
@@ -344,9 +423,14 @@
                 if (!menuPage) {
                     return;
                 }
-                var heroHost = menuPage.querySelector('.readOnlyContent, .content-primary')
-                    || menuPage.querySelector('.padded-left')
-                    || menuPage;
+                var hasVisibleNativeClientRow = enhanceNativePrefsMenuRows(menuPage);
+                var showSynthClientCard = !isGuest
+                    && !active.isKids
+                    && !hasVisibleNativeClientRow
+                    && typeof shouldShowClientSettingsAction === 'function'
+                    && shouldShowClientSettingsAction();
+
+                var heroHost = findPrefsContentHost(menuPage);
 
                 var googleEmail = state.googleUser && state.googleUser.email;
                 var sessionUsername = state.googleUser && state.googleUser.username;
@@ -374,6 +458,7 @@
                     Boolean(isAdmin),
                     Boolean(isGuest),
                     Boolean(state.cinemaHubEnabled !== false),
+                    Boolean(showSynthClientCard),
                     brandName,
                     accountSubLabel
                 ].join('|');
@@ -424,6 +509,18 @@
                                 + '  </div>'))
                         + '</div>'
                         + buildCinemaHubToggleCardHtml()
+                        + (showSynthClientCard
+                            ? ('<button type="button" class="bfx-prefs-client-card" data-bfx-prefs-client-settings="1" data-bfx-synth-client="1">'
+                                + '  <div class="bfx-prefs-feature-ico is-client">' + icon('smartphone') + '</div>'
+                                + '  <div class="bfx-prefs-feature-copy">'
+                                + '    <div class="bfx-prefs-feature-title-row">'
+                                + '      <span class="bfx-prefs-feature-title">Client Settings</span>'
+                                + '    </div>'
+                                + '    <div class="bfx-prefs-feature-desc">App video player, streaming quality, downloads &amp; phone options</div>'
+                                + '  </div>'
+                                + '  <span class="bfx-prefs-row-chev" aria-hidden="true">' + icon('chevronRight') + '</span>'
+                                + '</button>')
+                            : '')
                         + (isAdmin
                             ? ('<div class="bfx-prefs-admin-card">'
                                 + '  <div class="bfx-prefs-feature-ico is-admin">' + icon('shield') + '</div>'
@@ -457,14 +554,21 @@
                             window.__STREAMFLIX_OPEN_PROFILE_PICKER__(false);
                         });
                     }
+                    var clientSettingsBtn = existingHero.querySelector('[data-bfx-prefs-client-settings="1"]');
+                    if (clientSettingsBtn) {
+                        clientSettingsBtn.addEventListener('click', function () {
+                            if (typeof openClientSettingsAction === 'function') {
+                                openClientSettingsAction();
+                            }
+                        });
+                    }
                     bindCinemaHubToggleCards(existingHero);
                 }
 
-                enhanceNativePrefsMenuRows(menuPage);
                 return;
             }
 
-            // Subpage view (profile, display, home, playback, subtitles, controls, quickconnect)
+            // Subpage view (profile, display, home, playback, subtitles, controls)
             var staleHero = document.getElementById('bfx-prefs-hero');
             if (staleHero && staleHero.parentNode) {
                 staleHero.parentNode.removeChild(staleHero);
@@ -476,11 +580,7 @@
             }
             subPage.classList.add('bfx-prefs-subpage-enhanced');
 
-            var subHost = subPage.querySelector('.readOnlyContent, .content-primary');
-            if (!subHost) {
-                var formEl = subPage.querySelector('form');
-                subHost = (formEl && formEl.parentNode && formEl.parentNode !== document.body) ? formEl.parentNode : subPage;
-            }
+            var subHost = findPrefsContentHost(subPage);
 
             var meta = USER_PREFS_SUBPAGES[kind] || {
                 icon: 'sliders',
@@ -529,9 +629,6 @@
                 ];
                 if (showControlsTab) {
                     tabItems.push({ key: 'controls', label: 'Controls', href: '#/mypreferencescontrols.html' + uidSuffix });
-                }
-                if (!isGuest || kind === 'quickconnect') {
-                    tabItems.push({ key: 'quickconnect', label: 'Quick Connect', href: '#/mypreferencesquickconnect.html' });
                 }
 
                 var tabsHtml = tabItems.map(function (t) {

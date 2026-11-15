@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Text.Json.Serialization;
 
 namespace Jellyfin.Plugin.StreamFlix.Controllers;
 
@@ -294,102 +295,147 @@ public class RevokeDeviceRequest
 
 public class CreateWatchPartyRoomRequest
 {
+    [JsonPropertyName("name")]
     public string? Name { get; set; }
 
+    [JsonPropertyName("participantId")]
     public string? ParticipantId { get; set; }
 
+    [JsonPropertyName("profileId")]
     public string? ProfileId { get; set; }
 
+    [JsonPropertyName("displayName")]
     public string? DisplayName { get; set; }
 
+    [JsonPropertyName("avatarEmoji")]
     public string? AvatarEmoji { get; set; }
 
+    [JsonPropertyName("avatarColorHex")]
     public string? AvatarColorHex { get; set; }
 
+    [JsonPropertyName("hostControlOnly")]
     public bool HostControlOnly { get; set; }
 
+    [JsonPropertyName("itemId")]
     public string? ItemId { get; set; }
 
+    [JsonPropertyName("itemName")]
     public string? ItemName { get; set; }
 
+    [JsonPropertyName("seriesName")]
     public string? SeriesName { get; set; }
 
+    [JsonPropertyName("seasonNumber")]
     public int? SeasonNumber { get; set; }
 
+    [JsonPropertyName("episodeNumber")]
     public int? EpisodeNumber { get; set; }
 
+    [JsonPropertyName("itemType")]
     public string? ItemType { get; set; }
 
+    [JsonPropertyName("runTimeTicks")]
     public long? RunTimeTicks { get; set; }
 
+    [JsonPropertyName("startPositionSeconds")]
     public double? StartPositionSeconds { get; set; }
 
+    [JsonPropertyName("isPlaying")]
     public bool? IsPlaying { get; set; }
 }
 
 public class JoinWatchPartyRoomRequest
 {
+    [JsonPropertyName("roomId")]
     public string RoomId { get; set; } = string.Empty;
 
+    [JsonPropertyName("participantId")]
     public string? ParticipantId { get; set; }
 
+    [JsonPropertyName("profileId")]
     public string? ProfileId { get; set; }
 
+    [JsonPropertyName("displayName")]
     public string? DisplayName { get; set; }
 
+    [JsonPropertyName("avatarEmoji")]
     public string? AvatarEmoji { get; set; }
 
+    [JsonPropertyName("avatarColorHex")]
     public string? AvatarColorHex { get; set; }
 }
 
 public class LeaveWatchPartyRoomRequest
 {
+    [JsonPropertyName("roomId")]
     public string? RoomId { get; set; }
 
+    [JsonPropertyName("participantId")]
     public string? ParticipantId { get; set; }
 
+    [JsonPropertyName("profileId")]
     public string? ProfileId { get; set; }
 
+    [JsonPropertyName("closeRoom")]
     public bool CloseRoom { get; set; }
 }
 
 public class WatchPartyCommandRequest
 {
+    [JsonPropertyName("roomId")]
     public string RoomId { get; set; } = string.Empty;
 
+    [JsonPropertyName("participantId")]
     public string? ParticipantId { get; set; }
 
+    [JsonPropertyName("profileId")]
     public string? ProfileId { get; set; }
 
+    [JsonPropertyName("displayName")]
     public string? DisplayName { get; set; }
 
+    [JsonPropertyName("avatarEmoji")]
     public string? AvatarEmoji { get; set; }
 
+    [JsonPropertyName("avatarColorHex")]
     public string? AvatarColorHex { get; set; }
 
+    [JsonPropertyName("action")]
     public string Action { get; set; } = string.Empty;
 
+    [JsonPropertyName("actionId")]
     public string? ActionId { get; set; }
 
+    [JsonPropertyName("positionSeconds")]
     public double? PositionSeconds { get; set; }
 
+    [JsonPropertyName("isPlaying")]
     public bool? IsPlaying { get; set; }
 
+    [JsonPropertyName("hostControlOnly")]
     public bool? HostControlOnly { get; set; }
 
+    [JsonPropertyName("itemId")]
     public string? ItemId { get; set; }
 
+    [JsonPropertyName("itemName")]
     public string? ItemName { get; set; }
 
+    [JsonPropertyName("seriesName")]
     public string? SeriesName { get; set; }
 
+    [JsonPropertyName("seasonNumber")]
     public int? SeasonNumber { get; set; }
 
+    [JsonPropertyName("episodeNumber")]
     public int? EpisodeNumber { get; set; }
 
+    [JsonPropertyName("itemType")]
     public string? ItemType { get; set; }
 
+    [JsonPropertyName("runTimeTicks")]
     public long? RunTimeTicks { get; set; }
 
+    [JsonPropertyName("isBuffering")]
     public bool? IsBuffering { get; set; }
 }

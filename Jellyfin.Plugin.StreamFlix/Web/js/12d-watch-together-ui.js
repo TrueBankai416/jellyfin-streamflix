@@ -168,7 +168,8 @@
         watchPartyState.loading = true;
         return apiFetch('/StreamFlix/WatchParty/Rooms?profileId=' + encodeURIComponent(profId)).then(function (res) {
             watchPartyState.loading = false;
-            var rooms = (res && Array.isArray(res.rooms)) ? res.rooms : [];
+            var rawRooms = res && (Array.isArray(res.rooms) ? res.rooms : (Array.isArray(res.Rooms) ? res.Rooms : []));
+            var rooms = normalizeWatchPartyRoomsArray(rawRooms);
             watchPartyState.groups = rooms;
             return rooms;
         }).catch(function (err) {
@@ -223,17 +224,23 @@
         }).then(function (res) {
             var rtt = Date.now() - t0;
             wpSync.joinedAtMs = Date.now();
-            if (res && Array.isArray(res.rooms)) {
-                watchPartyState.groups = res.rooms;
+            var rawRooms = res && (Array.isArray(res.rooms) ? res.rooms : (Array.isArray(res.Rooms) ? res.Rooms : null));
+            if (rawRooms) {
+                watchPartyState.groups = normalizeWatchPartyRoomsArray(rawRooms);
             }
-            if (res && res.room) {
-                if (createOpts.suppressImmediateAutoFollow && res.room.itemId) {
-                    wpSync.lastAutoLaunchItemId = normalizeGuid(res.room.itemId);
+            var rawRoom = res && (res.room || res.Room);
+            var normRoom = normalizeWatchPartyRoomSnapshot(rawRoom);
+            if (normRoom && normRoom.roomId) {
+                if (createOpts.suppressImmediateAutoFollow && normRoom.itemId) {
+                    wpSync.lastAutoLaunchItemId = normalizeGuid(normRoom.itemId);
                     wpSync.lastAutoLaunchAtMs = Date.now();
                 }
-                return applyIncomingRoomSnapshot(res.room, rtt);
+                var applied = applyIncomingRoomSnapshot(normRoom, rtt);
+                if (applied && applied.roomId) {
+                    return applied;
+                }
             }
-            throw new Error('Could not start Watch Party.');
+            throw new Error((res && (res.message || res.Message)) || 'Could not start Watch Party.');
         });
     }
 
@@ -259,13 +266,16 @@
             var rtt = Date.now() - t0;
             wpSync.joinedAtMs = Date.now();
             wpSync.lastAutoLaunchItemId = '';
-            if (res && Array.isArray(res.rooms)) {
-                watchPartyState.groups = res.rooms;
+            var rawRooms = res && (Array.isArray(res.rooms) ? res.rooms : (Array.isArray(res.Rooms) ? res.Rooms : null));
+            if (rawRooms) {
+                watchPartyState.groups = normalizeWatchPartyRoomsArray(rawRooms);
             }
-            if (res && res.room) {
-                return applyIncomingRoomSnapshot(res.room, rtt);
+            var rawRoom = res && (res.room || res.Room);
+            var applied = applyIncomingRoomSnapshot(rawRoom, rtt);
+            if (applied && applied.roomId) {
+                return applied;
             }
-            throw new Error('Could not join Watch Party.');
+            throw new Error((res && (res.message || res.Message)) || 'Could not join Watch Party.');
         });
     }
 
@@ -291,8 +301,9 @@
                 closeRoom: Boolean(closeRoomForAll)
             })
         }).then(function (res) {
-            if (res && Array.isArray(res.rooms)) {
-                watchPartyState.groups = res.rooms;
+            var rawRooms = res && (Array.isArray(res.rooms) ? res.rooms : (Array.isArray(res.Rooms) ? res.Rooms : null));
+            if (rawRooms) {
+                watchPartyState.groups = normalizeWatchPartyRoomsArray(rawRooms);
             }
         }).catch(function () {});
     }

@@ -234,120 +234,179 @@
         } catch (e) {}
     }
 
-    /* Jellyfin Quick Connect: authorize another device (TV, phone, app) with the code it displays */
-    function openQuickConnectModal() {
+    /* Client Settings bridge for Jellyfin Mobile (Android / iOS), Jellyfin Media Player & Phone Web/PWA */
+    function hasNativeClientSettingsBridge() {
+        try {
+            if (window.NativeShell && typeof window.NativeShell.openClientSettings === 'function') {
+                return true;
+            }
+            if (window.NativeInterface && typeof window.NativeInterface.openClientSettings === 'function') {
+                return true;
+            }
+            var nativeBtn = document.querySelector(
+                '#myPreferencesMenuPage .clientSettings:not(.hide), '
+                + '#myPreferencesMenuPage .lnkClientSettings:not(.hide), '
+                + '.mainDrawer .clientSettings:not(.hide), '
+                + '.MuiDrawer-root .clientSettings:not(.hide)'
+            );
+            if (nativeBtn && !nativeBtn.getAttribute('data-bfx-synth-client')) {
+                return true;
+            }
+        } catch (e) {}
+        return false;
+    }
+
+    function shouldShowClientSettingsAction() {
+        if (hasNativeClientSettingsBridge()) {
+            return true;
+        }
+        var isPhone = Boolean(document.body && document.body.classList.contains('bfx-phone-mode'));
+        if (!isPhone && window.matchMedia) {
+            try {
+                isPhone = window.matchMedia('(max-width: 640px)').matches
+                    && !(document.body && document.body.classList.contains('bfx-tv-mode'))
+                    && !(document.documentElement && document.documentElement.classList.contains('layout-tv'));
+            } catch (e) {}
+        }
+        return isPhone;
+    }
+
+    function openWebClientSettingsModal() {
         var active = state.activeProfile || {};
-        var len = 6;
-        var boxesHtml = '';
-        for (var i = 0; i < len; i++) {
-            boxesHtml += '<span class="streamflix-pin-box"></span>';
-        }
+        var brand = escapeHtml(getBrandName());
+        var uid = getActiveUserId() || active.jellyfinUserId || '';
+        var uidSuffix = uid ? ('?userId=' + encodeURIComponent(uid)) : '';
+        var hubOn = state.cinemaHubEnabled !== false;
+        var canSelectServer = Boolean(
+            (window.NativeShell && typeof window.NativeShell.selectServer === 'function')
+            || document.querySelector('#myPreferencesMenuPage .btnSelectServer:not(.hide), #myPreferencesMenuPage .selectServer:not(.hide)')
+        );
+
         var m = openModal(''
-            + '<div class="streamflix-qc-badge">' + icon('tv') + '</div>'
-            + '<h2>Quick Connect</h2>'
-            + '<p class="streamflix-modal-text">On your TV or other device, choose <strong>Quick Connect</strong> on the Jellyfin sign-in screen and enter the code it shows. It will sign in as <strong>' + escapeHtml(active.name || 'this profile') + '</strong>.</p>'
-            + '<label class="streamflix-pin-pad streamflix-qc-pad">'
-            + '  <input type="text" class="streamflix-pin-input streamflix-qc-input" inputmode="numeric" autocomplete="one-time-code" maxlength="' + len + '" aria-label="Quick Connect code" />'
-            + '  <span class="streamflix-pin-boxes">' + boxesHtml + '</span>'
-            + '</label>'
-            + '<div class="streamflix-pin-msg" aria-live="assertive"></div>'
-            + '<div class="streamflix-modal-actions streamflix-modal-actions-center">'
-            + '  <button type="button" class="streamflix-ghost-btn" data-act="cancel">Cancel</button>'
-            + '  <button type="button" class="streamflix-btn-primary" data-act="ok" disabled>Connect</button>'
-            + '</div>', { className: 'streamflix-modal-pin streamflix-modal-qc' });
+            + '<div class="bfx-cs-head">'
+            + '  <div class="bfx-cs-head-ico">' + icon('smartphone') + '</div>'
+            + '  <div class="bfx-cs-head-copy">'
+            + '    <h2>Client Settings</h2>'
+            + '    <p class="streamflix-modal-text">Player, streaming &amp; display options for this device.</p>'
+            + '  </div>'
+            + '</div>'
+            + '<div class="bfx-cs-list">'
+            + '  <button type="button" class="bfx-cs-row is-toggle" data-cs-act="toggle-hub" role="switch" aria-checked="' + (hubOn ? 'true' : 'false') + '">'
+            + '    <span class="bfx-cs-row-ico is-brand">' + icon('home') + '</span>'
+            + '    <span class="bfx-cs-row-body">'
+            + '      <span class="bfx-cs-row-title">' + brand + ' Home on This Device</span>'
+            + '      <span class="bfx-cs-row-sub">Billboard hero, Top 10 &amp; personalized rows</span>'
+            + '    </span>'
+            + '    <span class="bfx-switch' + (hubOn ? ' on' : '') + '" data-cs-hub-switch="1"><i></i></span>'
+            + '  </button>'
+            + '  <button type="button" class="bfx-cs-row" data-cs-href="#/mypreferencesplayback.html' + escapeHtml(uidSuffix) + '">'
+            + '    <span class="bfx-cs-row-ico is-play">' + icon('play') + '</span>'
+            + '    <span class="bfx-cs-row-body">'
+            + '      <span class="bfx-cs-row-title">Playback &amp; Streaming Quality</span>'
+            + '      <span class="bfx-cs-row-sub">Video bitrate, audio track preference &amp; autoplay</span>'
+            + '    </span>'
+            + '    <span class="bfx-cs-row-chev">' + icon('chevronRight') + '</span>'
+            + '  </button>'
+            + '  <button type="button" class="bfx-cs-row" data-cs-href="#/mypreferencessubtitles.html' + escapeHtml(uidSuffix) + '">'
+            + '    <span class="bfx-cs-row-ico is-sub">' + icon('subtitles') + '</span>'
+            + '    <span class="bfx-cs-row-body">'
+            + '      <span class="bfx-cs-row-title">Subtitles &amp; Captions</span>'
+            + '      <span class="bfx-cs-row-sub">Subtitle language, burn-in &amp; caption size</span>'
+            + '    </span>'
+            + '    <span class="bfx-cs-row-chev">' + icon('chevronRight') + '</span>'
+            + '  </button>'
+            + '  <button type="button" class="bfx-cs-row" data-cs-href="#/mypreferencesdisplay.html' + escapeHtml(uidSuffix) + '">'
+            + '    <span class="bfx-cs-row-ico is-disp">' + icon('tv') + '</span>'
+            + '    <span class="bfx-cs-row-body">'
+            + '      <span class="bfx-cs-row-title">Display &amp; Appearance</span>'
+            + '      <span class="bfx-cs-row-sub">Language, date format &amp; browsing layout</span>'
+            + '    </span>'
+            + '    <span class="bfx-cs-row-chev">' + icon('chevronRight') + '</span>'
+            + '  </button>'
+            + (canSelectServer
+                ? ('  <button type="button" class="bfx-cs-row" data-cs-act="select-server">'
+                    + '    <span class="bfx-cs-row-ico is-srv">' + icon('gear') + '</span>'
+                    + '    <span class="bfx-cs-row-body">'
+                    + '      <span class="bfx-cs-row-title">Select Server</span>'
+                    + '      <span class="bfx-cs-row-sub">Switch or manage connected Jellyfin servers</span>'
+                    + '    </span>'
+                    + '    <span class="bfx-cs-row-chev">' + icon('chevronRight') + '</span>'
+                    + '  </button>')
+                : '')
+            + '</div>'
+            + '<div class="streamflix-modal-actions">'
+            + '  <button type="button" class="streamflix-ghost-btn" data-cs-act="done">Done</button>'
+            + '</div>', { className: 'bfx-client-settings-modal' });
 
-        var input = m.modal.querySelector('.streamflix-qc-input');
-        var boxEls = m.modal.querySelectorAll('.streamflix-pin-box');
-        var msg = m.modal.querySelector('.streamflix-pin-msg');
-        var okBtn = m.modal.querySelector('[data-act="ok"]');
-        var busy = false;
-
-        function paint() {
-            var v = input.value;
-            var focused = document.activeElement === input;
-            for (var k = 0; k < boxEls.length; k++) {
-                boxEls[k].textContent = v.charAt(k) || '';
-                boxEls[k].classList.toggle('filled', k < v.length);
-                boxEls[k].classList.toggle('active', focused && k === Math.min(v.length, len - 1));
-            }
-            okBtn.disabled = busy || input.disabled || v.length < len;
-        }
-
-        function fail(text) {
-            msg.textContent = text;
-            m.modal.classList.remove('streamflix-shake');
-            void m.modal.offsetWidth;
-            m.modal.classList.add('streamflix-shake');
-            try { input.focus(); input.select(); } catch (e) {}
-            paint();
-        }
-
-        function submit() {
-            var code = input.value;
-            if (busy || code.length < len) {
-                return;
-            }
-            busy = true;
-            m.modal.classList.add('streamflix-busy');
-            msg.textContent = '';
-            paint();
-            apiFetch('/QuickConnect/Authorize?code=' + encodeURIComponent(code), { method: 'POST' }).then(function () {
-                busy = false;
-                m.modal.classList.remove('streamflix-busy');
-                m.modal.innerHTML = ''
-                    + '<div class="streamflix-qc-badge streamflix-qc-success">' + icon('check') + '</div>'
-                    + '<h2>Device connected</h2>'
-                    + '<p class="streamflix-modal-text">Your device is now signed in as <strong>' + escapeHtml(active.name || 'this profile') + '</strong>.</p>'
-                    + '<div class="streamflix-modal-actions streamflix-modal-actions-center"><button type="button" class="streamflix-btn-primary" data-act="done">Done</button></div>';
-                m.modal.querySelector('[data-act="done"]').addEventListener('click', function () { m.close(true); });
-                setTimeout(function () { m.close(true); }, 2600);
-            }).catch(function (err) {
-                busy = false;
-                m.modal.classList.remove('streamflix-busy');
-                var status = err && err.status;
-                if (status === 404 || status === 400) {
-                    fail('That code wasn\'t found or has expired. Check the code on your device and try again.');
-                } else if (status === 401 || status === 403) {
-                    fail('Quick Connect isn\'t available. An administrator can turn it on in Dashboard → General.');
-                } else {
-                    fail((err && err.message) || 'Couldn\'t connect the device. Please try again.');
+        var hubBtn = m.modal.querySelector('[data-cs-act="toggle-hub"]');
+        if (hubBtn) {
+            hubBtn.addEventListener('click', function () {
+                var next = !Boolean(state.cinemaHubEnabled !== false);
+                setCinemaHubEnabled(next, false);
+                hubBtn.setAttribute('aria-checked', next ? 'true' : 'false');
+                var sw = hubBtn.querySelector('[data-cs-hub-switch="1"]');
+                if (sw) {
+                    sw.classList.toggle('on', next);
                 }
             });
         }
-
-        input.addEventListener('input', function () {
-            input.value = input.value.replace(/[^0-9a-z]/gi, '').toUpperCase().slice(0, len);
-            if (msg.textContent && !busy && !input.disabled) {
-                msg.textContent = '';
-            }
-            paint();
-            if (input.value.length === len) {
-                submit();
-            }
+        Array.prototype.forEach.call(m.modal.querySelectorAll('[data-cs-href]'), function (btn) {
+            btn.addEventListener('click', function () {
+                var targetHref = btn.getAttribute('data-cs-href');
+                m.close(true);
+                if (targetHref) {
+                    window.location.hash = targetHref;
+                }
+            });
         });
-        input.addEventListener('focus', paint);
-        input.addEventListener('blur', paint);
-        input.addEventListener('keydown', function (ev) {
-            if (ev.key === 'Enter') {
-                submit();
-            }
-        });
-        okBtn.addEventListener('click', submit);
-        m.modal.querySelector('[data-act="cancel"]').addEventListener('click', function () { m.close(false); });
-
-        apiFetch('/QuickConnect/Enabled').then(function (enabled) {
-            if (enabled === false || enabled === 'false') {
-                input.disabled = true;
-                msg.textContent = 'Quick Connect is turned off on this server. An administrator can enable it in Dashboard → General.';
-                paint();
-            }
-        }).catch(function () {});
-
-        setTimeout(function () {
-            try { input.focus(); } catch (e) {}
-            paint();
-        }, 40);
+        var srvBtn = m.modal.querySelector('[data-cs-act="select-server"]');
+        if (srvBtn) {
+            srvBtn.addEventListener('click', function () {
+                m.close(true);
+                try {
+                    if (window.NativeShell && typeof window.NativeShell.selectServer === 'function') {
+                        window.NativeShell.selectServer();
+                        return;
+                    }
+                    var nativeSrv = document.querySelector('#myPreferencesMenuPage .btnSelectServer:not(.hide), #myPreferencesMenuPage .selectServer:not(.hide)');
+                    if (nativeSrv) {
+                        nativeSrv.click();
+                    }
+                } catch (e) {}
+            });
+        }
+        var doneBtn = m.modal.querySelector('[data-cs-act="done"]');
+        if (doneBtn) {
+            doneBtn.addEventListener('click', function () {
+                m.close(false);
+            });
+        }
         return m;
+    }
+
+    function openClientSettingsAction() {
+        try {
+            if (window.NativeShell && typeof window.NativeShell.openClientSettings === 'function') {
+                window.NativeShell.openClientSettings();
+                return;
+            }
+            if (window.NativeInterface && typeof window.NativeInterface.openClientSettings === 'function') {
+                window.NativeInterface.openClientSettings();
+                return;
+            }
+            var nativeBtn = document.querySelector(
+                '#myPreferencesMenuPage .clientSettings:not(.hide), '
+                + '#myPreferencesMenuPage .lnkClientSettings:not(.hide), '
+                + '.mainDrawer .clientSettings:not(.hide), '
+                + '.MuiDrawer-root .clientSettings:not(.hide)'
+            );
+            if (nativeBtn && !nativeBtn.getAttribute('data-bfx-synth-client')) {
+                var linkOrBtn = nativeBtn.matches('a, button') ? nativeBtn : (nativeBtn.querySelector('a, button') || nativeBtn);
+                linkOrBtn.click();
+                return;
+            }
+        } catch (e) {}
+        openWebClientSettingsModal();
     }
 
     /* Jellyfin's Cast ("Play on") and SyncPlay header buttons are tucked out of sight (see CSS) and
@@ -558,11 +617,15 @@
             ? ('In "' + (wpActiveGroup.name || wpActiveGroup.groupName || wpActiveGroup.GroupName || 'Watch Party') + '"' + (wpActiveGroup.roomId ? ' · ' + wpActiveGroup.roomId : ''))
             : 'Synced watch parties & invite links';
 
+        var showClientSettingsRow = !isGuest && !isKidsActive && shouldShowClientSettingsAction();
+        var clientSettingsSubLabel = hasNativeClientSettingsBridge()
+            ? 'App player, downloads & device options'
+            : 'Player quality, display & phone options';
+
         var tilesHtml = ''
             + (isPhoneSheet && state.cinemaHubEnabled !== false ? ddTile('streamflix-dd-mylist', 'bookmark', 'My List', 'Saved movies & shows', 'is-mylist') : '')
             + (canPhoneSurprise ? ddTile('streamflix-dd-surprise', 'shuffle', 'Surprise Me', 'Pick something great to watch', 'is-surprise') : '')
-            + (castBtnNative ? ddTile('streamflix-dd-cast', 'cast', castInfo.connected ? 'Casting' : 'Cast', castInfo.connected ? ('Connected to ' + (castInfo.deviceName || 'another device')) : 'Play on a TV, Chromecast or another device', 'is-cast' + (castInfo.connected ? ' is-live' : '')) : '')
-            + (!isGuest && !isKidsActive ? ddTile('streamflix-dd-quick-connect', 'tv', 'Quick Connect', 'Sign in on a TV or another device with a 6-digit code', 'is-qc') : '');
+            + (castBtnNative ? ddTile('streamflix-dd-cast', 'cast', castInfo.connected ? 'Casting' : 'Cast', castInfo.connected ? ('Connected to ' + (castInfo.deviceName || 'another device')) : 'Play on a TV, Chromecast or another device', 'is-cast' + (castInfo.connected ? ' is-live' : '')) : '');
 
         var kidsLockNeeded = isKidsActive && typeof isKidsExitLockRequired === 'function' && isKidsExitLockRequired()
             && !(typeof getValidKidsExitSession === 'function' && getValidKidsExitSession());
@@ -605,6 +668,7 @@
                 : ('<div class="streamflix-dd-divider"></div>'
                     + (wpEnabled ? ddItem('streamflix-dd-watch-party', 'party', 'Watch Together', wpSubLabel, wpActiveGroup ? 'is-watchparty-live' : '', wpTrailingHtml) : '')
                     + (!isGuest ? ddItem('streamflix-dd-user-prefs', 'sliders', 'Settings', 'Subtitles, playback & ' + getBrandName() + ' Home', '', '<span class="bfx-dd-chev">' + icon('chevronRight') + '</span>') : '')
+                    + (showClientSettingsRow ? ddItem('streamflix-dd-client-settings', 'smartphone', 'Client Settings', clientSettingsSubLabel, 'is-client-settings', '<span class="bfx-dd-chev">' + icon('chevronRight') + '</span>') : '')
                     + (isCurrentProfileSeerrAllowed() ? ddItem('streamflix-dd-seerr-requests', 'sparkle', 'Media Requests', 'Track requested movies & shows', '', '<span class="bfx-dd-chev">' + icon('chevronRight') + '</span>') : '')
                     + (isAdmin && areGuestPassesEnabled() ? ddItem('streamflix-dd-guest-passes', 'ticket', 'Guest Passes', 'Temporary invite links & QR', '', '<span class="bfx-dd-chev">' + icon('chevronRight') + '</span>') : '')
                     + (isAdmin ? ddItem('streamflix-dd-dashboard', 'gear', 'Dashboard', 'Server & ' + getBrandName() + ' plugin settings', '', '<span class="bfx-dd-chev">' + icon('chevronRight') + '</span>') : '')
@@ -675,8 +739,8 @@
         bind('streamflix-dd-cast', function () {
             openNativeHeaderMenu('cast');
         });
-        bind('streamflix-dd-quick-connect', function () {
-            openQuickConnectModal();
+        bind('streamflix-dd-client-settings', function () {
+            openClientSettingsAction();
         });
         bind('streamflix-dd-seerr-requests', function () {
             openSeerrRequestsModal();
