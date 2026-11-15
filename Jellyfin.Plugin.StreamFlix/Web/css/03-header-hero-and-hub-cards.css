@@ -1,0 +1,1494 @@
+/* StreamFlix Styles (03/08) — Frosted Header, Account Menu, Hero Billboard & Hub Cards */
+/* ---------- Header: transparent over the hero, frosted glass on scroll ---------- */
+.skinHeader,
+.appHeader,
+header.MuiAppBar-root,
+.skinHeader.focuscontainer-x.skinHeader-withBackground.skinHeader-blurred {
+    min-height: 54px !important;
+    background: linear-gradient(180deg, rgba(10, 10, 12, 0.78) 0%, rgba(10, 10, 12, 0.35) 60%, rgba(10, 10, 12, 0) 100%) !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    transition: background-color 0.35s var(--bfx-ease), box-shadow 0.35s ease !important;
+    border-bottom: 0 !important;
+}
+.skinHeader .headerTop {
+    min-height: 54px !important;
+    box-sizing: border-box !important;
+}
+body.streamflix-scrolled .skinHeader,
+body.streamflix-scrolled .appHeader,
+body.streamflix-scrolled header.MuiAppBar-root,
+body.streamflix-scrolled .skinHeader.focuscontainer-x.skinHeader-withBackground.skinHeader-blurred,
+body:not(.streamflix-on-home) .skinHeader,
+body:not(.streamflix-on-home) header.MuiAppBar-root {
+    background: rgba(14, 14, 17, 0.72) !important;
+    backdrop-filter: blur(22px) saturate(160%) !important;
+    -webkit-backdrop-filter: blur(22px) saturate(160%) !important;
+    box-shadow: 0 1px 0 var(--bfx-hairline), 0 10px 30px rgba(0, 0, 0, 0.25) !important;
+}
+
+/* Wordmark: crisp gradient, no neon glow */
+[data-streamflix-corner-brand="true"],
+.streamflix-toolbar-brand-link,
+.streamflix-inline-brand,
+.skinHeader .pageTitleWithDefaultLogo,
+.skinHeader .pageTitleWithLogo,
+.MuiToolbar-root a[href="#/"]:not([href*="tab="]),
+.MuiToolbar-root a[href="/web/#/"]:not([href*="tab="]),
+.MuiToolbar-root a[href="#/home"]:not([href*="tab="]),
+.MuiToolbar-root a[href="#/home.html"]:not([href*="tab="]),
+.MuiToolbar-root a[href="/web/#/home"]:not([href*="tab="]),
+.MuiToolbar-root a[href="/web/#/home.html"]:not([href*="tab="]) {
+    font-size: 24px !important;
+    font-weight: 900 !important;
+    letter-spacing: 0.02em !important;
+    text-shadow: none !important;
+    color: #ff1f2c !important;
+    background: linear-gradient(180deg, #ff3b46 0%, #e50914 55%, #b20710 100%) !important;
+    -webkit-background-clip: text !important;
+    background-clip: text !important;
+    -webkit-text-fill-color: transparent !important;
+    filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.45)) !important;
+    transition: transform 0.2s var(--bfx-ease), filter 0.2s ease !important;
+}
+[data-streamflix-corner-brand="true"]:hover,
+.streamflix-toolbar-brand-link:hover { transform: scale(1.03); }
+
+/* ---------- Profile button: concentric rounded corners, zero header clipping ---------- */
+#streamflix-header-profile-btn {
+    top: 7px !important;
+    right: 18px !important;
+    height: 40px !important;
+    box-sizing: border-box !important;
+    gap: 8px !important;
+    padding: 4px 10px 4px 4px !important;
+    border-radius: 12px !important;
+    overflow: hidden !important;
+    background: rgba(18, 18, 22, 0.42) !important;
+    border: 1px solid rgba(255, 255, 255, 0.08) !important;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.28) !important;
+    font-size: 14px !important;
+    font-weight: 600 !important;
+    line-height: 1 !important;
+    transition: background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease !important;
+}
+#streamflix-header-profile-btn:hover,
+#streamflix-header-profile-btn.open {
+    background: rgba(255, 255, 255, 0.13) !important;
+    border-color: var(--bfx-hairline-strong) !important;
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.38) !important;
+}
+#streamflix-header-profile-btn:focus-visible { outline: 2px solid #fff !important; outline-offset: 2px !important; }
+.streamflix-header-avatar {
+    width: 30px;
+    height: 30px;
+    min-width: 30px;
+    flex: 0 0 30px;
+    border-radius: 8px;
+    font-size: 16px;
+    line-height: 1;
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.2), 0 2px 8px rgba(0, 0, 0, 0.35);
+}
+.streamflix-header-name {
+    max-width: 140px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: #fff;
+    line-height: 1.15;
+}
+.streamflix-header-caret {
+    display: inline-flex;
+    align-items: center;
+    flex: none;
+    color: var(--bfx-text-2);
+    transition: transform 0.25s var(--bfx-ease);
+}
+.streamflix-header-caret .bfx-icon { width: 16px; height: 16px; }
+#streamflix-header-profile-btn.open .streamflix-header-caret { transform: rotate(180deg); }
+@media (max-width: 1000px) {
+    .streamflix-header-name { display: none; }
+    #streamflix-header-profile-btn { padding: 4px 7px 4px 4px !important; gap: 5px !important; }
+}
+
+/* ---------- Account menu ---------- */
+#streamflix-account-dropdown {
+    top: 56px !important;
+    right: 14px !important;
+    width: 316px !important;
+    max-height: calc(100vh - 72px) !important;
+    overflow-y: auto !important;
+    background: var(--bfx-glass-strong) !important;
+    backdrop-filter: blur(30px) saturate(170%) !important;
+    -webkit-backdrop-filter: blur(30px) saturate(170%) !important;
+    border: 1px solid var(--bfx-hairline-strong) !important;
+    border-radius: 18px !important;
+    box-shadow: 0 30px 80px rgba(0, 0, 0, 0.6), 0 2px 0 rgba(255, 255, 255, 0.04) inset !important;
+    padding: 6px !important;
+    transform-origin: top right;
+    animation: bfxMenuIn 0.22s var(--bfx-ease) both !important;
+}
+@keyframes bfxMenuIn {
+    from { opacity: 0; transform: translateY(-6px) scale(0.96); }
+    to { opacity: 1; transform: none; }
+}
+.streamflix-dd-active-header {
+    padding: 12px;
+    margin: 0 0 4px 0;
+    border: none;
+    border-radius: 13px;
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.02) 100%);
+}
+.streamflix-dd-active-avatar {
+    width: 46px;
+    height: 46px;
+    border-radius: 13px;
+    font-size: 24px;
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.18), 0 6px 16px rgba(0, 0, 0, 0.4);
+}
+.streamflix-dd-active-name { font-size: 15.5px; font-weight: 700; letter-spacing: -0.01em; }
+.streamflix-dd-active-sub { font-size: 12px; color: var(--bfx-text-3); }
+.streamflix-dd-admin-pill {
+    font-size: 9.5px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    background: rgba(229, 9, 20, 0.18);
+    color: #ff6b73;
+    border: 1px solid rgba(229, 9, 20, 0.4);
+    padding: 1px 6px;
+    border-radius: 999px;
+}
+.bfx-dd-profiles {
+    display: flex;
+    gap: 4px;
+    padding: 8px 4px 10px 4px;
+    overflow-x: auto;
+    scrollbar-width: none;
+}
+.bfx-dd-profiles::-webkit-scrollbar { display: none; }
+.bfx-dd-prof {
+    flex: 0 0 64px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 2px;
+    border: none;
+    border-radius: 12px;
+    background: transparent;
+    color: var(--bfx-text-2);
+    cursor: pointer;
+    transition: background 0.15s ease, color 0.15s ease;
+}
+.bfx-dd-prof:hover,
+.bfx-dd-prof:focus-visible { background: rgba(255, 255, 255, 0.08); color: #fff; outline: none; }
+.bfx-dd-prof-av {
+    position: relative;
+    box-sizing: border-box;
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 22px;
+    color: #fff;
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.16);
+    transition: transform 0.2s var(--bfx-ease);
+}
+.bfx-dd-prof:hover .bfx-dd-prof-av { transform: translateY(-2px); }
+.bfx-dd-prof-lock {
+    position: absolute;
+    right: -5px;
+    bottom: -5px;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 4px;
+    border-radius: 999px;
+    background: #111;
+    border: 1.5px solid rgba(255, 255, 255, 0.5);
+    color: #fff;
+    font-size: 9px;
+    font-weight: 800;
+    line-height: 15px;
+    text-align: center;
+    box-sizing: border-box;
+}
+.bfx-dd-prof-lock.is-acct {
+    width: 18px;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #ffffff;
+    border: 1px solid rgba(0, 0, 0, 0.18);
+    color: #4285F4;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.45);
+}
+.bfx-dd-prof-lock.is-acct svg {
+    width: 11px;
+    height: 11px;
+    display: block;
+}
+.bfx-dd-prof-name {
+    max-width: 62px;
+    font-size: 11.5px;
+    font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.bfx-dd-prof.is-locked .bfx-dd-prof-av { filter: grayscale(0.7) brightness(0.7); }
+.bfx-dd-prof-manage .bfx-dd-prof-av {
+    background: transparent;
+    border: 1.5px dashed rgba(255, 255, 255, 0.3);
+    box-shadow: none;
+    color: var(--bfx-text-2);
+}
+.bfx-dd-prof-manage .bfx-dd-prof-av .bfx-icon { width: 20px; height: 20px; }
+.streamflix-dd-divider { margin: 5px 8px; background: var(--bfx-hairline); }
+.streamflix-dd-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 9px 10px;
+    border-radius: 11px;
+    color: rgba(255, 255, 255, 0.88);
+    font-size: 14px;
+    font-weight: 500;
+    min-height: 42px;
+}
+.streamflix-dd-item:hover,
+.streamflix-dd-item:focus-visible { background: rgba(255, 255, 255, 0.08); outline: none; }
+.bfx-dd-ico {
+    width: 32px;
+    height: 32px;
+    flex: none;
+    border-radius: 9px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255, 255, 255, 0.07);
+    color: #fff;
+    transition: background 0.15s ease;
+}
+.bfx-dd-ico .bfx-icon { width: 17px; height: 17px; }
+.streamflix-dd-item:hover .bfx-dd-ico { background: rgba(255, 255, 255, 0.13); }
+.bfx-dd-label {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    line-height: 1.25;
+}
+.bfx-dd-label small {
+    font-size: 11.5px;
+    font-weight: 400;
+    color: var(--bfx-text-3);
+    margin-top: 1px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+#streamflix-dd-quick-connect .bfx-dd-ico {
+    background: linear-gradient(135deg, #7b5cff 0%, #00a4dc 100%);
+}
+.streamflix-dd-item.danger { color: #ff7a80; }
+.streamflix-dd-item.danger .bfx-dd-ico { background: rgba(229, 9, 20, 0.14); color: #ff7a80; }
+.streamflix-dd-item.danger:hover { background: rgba(229, 9, 20, 0.12); color: #ff9aa0; }
+.bfx-switch {
+    position: relative;
+    width: 36px;
+    height: 21px;
+    flex: none;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.2);
+    transition: background 0.2s ease;
+}
+.bfx-switch i {
+    position: absolute;
+    top: 2.5px;
+    left: 2.5px;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: #fff;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+    transition: transform 0.22s var(--bfx-ease);
+}
+.bfx-switch.on { background: var(--streamflix-red); }
+.bfx-switch.on i { transform: translateX(15px); }
+
+/* ---------- Hub layout & subnav ---------- */
+#streamflix-cinema-hub { display: flow-root; }
+@media (max-width: 600px) { :root { --bfx-header-h: 56px; } }
+.streamflix-subnav {
+    position: relative;
+    z-index: 8;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px;
+    padding: 14px var(--bfx-gutter) 10px var(--bfx-gutter);
+    background: transparent;
+}
+#streamflix-cinema-hub.streamflix-has-hero > .streamflix-subnav {
+    position: absolute;
+    /* sit just below Jellyfin's (transparent) header no matter how far the hero bleeds up */
+    top: max(0px, calc(var(--bfx-header-h) - var(--bfx-bleed, 0px)));
+    left: 0;
+    right: 0;
+}
+.streamflix-FilterPills {
+    display: inline-flex;
+    flex-wrap: nowrap;
+    gap: 2px;
+    padding: 4px;
+    border-radius: 999px;
+    background: var(--bfx-glass);
+    backdrop-filter: blur(18px) saturate(160%);
+    -webkit-backdrop-filter: blur(18px) saturate(160%);
+    border: 1px solid var(--bfx-hairline);
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.25);
+    max-width: 100%;
+    overflow-x: auto;
+    scrollbar-width: none;
+}
+.streamflix-FilterPills::-webkit-scrollbar { display: none; }
+.streamflix-pill {
+    flex: none;
+    padding: 7px 16px;
+    border-radius: 999px;
+    border: none;
+    background: transparent;
+    color: var(--bfx-text-2);
+    font-size: 13.5px;
+    font-weight: 600;
+    letter-spacing: 0.005em;
+    box-shadow: none;
+    transition: background 0.2s ease, color 0.2s ease;
+}
+.streamflix-pill:hover { background: rgba(255, 255, 255, 0.1); color: #fff; border-color: transparent; }
+.streamflix-pill.active {
+    background: #fff;
+    color: #0b0b0b;
+    border-color: transparent;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+}
+.streamflix-pill:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+
+.streamflix-search-box {
+    min-width: 0;
+    width: 260px;
+    height: 40px;
+    border-radius: 999px;
+    background: var(--bfx-glass);
+    backdrop-filter: blur(18px) saturate(160%);
+    -webkit-backdrop-filter: blur(18px) saturate(160%);
+    border: 1px solid var(--bfx-hairline);
+    transition: width 0.3s var(--bfx-ease), border-color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
+}
+.streamflix-search-box:focus-within,
+.streamflix-search-box.has-value {
+    width: 340px;
+    background: rgba(14, 14, 17, 0.85);
+    border-color: rgba(255, 255, 255, 0.32);
+    box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.06);
+}
+.streamflix-search-icon {
+    left: 14px;
+    display: inline-flex;
+    color: var(--bfx-text-3);
+}
+.streamflix-search-icon .bfx-icon { width: 17px; height: 17px; }
+.streamflix-search-box:focus-within .streamflix-search-icon { color: #fff; }
+.streamflix-search-input {
+    height: 100%;
+    padding: 0 40px 0 40px;
+    border: none !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    font-size: 14px;
+    color: #fff;
+}
+.streamflix-search-input::placeholder { color: var(--bfx-text-3); }
+.streamflix-search-input::-webkit-search-cancel-button,
+.streamflix-search-input::-webkit-search-decoration { -webkit-appearance: none; appearance: none; display: none; }
+.streamflix-search-kbd {
+    position: absolute;
+    right: 10px;
+    min-width: 22px;
+    height: 22px;
+    padding: 0 6px;
+    border-radius: 6px;
+    border: 1px solid var(--bfx-hairline-strong);
+    background: rgba(255, 255, 255, 0.06);
+    color: var(--bfx-text-3);
+    font: 600 12px/20px ui-monospace, SFMono-Regular, Menlo, monospace;
+    text-align: center;
+    box-sizing: border-box;
+    pointer-events: none;
+    transition: opacity 0.2s ease;
+}
+.streamflix-search-box:focus-within .streamflix-search-kbd { opacity: 0; }
+.streamflix-search-clear {
+    right: 8px;
+    width: 26px;
+    height: 26px;
+    background: rgba(255, 255, 255, 0.12);
+}
+.streamflix-search-clear .bfx-icon { width: 14px; height: 14px; }
+.streamflix-search-clear:hover { background: rgba(255, 255, 255, 0.24); }
+
+/* ---------- Hero: edge-to-edge billboard ---------- */
+#streamflix-hero-billboard {
+    margin-top: calc(-1 * var(--bfx-bleed, 0px));
+    margin-bottom: clamp(-120px, -8vw, -40px);
+    /* grow with the content instead of clipping it under the tabs on short windows */
+    height: auto;
+    min-height: max(580px, min(88vh, 940px));
+    max-height: none;
+    padding: calc(max(var(--bfx-bleed, 0px), var(--bfx-header-h)) + 110px) var(--bfx-gutter) clamp(110px, 10.5vw, 160px) var(--bfx-gutter);
+    border-bottom: none;
+    align-items: flex-end;
+    isolation: isolate;
+}
+#streamflix-hero-billboard::before {
+    background:
+        linear-gradient(90deg, rgba(20, 20, 20, 0.92) 0%, rgba(20, 20, 20, 0.62) 28%, rgba(20, 20, 20, 0.12) 58%, rgba(20, 20, 20, 0) 75%),
+        linear-gradient(180deg, rgba(12, 12, 12, 0.55) 0%, rgba(20, 20, 20, 0) 22%, rgba(20, 20, 20, 0) 55%, rgba(20, 20, 20, 0.82) 84%, var(--streamflix-bg) 100%);
+}
+#streamflix-hero-billboard::after {
+    content: "";
+    position: absolute;
+    inset: auto 0 0 0;
+    height: 30%;
+    z-index: 1;
+    pointer-events: none;
+    background: linear-gradient(180deg, rgba(20, 20, 20, 0) 0%, var(--streamflix-bg) 100%);
+}
+.streamflix-hero-bg-stack { background: var(--streamflix-bg); }
+.streamflix-hero-bg { background-position: center 20%; }
+.streamflix-hero-bg.is-visible { animation: bfxKenBurns 22s ease-out both; }
+@keyframes bfxKenBurns {
+    from { transform: scale(1.12) translate3d(1.2%, 0.6%, 0); }
+    to { transform: scale(1.02) translate3d(0, 0, 0); }
+}
+.streamflix-hero-content { max-width: min(640px, 92vw); }
+.streamflix-hero-brand-row { gap: 8px; margin-bottom: 14px; }
+.streamflix-n-badge {
+    width: 20px;
+    height: 20px;
+    padding: 0;
+    border-radius: 5px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    letter-spacing: 0;
+    background: linear-gradient(180deg, #ff2a36 0%, #c4070f 100%);
+    box-shadow: 0 4px 12px rgba(229, 9, 20, 0.35);
+}
+.streamflix-hero-series-tag {
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.32em;
+    color: rgba(255, 255, 255, 0.85);
+}
+.streamflix-hero-new {
+    margin-left: 4px;
+    padding: 3px 9px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    color: #fff;
+    background: rgba(255, 255, 255, 0.14);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+}
+.streamflix-hero-title {
+    font-size: clamp(2.6rem, 5.4vw, 5rem);
+    font-weight: 800;
+    letter-spacing: -0.025em;
+    line-height: 0.98;
+    margin: 0 0 18px 0;
+    text-shadow: 0 8px 40px rgba(0, 0, 0, 0.55);
+    text-wrap: balance;
+}
+.streamflix-hero-title-has-logo { margin-bottom: 22px; line-height: 0; }
+.streamflix-hero-logo {
+    display: block;
+    max-width: min(500px, 78vw);
+    max-height: 170px;
+    width: auto;
+    height: auto;
+    object-fit: contain;
+    object-position: left bottom;
+    filter: drop-shadow(0 8px 30px rgba(0, 0, 0, 0.55));
+}
+.streamflix-hero-title-has-logo .streamflix-hero-title-text {
+    position: absolute !important;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+}
+.streamflix-hero-meta-row {
+    gap: 12px;
+    margin-bottom: 14px;
+    font-size: 14px;
+    font-weight: 500;
+    color: rgba(255, 255, 255, 0.86);
+    text-shadow: 0 2px 10px rgba(0, 0, 0, 0.6);
+}
+.streamflix-hero-rating {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-weight: 700;
+    color: #fff;
+}
+.streamflix-hero-rating .bfx-icon { width: 15px; height: 15px; color: #f5c518; }
+.streamflix-maturity-pill {
+    padding: 1px 7px;
+    border-radius: 5px;
+    border: 1px solid rgba(255, 255, 255, 0.35);
+    background: rgba(255, 255, 255, 0.06);
+    font-size: 11.5px;
+    font-weight: 600;
+    letter-spacing: 0.03em;
+}
+.streamflix-hero-genres { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.streamflix-hero-genres i {
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.45);
+    display: inline-block;
+}
+.streamflix-hero-overview {
+    max-width: 560px;
+    font-size: clamp(0.98rem, 1.1vw, 1.08rem);
+    line-height: 1.55;
+    color: rgba(255, 255, 255, 0.82);
+    margin: 0 0 22px 0;
+    text-shadow: 0 2px 12px rgba(0, 0, 0, 0.6);
+}
+.streamflix-hero-progress {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin: -6px 0 20px 0;
+    font-size: 13px;
+    color: var(--bfx-text-2);
+}
+.streamflix-hero-progress-bar {
+    position: relative;
+    width: 180px;
+    height: 4px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.22);
+    overflow: hidden;
+}
+.streamflix-hero-progress-bar span {
+    position: absolute;
+    inset: 0 auto 0 0;
+    border-radius: inherit;
+    background: var(--streamflix-red);
+}
+.streamflix-hero-actions { gap: 10px; }
+.streamflix-hero-play,
+.streamflix-hero-secondary {
+    height: 48px;
+    padding: 0 26px 0 22px;
+    border-radius: 12px;
+    font-size: 16px;
+    font-weight: 700;
+    letter-spacing: 0.005em;
+    gap: 10px;
+    transition: transform 0.18s var(--bfx-ease), background 0.18s ease, box-shadow 0.18s ease;
+}
+.streamflix-hero-play {
+    background: #fff;
+    color: #0a0a0a;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+}
+.streamflix-hero-play .bfx-icon { width: 20px; height: 20px; }
+.streamflix-hero-play:hover { background: rgba(255, 255, 255, 0.88); transform: translateY(-1px); }
+.streamflix-hero-secondary {
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    background: rgba(255, 255, 255, 0.16);
+    backdrop-filter: blur(16px) saturate(150%);
+    -webkit-backdrop-filter: blur(16px) saturate(150%);
+}
+.streamflix-hero-secondary:hover { background: rgba(255, 255, 255, 0.26); transform: translateY(-1px); }
+.streamflix-hero-icon-btn {
+    width: 48px;
+    height: 48px;
+    flex: none;
+    border-radius: 50%;
+    border: 1px solid rgba(255, 255, 255, 0.28);
+    background: rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    color: #fff;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    cursor: pointer;
+    transition: transform 0.18s var(--bfx-ease), background 0.18s ease, border-color 0.18s ease, color 0.18s ease;
+}
+.streamflix-hero-icon-btn .bfx-icon { width: 21px; height: 21px; }
+.streamflix-hero-icon-btn:hover { background: rgba(255, 255, 255, 0.22); border-color: #fff; transform: scale(1.06); }
+.streamflix-hero-icon-btn.active { background: #fff; color: #0a0a0a; border-color: #fff; }
+.streamflix-hero-play:focus-visible,
+.streamflix-hero-secondary:focus-visible,
+.streamflix-hero-icon-btn:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
+
+/* Story-style slide progress */
+.streamflix-hero-dots {
+    right: var(--bfx-gutter);
+    bottom: clamp(124px, 11.2vw, 176px);
+    gap: 6px;
+    z-index: 4;
+}
+.streamflix-hero-dot {
+    position: relative;
+    width: 28px;
+    height: 4px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.25);
+    overflow: hidden;
+    transition: width 0.35s var(--bfx-ease), background 0.2s ease;
+}
+.streamflix-hero-dot::before {
+    content: "";
+    position: absolute;
+    inset: -10px 0;
+}
+.streamflix-hero-dot:hover { background: rgba(255, 255, 255, 0.45); }
+.streamflix-hero-dot.active { width: 56px; background: rgba(255, 255, 255, 0.25); }
+.streamflix-hero-dot-fill {
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: #fff;
+    transform: scaleX(0);
+    transform-origin: left center;
+    transition: transform 0.2s linear;
+}
+.streamflix-hero-dot.done .streamflix-hero-dot-fill { transform: scaleX(1); background: rgba(255, 255, 255, 0.6); }
+#streamflix-hero-billboard.is-paused .streamflix-hero-dot.active .streamflix-hero-dot-fill { opacity: 0.6; }
+
+/* ---------- Rows ---------- */
+.streamflix-rows { position: relative; z-index: 3; padding-top: 4px; }
+#streamflix-cinema-hub:not(.streamflix-has-hero) .streamflix-rows { padding-top: 10px; }
+.streamflix-row { margin: 0 0 clamp(26px, 3vw, 40px) 0; padding: 0 var(--bfx-gutter); }
+.streamflix-row-header {
+    align-items: center;
+    justify-content: flex-start;
+    gap: 14px;
+    margin-bottom: 6px;
+}
+.streamflix-row-title {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    font-size: clamp(1.1rem, 1.35vw, 1.4rem);
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    color: #fff;
+}
+.streamflix-row-count {
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.09);
+    color: var(--bfx-text-2);
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0;
+}
+.streamflix-row-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    padding: 4px 8px 4px 10px;
+    border: none;
+    border-radius: 999px;
+    background: transparent;
+    color: #54b9c5;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    opacity: 0;
+    transform: translateX(-6px);
+    transition: opacity 0.25s ease, transform 0.25s var(--bfx-ease), background 0.2s ease;
+}
+.streamflix-row-link .bfx-icon { width: 15px; height: 15px; }
+.streamflix-row:hover .streamflix-row-link,
+.streamflix-row-link:focus-visible { opacity: 1; transform: none; }
+.streamflix-row-link:hover { background: rgba(84, 185, 197, 0.12); }
+@media (hover: none) { .streamflix-row-link { opacity: 1; transform: none; } }
+
+.streamflix-carousel-track {
+    gap: 10px;
+    padding: 14px var(--bfx-gutter) 26px var(--bfx-gutter);
+    margin: -14px calc(-1 * var(--bfx-gutter)) -18px calc(-1 * var(--bfx-gutter));
+    scroll-snap-type: x proximity;
+    scroll-padding-left: var(--bfx-gutter);
+    overscroll-behavior-x: contain;
+}
+.streamflix-carousel-track > * { scroll-snap-align: start; }
+
+.streamflix-paddle {
+    top: 0;
+    bottom: 8px;
+    width: var(--bfx-gutter);
+    min-width: 44px;
+    background: transparent;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    color: #fff;
+    opacity: 0;
+    transition: opacity 0.25s ease;
+}
+.streamflix-paddle.left {
+    left: calc(-1 * var(--bfx-gutter));
+    border-radius: 0;
+    background: linear-gradient(90deg, rgba(20, 20, 20, 0.92) 0%, rgba(20, 20, 20, 0.5) 60%, rgba(20, 20, 20, 0) 100%);
+}
+.streamflix-paddle.right {
+    right: calc(-1 * var(--bfx-gutter));
+    border-radius: 0;
+    background: linear-gradient(270deg, rgba(20, 20, 20, 0.92) 0%, rgba(20, 20, 20, 0.5) 60%, rgba(20, 20, 20, 0) 100%);
+}
+.streamflix-paddle .bfx-icon {
+    width: 30px;
+    height: 30px;
+    padding: 6px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.12);
+    backdrop-filter: blur(10px);
+    transition: transform 0.2s var(--bfx-ease), background 0.2s ease;
+}
+.streamflix-paddle:hover { background-color: transparent; }
+.streamflix-paddle:hover .bfx-icon { transform: scale(1.15); background: rgba(255, 255, 255, 0.24); }
+.streamflix-carousel-wrap:hover .streamflix-paddle { opacity: 1; }
+.streamflix-carousel-wrap.at-start .streamflix-paddle.left,
+.streamflix-carousel-wrap.at-end .streamflix-paddle.right,
+.streamflix-carousel-wrap.no-scroll .streamflix-paddle { opacity: 0 !important; pointer-events: none; }
+
+/* ---------- Cards (shared) ---------- */
+.streamflix-card-fallback {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 12px;
+    text-align: center;
+    font-size: 14px;
+    font-weight: 700;
+    line-height: 1.25;
+    color: rgba(255, 255, 255, 0.6);
+    background: linear-gradient(160deg, #2a2a30 0%, #18181c 100%);
+    box-sizing: border-box;
+}
+.streamflix-poster-img,
+.streamflix-wide-img,
+.streamflix-top10-poster img { position: relative; z-index: 1; }
+img.is-broken { visibility: hidden; }
+.streamflix-poster-card,
+.streamflix-wide-card {
+    border: none;
+    background: transparent;
+    overflow: visible;
+    outline: none;
+    transition: transform 0.35s var(--bfx-ease);
+}
+.streamflix-poster-card:hover,
+.streamflix-wide-card:hover,
+.streamflix-poster-card:focus-visible,
+.streamflix-wide-card:focus-visible {
+    transform: translateY(-4px) scale(1.04);
+    box-shadow: none;
+    border-color: transparent;
+    z-index: 15;
+}
+.streamflix-poster-card { flex: 0 0 clamp(138px, 12.4vw, 190px); width: clamp(138px, 12.4vw, 190px); }
+.streamflix-poster-img-wrap,
+.streamflix-wide-img-wrap,
+.streamflix-top10-poster {
+    border-radius: var(--bfx-radius);
+    overflow: hidden;
+    background: #1d1d22;
+    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.05) inset, 0 6px 18px rgba(0, 0, 0, 0.3);
+    transition: box-shadow 0.35s ease;
+    isolation: isolate;
+}
+.streamflix-poster-card:hover .streamflix-poster-img-wrap,
+.streamflix-wide-card:hover .streamflix-wide-img-wrap,
+.streamflix-top10-card:hover .streamflix-top10-poster {
+    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.14) inset, 0 22px 44px rgba(0, 0, 0, 0.6);
+}
+.streamflix-poster-card:focus-visible .streamflix-poster-img-wrap,
+.streamflix-wide-card:focus-visible .streamflix-wide-img-wrap,
+.streamflix-top10-card:focus-visible .streamflix-top10-poster { box-shadow: 0 0 0 2px #fff, 0 18px 40px rgba(0, 0, 0, 0.6); }
+.streamflix-poster-img { transition: opacity 0.4s ease, transform 0.6s var(--bfx-ease); }
+.streamflix-poster-card:hover .streamflix-poster-img { transform: scale(1.04); }
+
+/* Poster footer only in grids (rows rely on artwork) */
+.streamflix-carousel-track .streamflix-poster-footer { display: none; }
+.streamflix-grid .streamflix-poster-footer { padding: 9px 2px 0 2px; }
+.streamflix-poster-name { font-size: 13.5px; font-weight: 600; }
+.streamflix-poster-sub { color: var(--bfx-text-3); font-size: 12px; justify-content: flex-start; gap: 10px; }
+.streamflix-card-rating {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    color: #fff;
+    font-weight: 600;
+}
+.streamflix-card-rating .bfx-icon { width: 12px; height: 12px; color: #f5c518; }
+
+.streamflix-card-flag {
+    position: absolute;
+    top: 8px;
+    left: 8px;
+    z-index: 3;
+    padding: 3px 7px;
+    border-radius: 6px;
+    background: var(--streamflix-red);
+    color: #fff;
+    font-size: 10.5px;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+.streamflix-card-watched {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    z-index: 3;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(10, 10, 12, 0.7);
+    backdrop-filter: blur(6px);
+    color: #46d369;
+    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.15);
+}
+.streamflix-card-watched .bfx-icon { width: 13px; height: 13px; stroke-width: 3; }
+
+.streamflix-card-hover-overlay {
+    z-index: 4;
+    padding: 10px;
+    gap: 8px;
+    justify-content: flex-end;
+    background: linear-gradient(180deg, rgba(0, 0, 0, 0) 30%, rgba(8, 8, 10, 0.72) 62%, rgba(8, 8, 10, 0.96) 100%);
+    transition: opacity 0.25s ease;
+}
+.streamflix-poster-card:focus-visible .streamflix-card-hover-overlay,
+.streamflix-top10-card:focus-visible .streamflix-card-hover-overlay { opacity: 1; }
+.streamflix-card-info { transform: translateY(6px); transition: transform 0.3s var(--bfx-ease); }
+.streamflix-poster-card:hover .streamflix-card-info,
+.streamflix-top10-card:hover .streamflix-card-info { transform: none; }
+.streamflix-card-title {
+    font-size: 13.5px;
+    font-weight: 700;
+    line-height: 1.2;
+    color: #fff;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+.streamflix-card-meta {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 4px;
+    font-size: 11.5px;
+    color: var(--bfx-text-2);
+}
+.streamflix-card-genres {
+    margin-top: 2px;
+    font-size: 11px;
+    color: var(--bfx-text-3);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.streamflix-card-quick-btns { gap: 6px; margin: 0; }
+.streamflix-qbtn {
+    width: 30px;
+    height: 30px;
+    padding: 0;
+    flex: none;
+    border: 1px solid rgba(255, 255, 255, 0.4);
+    background: rgba(30, 30, 34, 0.7);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    transition: transform 0.18s var(--bfx-ease), background 0.18s ease, border-color 0.18s ease;
+}
+.streamflix-qbtn .bfx-icon { width: 15px; height: 15px; }
+.streamflix-qbtn.play { background: #fff; color: #0a0a0a; border-color: #fff; }
+.streamflix-qbtn.play .bfx-icon { width: 14px; height: 14px; margin-left: 1px; }
+.streamflix-qbtn:hover { transform: scale(1.1); border-color: #fff; background: rgba(60, 60, 66, 0.85); }
+.streamflix-qbtn.play:hover { background: rgba(255, 255, 255, 0.88); }
+.streamflix-qbtn.active { background: rgba(255, 255, 255, 0.92); color: #0a0a0a; border-color: #fff; }
+.streamflix-qbtn-end { margin-left: auto; }
+.streamflix-qbtn:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+
+/* ---------- Wide (continue watching / next up) ---------- */
+.streamflix-wide-card { flex: 0 0 clamp(250px, 22vw, 340px); width: clamp(250px, 22vw, 340px); }
+.streamflix-wide-img { transition: opacity 0.4s ease, transform 0.6s var(--bfx-ease); }
+.streamflix-wide-card:hover .streamflix-wide-img { transform: scale(1.05); }
+.streamflix-wide-scrim {
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    background: linear-gradient(180deg, rgba(0, 0, 0, 0) 40%, rgba(0, 0, 0, 0.82) 100%);
+    pointer-events: none;
+}
+.streamflix-wide-caption {
+    position: absolute;
+    left: 12px;
+    right: 12px;
+    bottom: 12px;
+    z-index: 3;
+    pointer-events: none;
+}
+.streamflix-wide-title {
+    font-size: 14.5px;
+    font-weight: 700;
+    color: #fff;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    text-shadow: 0 2px 8px rgba(0, 0, 0, 0.6);
+}
+.streamflix-wide-sub {
+    margin-top: 2px;
+    font-size: 12px;
+    color: var(--bfx-text-2);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.streamflix-wide-play {
+    position: absolute;
+    left: 50%;
+    top: 42%;
+    z-index: 4;
+    width: 52px;
+    height: 52px;
+    margin: -26px 0 0 -26px;
+    padding: 0;
+    border-radius: 50%;
+    border: 1px solid rgba(255, 255, 255, 0.6);
+    background: rgba(10, 10, 12, 0.45);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    opacity: 0;
+    transform: scale(0.85);
+    transition: opacity 0.25s ease, transform 0.25s var(--bfx-ease), background 0.2s ease;
+}
+.streamflix-wide-play .bfx-icon { width: 22px; height: 22px; margin-left: 2px; }
+.streamflix-wide-card:hover .streamflix-wide-play,
+.streamflix-wide-card:focus-visible .streamflix-wide-play { opacity: 1; transform: none; }
+.streamflix-wide-play:hover { background: #fff; color: #0a0a0a; border-color: #fff; }
+.streamflix-wide-actions {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    z-index: 4;
+    display: flex;
+    gap: 6px;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+}
+.streamflix-wide-card:hover .streamflix-wide-actions,
+.streamflix-wide-card:focus-visible .streamflix-wide-actions { opacity: 1; }
+.streamflix-wide-card .streamflix-progress-track {
+    z-index: 3;
+    left: 12px;
+    right: 12px;
+    bottom: 6px;
+    height: 3px;
+    border-radius: 999px;
+    overflow: hidden;
+    background: rgba(255, 255, 255, 0.25);
+}
+.streamflix-wide-card .streamflix-wide-caption:has(~ .streamflix-progress-track) { bottom: 16px; }
+.streamflix-progress-fill { border-radius: inherit; }
+.streamflix-wide-foot { padding: 7px 2px 0 2px; font-size: 12px; color: var(--bfx-text-3); }
+
+/* ---------- Top 10 ---------- */
+.streamflix-top10-card { flex: 0 0 auto; width: auto; padding-left: 0; gap: 0; }
+.streamflix-top10-card:hover { transform: translateY(-4px); }
+.streamflix-top10-num {
+    font-family: "Netflix Sans", "Inter", "Helvetica Neue", Arial, sans-serif;
+    font-size: clamp(110px, 11vw, 168px);
+    font-weight: 900;
+    letter-spacing: -0.08em;
+    line-height: 0.78;
+    color: transparent;
+    -webkit-text-stroke: 2.5px rgba(255, 255, 255, 0.42);
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.16) 0%, rgba(255, 255, 255, 0) 80%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    margin-right: -0.14em;
+    align-self: flex-end;
+    transition: -webkit-text-stroke-color 0.25s ease;
+}
+.streamflix-top10-card:hover .streamflix-top10-num { -webkit-text-stroke-color: #fff; }
+.streamflix-top10-poster { width: clamp(118px, 10.5vw, 158px); border: none; }
+.streamflix-top10-poster img { transition: opacity 0.4s ease, transform 0.6s var(--bfx-ease); }
+.streamflix-top10-card:hover .streamflix-top10-poster img { transform: scale(1.04); }
+
+/* ---------- Grid & empty state ---------- */
+.streamflix-grid {
+    grid-template-columns: repeat(auto-fill, minmax(clamp(130px, 13vw, 180px), 1fr));
+    gap: 22px 14px;
+    padding: 10px 0 28px 0;
+}
+.streamflix-empty-state {
+    margin: 60px auto;
+    max-width: 420px;
+    padding: 0 var(--bfx-gutter);
+    text-align: center;
+    animation: streamflixRiseIn 0.4s var(--bfx-ease) both;
+}
+.streamflix-empty-icon {
+    width: 64px;
+    height: 64px;
+    margin: 0 auto 16px auto;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255, 255, 255, 0.07);
+    color: var(--bfx-text-2);
+}
+.streamflix-empty-icon .bfx-icon { width: 28px; height: 28px; }
+.streamflix-empty-title { font-size: 18px; font-weight: 700; color: #fff; }
+.streamflix-empty-text { margin-top: 6px; font-size: 14px; color: var(--bfx-text-3); line-height: 1.5; }
+
+/* ---------- Detail modal ---------- */
+.streamflix-modal-backdrop { backdrop-filter: blur(10px) saturate(120%); -webkit-backdrop-filter: blur(10px) saturate(120%); }
+.streamflix-detail-modal {
+    max-width: 920px;
+    border-radius: 18px;
+    border: 1px solid var(--bfx-hairline-strong);
+    background: #161619;
+    box-shadow: 0 40px 120px rgba(0, 0, 0, 0.75);
+}
+.streamflix-detail-hero { height: clamp(300px, 46vh, 460px); padding: 36px; }
+.streamflix-detail-hero::before {
+    background:
+        linear-gradient(90deg, rgba(22, 22, 25, 0.75) 0%, rgba(22, 22, 25, 0) 60%),
+        linear-gradient(180deg, rgba(22, 22, 25, 0) 30%, rgba(22, 22, 25, 0.7) 72%, #161619 100%);
+}
+.streamflix-detail-close {
+    width: 40px;
+    height: 40px;
+    background: rgba(10, 10, 12, 0.55);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    transition: background 0.2s ease, transform 0.2s var(--bfx-ease);
+}
+.streamflix-detail-close .bfx-icon { width: 18px; height: 18px; }
+.streamflix-detail-close:hover { background: rgba(255, 255, 255, 0.2); transform: rotate(90deg); }
+.streamflix-detail-body { padding: 0 36px 36px 36px; }
+
+/* ---------- Quick Connect modal ---------- */
+.streamflix-modal-qc { max-width: 440px; }
+.streamflix-qc-badge {
+    width: 60px;
+    height: 60px;
+    margin: 2px auto 14px auto;
+    border-radius: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    background: linear-gradient(135deg, #7b5cff 0%, #00a4dc 100%);
+    box-shadow: 0 14px 34px rgba(0, 164, 220, 0.3);
+}
+.streamflix-qc-badge .bfx-icon { width: 28px; height: 28px; }
+.streamflix-qc-success .streamflix-qc-badge,
+.streamflix-qc-badge.streamflix-qc-success {
+    background: linear-gradient(135deg, #2ecc71 0%, #1fa85a 100%);
+    box-shadow: 0 14px 34px rgba(46, 204, 113, 0.3);
+    animation: streamflixPopIn 0.35s var(--bfx-ease) both;
+}
+.streamflix-qc-pad .streamflix-pin-boxes { gap: 8px; }
+.streamflix-qc-pad .streamflix-pin-box {
+    width: 48px;
+    height: 58px;
+    border-width: 1.5px;
+    border-radius: 12px;
+    font: 700 24px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+    color: #fff;
+}
+.streamflix-qc-pad .streamflix-pin-box.filled::after { display: none; }
+.streamflix-qc-pad .streamflix-pin-box.filled { animation: streamflixPopIn 0.16s ease both; }
+.streamflix-qc-pad .streamflix-pin-box:nth-child(3) { margin-right: 10px; }
+
+/* ---------- Responsive ---------- */
+@media (max-width: 860px) {
+    .streamflix-subnav { gap: 10px; }
+    .streamflix-search-box,
+    .streamflix-search-box:focus-within,
+    .streamflix-search-box.has-value { width: 100%; order: 2; }
+    .streamflix-search-kbd { display: none; }
+    #streamflix-hero-billboard {
+        min-height: max(520px, 78vh);
+        height: auto;
+        padding-top: calc(max(var(--bfx-bleed, 0px), var(--bfx-header-h)) + 150px);
+    }
+    .streamflix-hero-overview { -webkit-line-clamp: 2; }
+    .streamflix-hero-dots { display: none; }
+}
+@media (max-width: 560px) {
+    .streamflix-hero-play,
+    .streamflix-hero-secondary { height: 44px; padding: 0 18px 0 16px; font-size: 15px; }
+    .streamflix-hero-icon-btn { width: 44px; height: 44px; }
+    .streamflix-hero-logo { max-height: 110px; }
+    .streamflix-qc-pad .streamflix-pin-box { width: 40px; height: 50px; font-size: 20px; }
+    .streamflix-qc-pad .streamflix-pin-box:nth-child(3) { margin-right: 4px; }
+    #streamflix-account-dropdown { left: 10px !important; right: 10px !important; width: auto !important; }
+}
+@media (hover: none) {
+    .streamflix-paddle { display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .streamflix-hero-bg.is-visible,
+    #streamflix-account-dropdown,
+    .streamflix-empty-state,
+    .streamflix-qc-badge { animation: none !important; }
+    .streamflix-poster-card,
+    .streamflix-wide-card,
+    .streamflix-top10-card,
+    .streamflix-poster-img,
+    .streamflix-wide-img,
+    .streamflix-search-box { transition: none !important; }
+    .streamflix-poster-card:hover,
+    .streamflix-wide-card:hover,
+    .streamflix-top10-card:hover { transform: none; }
+}
+
+/* ==========================================================================
+   v7.1.3 — Cleaner home & account menu
+   ========================================================================== */
+
+/* The StreamFlix hub replaces Jellyfin's stock home sections underneath it */
+body.streamflix-hub-active #indexPage .homeSectionsContainer,
+body.streamflix-hub-active #indexPage .sections,
+body.streamflix-hub-active .homeTab .homeSectionsContainer,
+body.streamflix-hub-active .homeTab .sections {
+    display: none !important;
+}
+
+/* Cast + SyncPlay move into the account menu. The native buttons stay in the DOM (Jellyfin's own
+   pickers open from them) but are parked invisibly under the profile pill. No `display` override,
+   so Jellyfin's `.hide` still marks features that are unavailable. */
+body.bfx-header-tucked:not(.streamflix-in-video-player) [data-bfx-native],
+body.bfx-header-tucked:not(.streamflix-in-video-player) .headerCastButton,
+body.bfx-header-tucked:not(.streamflix-in-video-player) .headerSyncButton {
+    position: fixed !important;
+    top: 10px !important;
+    right: 18px !important;
+    width: 40px !important;
+    height: 40px !important;
+    min-width: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    opacity: 0 !important;
+    visibility: hidden !important;
+    pointer-events: none !important;
+    z-index: -1 !important;
+}
+/* In the video player Jellyfin's own Cast / SyncPlay buttons stay in the top bar */
+body.bfx-header-tucked:not(.streamflix-in-video-player) .headerSelectedPlayer { display: none !important; }
+
+/* Live casting indicator on the profile pill */
+.streamflix-header-cast {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    color: #fff;
+    background: rgba(70, 211, 105, 0.18);
+    box-shadow: inset 0 0 0 1px rgba(70, 211, 105, 0.5);
+    animation: bfxCastPulse 2.4s ease-in-out infinite;
+}
+.streamflix-header-cast .bfx-icon { width: 16px; height: 16px; color: #46d369; }
+@keyframes bfxCastPulse {
+    0%, 100% { box-shadow: inset 0 0 0 1px rgba(70, 211, 105, 0.5), 0 0 0 0 rgba(70, 211, 105, 0.35); }
+    50% { box-shadow: inset 0 0 0 1px rgba(70, 211, 105, 0.5), 0 0 0 6px rgba(70, 211, 105, 0); }
+}
+
+/* ---------- Account menu: grows out of the profile pill ---------- */
+#streamflix-account-dropdown {
+    top: 8px !important;
+    right: 10px !important;
+    width: 328px !important;
+    max-height: calc(100vh - 16px) !important;
+    padding: 6px !important;
+    z-index: 10001 !important;
+    border-radius: 20px !important;
+    overscroll-behavior: contain;
+}
+@keyframes bfxMenuIn {
+    from { opacity: 0; transform: translateY(-4px) scale(0.94); }
+    to { opacity: 1; transform: none; }
+}
+.streamflix-dd-active-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 8px 10px 10px;
+    margin: 0;
+    border-radius: 15px;
+}
+.streamflix-dd-active-avatar { width: 44px; height: 44px; font-size: 23px; flex: none; }
+.streamflix-dd-active-name { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.streamflix-dd-active-name > span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.streamflix-dd-active-sub { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bfx-dd-close {
+    width: 34px;
+    height: 34px;
+    flex: none;
+    border: none;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255, 255, 255, 0.07);
+    color: var(--bfx-text-2);
+    cursor: pointer;
+    transition: background 0.15s ease, color 0.15s ease;
+}
+.bfx-dd-close .bfx-icon { width: 17px; height: 17px; transform: rotate(180deg); }
+.bfx-dd-close:hover,
+.bfx-dd-close:focus-visible { background: rgba(255, 255, 255, 0.15); color: #fff; outline: none; }
+
+.bfx-dd-profiles { padding: 8px 4px 6px 4px; }
+
+/* Quick actions: Cast · Watch Party · Quick Connect */
+.bfx-dd-tiles {
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(0, 1fr);
+    gap: 6px;
+    padding: 4px 4px 8px 4px;
+}
+.bfx-dd-tile {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    min-width: 0;
+    padding: 12px 6px 10px 6px;
+    border: 1px solid var(--bfx-hairline);
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.045);
+    color: rgba(255, 255, 255, 0.9);
+    font: inherit;
+    cursor: pointer;
+    transition: background 0.15s ease, border-color 0.15s ease, transform 0.18s var(--bfx-ease);
+}
+.bfx-dd-tile:hover,
+.bfx-dd-tile:focus-visible {
+    background: rgba(255, 255, 255, 0.1);
+    border-color: var(--bfx-hairline-strong);
+    transform: translateY(-1px);
+    outline: none;
+}
+.bfx-dd-tile-ico {
+    width: 36px;
+    height: 36px;
+    border-radius: 11px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    background: rgba(255, 255, 255, 0.08);
+}
+.bfx-dd-tile-ico .bfx-icon { width: 19px; height: 19px; }
+.bfx-dd-tile.is-cast .bfx-dd-tile-ico { background: linear-gradient(135deg, #2a9d8f 0%, #1f6feb 100%); }
+.bfx-dd-tile.is-qc .bfx-dd-tile-ico { background: linear-gradient(135deg, #7b5cff 0%, #00a4dc 100%); }
+.bfx-dd-tile.is-live { border-color: rgba(70, 211, 105, 0.45); background: rgba(70, 211, 105, 0.08); }
+.bfx-dd-tile.is-live .bfx-dd-tile-ico { background: #46d369; color: #06240f; }
+.bfx-dd-tile-label {
+    max-width: 100%;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.005em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Simple list rows */
+.streamflix-dd-item { min-height: 40px; padding: 7px 10px; gap: 12px; }
+.bfx-dd-ico { width: 30px; height: 30px; border-radius: 9px; }
+.bfx-dd-ico .bfx-icon { width: 16px; height: 16px; }
+
+/* Admin shortcuts side by side */
+.bfx-dd-duo {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+    padding: 4px 4px 2px 4px;
+}
+.bfx-dd-duo-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    min-width: 0;
+    height: 36px;
+    padding: 0 10px;
+    border: 1px solid var(--bfx-hairline);
+    border-radius: 11px;
+    background: transparent;
+    color: var(--bfx-text-2);
+    font: inherit;
+    font-size: 12.5px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+.bfx-dd-duo-btn span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bfx-dd-duo-btn .bfx-icon { width: 15px; height: 15px; }
+.bfx-dd-duo-btn:hover,
+.bfx-dd-duo-btn:focus-visible { background: rgba(255, 255, 255, 0.08); color: #fff; border-color: var(--bfx-hairline-strong); outline: none; }
+
+@media (max-width: 560px) {
+    #streamflix-account-dropdown { top: 6px !important; left: 6px !important; right: 6px !important; }
+}
+
+/* ---------- Profile picker: SVG icons instead of emoji glyphs ---------- */
+.streamflix-tile-badge .bfx-icon { width: 13px; height: 13px; }
+.streamflix-profile-edit-scrim .bfx-icon { width: 34px; height: 34px; }
+.streamflix-add-avatar .bfx-icon { width: 54px; height: 54px; stroke-width: 1.6; }
+.streamflix-reorder-btn .bfx-icon { width: 15px; height: 15px; }
+.streamflix-profile-meta { gap: 8px; }
+.streamflix-profile-role {
+    padding: 1px 7px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.08);
+    color: var(--bfx-text-2);
+    font-weight: 600;
+}
+.streamflix-profile-linked { display: inline-flex; align-items: center; gap: 4px; }
+.streamflix-profile-linked .bfx-icon { width: 12px; height: 12px; }
+.streamflix-ghost-btn,
+.streamflix-manage-btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
+.streamflix-ghost-btn .bfx-icon { width: 15px; height: 15px; }
+.streamflix-manage-btn .bfx-icon { width: 16px; height: 16px; }
+
+/* ==========================================================================
+   v7.2 — Lighter menu, living hero, hover previews, profile accent, picker
+   ========================================================================== */
+
+/* ---------- Account menu: lighter, fewer boxes ---------- */
+.streamflix-dd-active-header { background: none !important; padding: 8px 6px 6px 10px; }
+.streamflix-dd-active-avatar { width: 40px; height: 40px; font-size: 21px; border-radius: 12px; }
+.streamflix-dd-active-name { font-size: 15px; }
+.bfx-dd-close { width: 32px; height: 32px; background: transparent; }
+.bfx-dd-profiles { padding: 4px 2px 4px 2px; }
+.bfx-dd-prof-av { width: 40px; height: 40px; }
+
+.bfx-dd-tiles { gap: 2px; padding: 2px 2px 4px 2px; }
+.bfx-dd-tile {
+    gap: 6px;
+    padding: 9px 4px 8px 4px;
+    border: none;
+    border-radius: 12px;
+    background: transparent;
+    color: var(--bfx-text-2);
+}
+.bfx-dd-tile:hover,
+.bfx-dd-tile:focus-visible { background: rgba(255, 255, 255, 0.07); color: #fff; transform: none; }
+.bfx-dd-tile-ico,
+.bfx-dd-tile.is-cast .bfx-dd-tile-ico,
+.bfx-dd-tile.is-party .bfx-dd-tile-ico,
+.bfx-dd-tile.is-qc .bfx-dd-tile-ico {
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.08);
+    color: #fff;
+    transition: background 0.15s ease, transform 0.2s var(--bfx-ease);
+}
+.bfx-dd-tile:hover .bfx-dd-tile-ico { background: rgba(255, 255, 255, 0.16); transform: scale(1.06); }
+.bfx-dd-tile-ico .bfx-icon { width: 17px; height: 17px; }
+.bfx-dd-tile-label { font-size: 11.5px; font-weight: 600; }
+.bfx-dd-tile.is-live { border: none; background: rgba(70, 211, 105, 0.08); color: #c9f5d4; }
+.bfx-dd-tile.is-live .bfx-dd-tile-ico { background: #46d369; color: #06240f; }
+
+.streamflix-dd-divider { margin: 4px 10px; opacity: 0.7; }
+.streamflix-dd-item { min-height: 40px; padding: 6px 10px; border-radius: 12px; }
+.bfx-dd-ico,
+.streamflix-dd-item:hover .bfx-dd-ico {
+    width: 22px;
+    height: 22px;
+    background: transparent !important;
+    color: var(--bfx-text-2);
+}
+.streamflix-dd-item:hover .bfx-dd-ico { color: #fff; }
+.bfx-dd-ico .bfx-icon { width: 19px; height: 19px; }
+.streamflix-dd-item.danger .bfx-dd-ico { color: #ff7a80; }
+.bfx-dd-chev { display: inline-flex; color: var(--bfx-text-3); transition: transform 0.18s var(--bfx-ease), color 0.15s ease; }
+.bfx-dd-chev .bfx-icon { width: 16px; height: 16px; }
+.streamflix-dd-item:hover .bfx-dd-chev { color: #fff; transform: translateX(2px); }
+
+.bfx-dd-switch-row .bfx-switch { width: 34px; height: 20px; flex: none; }
+.bfx-dd-switch-row .bfx-switch i { top: 2px; left: 2px; width: 16px; height: 16px; }
+.bfx-dd-switch-row .bfx-switch.on i { transform: translateX(14px); }
+
+/* ---------- Ambient colour from the hero artwork ---------- */
+@property --bfx-ambient {
+    syntax: '<color>';
+    inherits: true;
+    initial-value: #141414;
+}
+#streamflix-cinema-hub { transition: --bfx-ambient 1.4s ease; }
+@supports (color: color-mix(in srgb, red, blue)) {
+    #streamflix-cinema-hub { --bfx-tint: color-mix(in srgb, var(--streamflix-bg) 80%, var(--bfx-ambient, #141414)); }
+    #streamflix-cinema-hub #streamflix-hero-billboard::after {
+        background: linear-gradient(180deg, rgba(20, 20, 20, 0) 0%, var(--bfx-tint) 100%);
+    }
+    #streamflix-cinema-hub.streamflix-has-hero .streamflix-rows {
+        background: linear-gradient(180deg, transparent 0, var(--bfx-tint) 140px, var(--streamflix-bg) 1000px);
+    }
+}
+
+/* ---------- Rows tuned to the profile ---------- */
+.bfx-row-em { color: #fff; }
+.streamflix-row-personal .streamflix-row-title { color: var(--bfx-text-2); }

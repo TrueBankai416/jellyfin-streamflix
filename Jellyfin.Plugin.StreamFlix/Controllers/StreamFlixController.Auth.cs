@@ -1,0 +1,1082 @@
+using System;
+using System.Collections.Concurrent;
+using System.Collections.Generic;
+using System.Globalization;
+using System.IO;
+using System.Linq;
+using System.Net.Http;
+using System.Net.Http.Headers;
+using System.Net.Mime;
+using System.Reflection;
+using System.Security.Cryptography;
+using System.Text;
+using System.Text.Json;
+using System.Text.RegularExpressions;
+using System.Threading;
+using System.Threading.Tasks;
+using Jellyfin.Plugin.StreamFlix.Configuration;
+using Jellyfin.Plugin.StreamFlix.Services;
+using MediaBrowser.Controller;
+using MediaBrowser.Controller.Authentication;
+using MediaBrowser.Controller.Library;
+using MediaBrowser.Controller.Net;
+using MediaBrowser.Controller.Session;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Logging;
+
+#if JF1011 || JF12
+using JUser = Jellyfin.Database.Implementations.Entities.User;
+#else
+using JUser = Jellyfin.Data.Entities.User;
+#endif
+
+namespace Jellyfin.Plugin.StreamFlix.Controllers;
+
+
+// Google OAuth 2.0, Standard/Admin Jellyfin Login & Custom OpenID Connect (OIDC)
+public partial class StreamFlixController
+{
+    [HttpPost("VerifyGoogle")]
+    [AllowAnonymous]
+    [Produces(MediaTypeNames.Application.Json)]
+    public async Task<ActionResult<object>> VerifyGoogle([FromBody] VerifyGoogleRequest? request)
+    {
+        SetNoStoreSecurityHeaders();
+        if (string.IsNullOrWhiteSpace(request?.AccessToken))
+        {
+            return BadRequest(new { verified = false, message = "Missing Google OAuth access token." });
+        }
+
+        var config = Config;
+        if (!config.EnableGoogleSignIn)
+        {
+            return StatusCode(403, new { verified = false, code = "google_disabled", message = "Google Sign-In is currently disabled in StreamFlix settings." });
+        }
+
+        var configuredClientId = (config.GoogleClientId ?? string.Empty).Trim();
+        if (string.IsNullOrEmpty(configuredClientId))
+        {
+            return StatusCode(403, new { verified = false, code = "google_not_configured", message = "Google OAuth Client ID is not configured on this server yet." });
+        }
+
+        var accessToken = request!.AccessToken!.Trim();
+
+        try
+        {
+            // 1. Make sure the token was minted for *this* server's OAuth client (prevents token substitution
+            //    from other Google apps the user has signed into).
+            using (var infoResp = await HttpClient.GetAsync("https://oauth2.googleapis.com/tokeninfo?access_token=" + Uri.EscapeDataString(accessToken)).ConfigureAwait(false))
+            {
+                if (!infoResp.IsSuccessStatusCode)
+                {
+                    return StatusCode(401, new { verified = false, message = "Google rejected this sign-in. Please try again." });
+                }
+
+                using var infoDoc = JsonDocument.Parse(await infoResp.Content.ReadAsStringAsync().ConfigureAwait(false));
+                var infoRoot = infoDoc.RootElement;
+                var aud = infoRoot.TryGetProperty("aud", out var audProp) ? audProp.GetString() : null;
+                var azp = infoRoot.TryGetProperty("azp", out var azpProp) ? azpProp.GetString() : null;
+                var issuedTo = infoRoot.TryGetProperty("issued_to", out var itProp) ? itProp.GetString() : null;
+                var audience = infoRoot.TryGetProperty("audience", out var auProp) ? auProp.GetString() : null;
+                if (!string.Equals(aud, configuredClientId, StringComparison.Ordinal)
+                    && !string.Equals(azp, configuredClientId, StringComparison.Ordinal)
+                    && !string.Equals(issuedTo, configuredClientId, StringComparison.Ordinal)
+                    && !string.Equals(audience, configuredClientId, StringComparison.Ordinal))
+                {
+                    return StatusCode(401, new { verified = false, message = "This Google token was issued for a different app." });
+                }
+            }
+
+            // 2. Fetch the verified identity.
+            using var req = new HttpRequestMessage(HttpMethod.Get, "https://www.googleapis.com/oauth2/v3/userinfo");
+            req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+            using var resp = await HttpClient.SendAsync(req).ConfigureAwait(false);
+
+            if (!resp.IsSuccessStatusCode)
+            {
+                return StatusCode(401, new { verified = false, message = $"Google UserInfo endpoint returned HTTP {(int)resp.StatusCode}." });
+            }
+
+            using var doc = JsonDocument.Parse(await resp.Content.ReadAsStringAsync().ConfigureAwait(false));
+            var root = doc.RootElement;
+            var email = root.TryGetProperty("email", out var emailProp) ? (emailProp.GetString() ?? string.Empty).Trim().ToLowerInvariant() : string.Empty;
+            var name = root.TryGetProperty("name", out var nameProp) ? (nameProp.GetString() ?? string.Empty) : email;
+            var picture = root.TryGetProperty("picture", out var picProp) ? (picProp.GetString() ?? string.Empty) : string.Empty;
+            var emailVerified = root.TryGetProperty("email_verified", out var evProp)
+                && (evProp.ValueKind == JsonValueKind.True
+                    || (evProp.ValueKind == JsonValueKind.String && string.Equals(evProp.GetString(), "true", StringComparison.OrdinalIgnoreCase)));
+
+            if (string.IsNullOrEmpty(email) || !emailVerified)
+            {
+                return StatusCode(401, new { verified = false, message = "Your Google account needs a verified email address." });
+            }
+
+            // 3. First-run claim: on a brand-new install (no approved accounts and no Google account ever claimed),
+            //    the first verified Google account becomes approved. Once claimed, an emptied allowlist can't be claimed by a stranger.
+            var nobodyApproved = (config.ApprovedGoogleAccounts == null || config.ApprovedGoogleAccounts.Count == 0)
+                && !(config.Profiles ?? new()).Any(p => !string.IsNullOrWhiteSpace(p.GoogleAccountEmail))
+                && !config.FirstGoogleAccountClaimed;
+            if (nobodyApproved)
+            {
+                config.ApprovedGoogleAccounts = new List<string> { email };
+                config.FirstGoogleAccountClaimed = true;
+                Plugin.Instance?.SaveConfiguration();
+                _logger.LogInformation("StreamFlix: first sign-in claimed by {Email}; added to Approved Google Accounts.", email);
+            }
+
+            if (!StreamFlixSessionService.IsEmailApproved(config, email))
+            {
+                return StatusCode(403, new
+                {
+                    verified = false,
+                    unapproved = true,
+                    email,
+                    message = $"{email} isn't approved for this StreamFlix server. Ask the owner to add it in Dashboard → Plugins → StreamFlix.",
+                });
+            }
+
+            if (!config.FirstGoogleAccountClaimed)
+            {
+                config.FirstGoogleAccountClaimed = true;
+                Plugin.Instance?.SaveConfiguration();
+            }
+
+            var session = StreamFlixSessionService.Issue(config, email, out var sessionToken);
+
+            return Ok(new
+            {
+                verified = true,
+                email,
+                name,
+                picture,
+                sessionToken,
+                expiresAt = session.ExpiresAt,
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "StreamFlix: error verifying Google OAuth token.");
+            return StatusCode(500, new { verified = false, message = "Could not reach Google to verify your sign-in. Please try again." });
+        }
+    }
+
+    [HttpPost("Auth/StandardLogin")]
+    [AllowAnonymous]
+    [Produces(MediaTypeNames.Application.Json)]
+    public async Task<ActionResult<object>> StandardLogin([FromBody] PasswordLoginRequest? request)
+    {
+        SetNoStoreSecurityHeaders();
+        var config = Config;
+        if (!config.AllowStandardJellyfinLogin)
+        {
+            return StatusCode(403, new
+            {
+                verified = false,
+                code = "standard_login_disabled",
+                message = "Standard Jellyfin account sign-in is disabled on this server.",
+            });
+        }
+
+        var username = (request?.Username ?? string.Empty).Trim();
+        if (string.IsNullOrEmpty(username))
+        {
+            return BadRequest(new { verified = false, message = "Enter your Jellyfin username." });
+        }
+
+        var remoteIp = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "127.0.0.1";
+        var lockKey = "std|" + StreamFlixSessionService.GetRateLimitClientKey(HttpContext);
+        if (StreamFlixSessionService.IsLoginLockedOut(lockKey, out var retryAfter))
+        {
+            var secs = (int)Math.Ceiling(retryAfter.TotalSeconds);
+            Response.Headers["Retry-After"] = secs.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            return StatusCode(429, new
+            {
+                verified = false,
+                code = "login_locked",
+                retryAfterSeconds = secs,
+                message = $"Too many failed sign-in attempts. Try again in {Math.Max(1, (secs + 59) / 60)} min.",
+            });
+        }
+
+        var user = await StreamFlixStartupTask.AuthenticateUserCompatAsync(
+            _userManager,
+            username,
+            request?.Password ?? string.Empty,
+            remoteIp,
+            _logger).ConfigureAwait(false);
+
+        if (user == null)
+        {
+            StreamFlixSessionService.RegisterLoginFailure(lockKey);
+            return StatusCode(401, new
+            {
+                verified = false,
+                code = "invalid_credentials",
+                message = "Invalid Jellyfin username or password.",
+            });
+        }
+
+        StreamFlixSessionService.ResetLoginFailures(lockKey);
+        var isAdmin = StreamFlixStartupTask.IsUserAdminCompat(user);
+        var kind = isAdmin
+            ? StreamFlixSessionService.AuthKindJellyfinAdmin
+            : StreamFlixSessionService.AuthKindJellyfin;
+        var session = StreamFlixSessionService.IssueJellyfinSession(
+            config,
+            kind,
+            user.Id.ToString("N"),
+            user.Username,
+            out var sessionToken);
+
+        string? jellyfinAccessToken = null;
+        if (isAdmin)
+        {
+            jellyfinAccessToken = await TryMintAdminJellyfinTokenAsync(user, request, remoteIp).ConfigureAwait(false);
+        }
+
+        return Ok(new
+        {
+            verified = true,
+            authKind = session.AuthKind,
+            userId = user.Id.ToString("N"),
+            username = user.Username,
+            name = user.Username,
+            isAdmin,
+            sessionToken,
+            expiresAt = session.ExpiresAt,
+            jellyfinAccessToken,
+            serverId = _appHost.SystemId,
+        });
+    }
+
+    [HttpPost("Auth/AdminLogin")]
+    [AllowAnonymous]
+    [Produces(MediaTypeNames.Application.Json)]
+    public async Task<ActionResult<object>> AdminLogin([FromBody] PasswordLoginRequest? request)
+    {
+        SetNoStoreSecurityHeaders();
+        var config = Config;
+        var isUnconfiguredGate = IsGateUnconfigured(config);
+        if (!config.AllowAdminFallbackLogin && !isUnconfiguredGate)
+        {
+            return StatusCode(403, new
+            {
+                verified = false,
+                code = "admin_fallback_disabled",
+                message = "Admin Sign-In is disabled in StreamFlix settings.",
+            });
+        }
+
+        var isLocalLan = StreamFlixSessionService.IsLocalLanRequest(HttpContext);
+        if (config.AdminFallbackLanOnly && !isUnconfiguredGate && !isLocalLan)
+        {
+            return StatusCode(403, new
+            {
+                verified = false,
+                code = "lan_only",
+                message = "Admin Sign-In is restricted to local network (LAN) connections.",
+            });
+        }
+
+        var username = (request?.Username ?? string.Empty).Trim();
+        if (string.IsNullOrEmpty(username))
+        {
+            return BadRequest(new { verified = false, message = "Enter an Administrator username." });
+        }
+
+        var remoteIp = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "127.0.0.1";
+        var lockKey = "adm|" + StreamFlixSessionService.GetRateLimitClientKey(HttpContext);
+        if (StreamFlixSessionService.IsLoginLockedOut(lockKey, out var retryAfter))
+        {
+            var secs = (int)Math.Ceiling(retryAfter.TotalSeconds);
+            Response.Headers["Retry-After"] = secs.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            return StatusCode(429, new
+            {
+                verified = false,
+                code = "login_locked",
+                retryAfterSeconds = secs,
+                message = $"Too many failed sign-in attempts. Try again in {Math.Max(1, (secs + 59) / 60)} min.",
+            });
+        }
+
+        var user = await StreamFlixStartupTask.AuthenticateUserCompatAsync(
+            _userManager,
+            username,
+            request?.Password ?? string.Empty,
+            remoteIp,
+            _logger).ConfigureAwait(false);
+
+        if (user == null)
+        {
+            StreamFlixSessionService.RegisterLoginFailure(lockKey);
+            return StatusCode(401, new
+            {
+                verified = false,
+                code = "invalid_credentials",
+                message = "Invalid Jellyfin username or password.",
+            });
+        }
+
+        // Strict backend Administrator privilege enforcement — non-admin Jellyfin accounts are never allowed here
+        if (!StreamFlixStartupTask.IsUserAdminCompat(user))
+        {
+            StreamFlixSessionService.RegisterLoginFailure(lockKey);
+            _logger.LogWarning("StreamFlix: denied Admin Sign-In attempt for non-administrator Jellyfin user '{Username}'.", user.Username);
+            return StatusCode(403, new
+            {
+                verified = false,
+                code = "admin_only",
+                message = "Access denied: Only Jellyfin accounts with Administrator privileges can sign in through Admin Sign-In.",
+            });
+        }
+
+        StreamFlixSessionService.ResetLoginFailures(lockKey);
+        var session = StreamFlixSessionService.IssueJellyfinSession(
+            config,
+            StreamFlixSessionService.AuthKindJellyfinAdmin,
+            user.Id.ToString("N"),
+            user.Username,
+            out var sessionToken);
+
+        var jellyfinAccessToken = await TryMintAdminJellyfinTokenAsync(user, request, remoteIp).ConfigureAwait(false);
+
+        return Ok(new
+        {
+            verified = true,
+            authKind = session.AuthKind,
+            userId = user.Id.ToString("N"),
+            username = user.Username,
+            name = user.Username,
+            isAdmin = true,
+            sessionToken,
+            expiresAt = session.ExpiresAt,
+            jellyfinAccessToken,
+            serverId = _appHost.SystemId,
+        });
+    }
+
+    [HttpPost("TestOAuthConfig")]
+    [AllowAnonymous]
+    [Produces(MediaTypeNames.Application.Json)]
+    public async Task<ActionResult<object>> TestOAuthConfig([FromBody] TestOAuthConfigRequest request)
+    {
+        var config = Config;
+        var caller = await GetCallerAsync(config).ConfigureAwait(false);
+        if (!caller.IsAdmin)
+        {
+            return StatusCode(403, new { code = "admin_required", message = "Only a Jellyfin administrator can validate OAuth settings." });
+        }
+
+        var checks = new List<object>();
+        var hasError = false;
+        var hasWarn = false;
+
+        void AddCheck(string label, string status, string detail)
+        {
+            if (status == "error")
+            {
+                hasError = true;
+            }
+            else if (status == "warn")
+            {
+                hasWarn = true;
+            }
+
+            checks.Add(new { label, status, detail });
+        }
+
+        // 1. Validate Google Client ID format
+        var rawClientId = request?.GoogleClientId ?? string.Empty;
+        var clientId = rawClientId.Trim();
+        if (string.IsNullOrEmpty(clientId))
+        {
+            AddCheck("OAuth Client ID", "error", "Client ID is empty. Paste your Web application Client ID ending in .apps.googleusercontent.com.");
+        }
+        else if (clientId.StartsWith("{", StringComparison.Ordinal) || clientId.Contains("\"client_id\"", StringComparison.OrdinalIgnoreCase))
+        {
+            AddCheck("OAuth Client ID", "error", "It looks like full JSON was pasted. Paste only the client_id value (123456-abc.apps.googleusercontent.com).");
+        }
+        else if (clientId.StartsWith("GOCSPX-", StringComparison.OrdinalIgnoreCase))
+        {
+            AddCheck("OAuth Client ID", "error", "That value is a Client Secret (GOCSPX-...), not a Client ID. Move it to Client Secret and paste your .apps.googleusercontent.com Client ID above.");
+        }
+        else if (!GoogleClientIdRegex.IsMatch(clientId))
+        {
+            AddCheck("OAuth Client ID", "error", $"\"{clientId}\" does not match Google's Web OAuth Client ID format (<project-number>-<id>.apps.googleusercontent.com).");
+        }
+        else if (!string.Equals(rawClientId, clientId, StringComparison.Ordinal))
+        {
+            AddCheck("OAuth Client ID", "ok", "Valid Google Web Client ID format (extra leading/trailing spaces will be trimmed automatically on Save).");
+        }
+        else
+        {
+            AddCheck("OAuth Client ID", "ok", "Valid Google Web Client ID format.");
+        }
+
+        // 2. Validate Authorized JavaScript Origin
+        var originRaw = (request?.OriginUri ?? string.Empty).Trim();
+        Uri? originParsed = null;
+        if (string.IsNullOrEmpty(originRaw) || !Uri.TryCreate(originRaw, UriKind.Absolute, out originParsed))
+        {
+            AddCheck("JavaScript Origin", "error", "Browser origin URL could not be parsed as a valid http(s) origin.");
+        }
+        else
+        {
+            var authority = originParsed.GetLeftPart(UriPartial.Authority);
+            var isHttps = string.Equals(originParsed.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase);
+            var isHttp = string.Equals(originParsed.Scheme, Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase);
+            var isLocalhost = string.Equals(originParsed.Host, "localhost", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(originParsed.Host, "127.0.0.1", StringComparison.Ordinal);
+            var isRawIp = System.Net.IPAddress.TryParse(originParsed.Host, out _);
+
+            if (!string.Equals(originRaw, authority, StringComparison.Ordinal) || !string.IsNullOrEmpty(originParsed.Query) || !string.IsNullOrEmpty(originParsed.Fragment))
+            {
+                AddCheck("JavaScript Origin", "error", $"Origin must be scheme + host (+ optional port) with no path or trailing slash: {authority}");
+            }
+            else if (isHttps && !isRawIp)
+            {
+                AddCheck("JavaScript Origin", "ok", $"Valid HTTPS domain origin ({authority}). Ensure this exact URL is listed under Authorized JavaScript origins in Google Cloud Console.");
+            }
+            else if (isHttp && isLocalhost)
+            {
+                AddCheck("JavaScript Origin", "ok", $"Localhost HTTP origin ({authority}) is accepted by Google OAuth for local browser testing.");
+            }
+            else if (isRawIp)
+            {
+                AddCheck("JavaScript Origin", "warn", $"You are currently browsing via a raw IP address ({authority}). Google Cloud Console rejects raw IP addresses (except localhost) in Web OAuth origins — open Jellyfin via an HTTPS domain for Google Sign-In, or enable Standard Jellyfin Login / LAN Bypass for local IP access.");
+            }
+            else if (isHttp)
+            {
+                AddCheck("JavaScript Origin", "warn", $"Current origin uses plain HTTP ({authority}). Google Cloud Console requires HTTPS for non-localhost Web OAuth origins.");
+            }
+            else
+            {
+                AddCheck("JavaScript Origin", "error", $"Unsupported URI scheme '{originParsed.Scheme}'.");
+            }
+        }
+
+        // 3. Validate Authorized Redirect URIs
+        var redirects = (request?.RedirectUris ?? new List<string>())
+            .Select(u => (u ?? string.Empty).Trim())
+            .Where(u => !string.IsNullOrEmpty(u))
+            .ToList();
+        if (redirects.Count == 0)
+        {
+            AddCheck("Redirect URIs", "error", "No redirect URIs provided.");
+        }
+        else
+        {
+            var badRedirect = redirects.FirstOrDefault(r =>
+                !Uri.TryCreate(r, UriKind.Absolute, out var ru)
+                || !string.IsNullOrEmpty(ru.Fragment)
+                || (originParsed != null && !string.Equals(ru.GetLeftPart(UriPartial.Authority), originParsed.GetLeftPart(UriPartial.Authority), StringComparison.OrdinalIgnoreCase)));
+
+            if (badRedirect != null)
+            {
+                AddCheck("Redirect URIs", "error", $"Redirect URI \"{badRedirect}\" is malformed, contains a #fragment, or does not match the JavaScript origin.");
+            }
+            else
+            {
+                AddCheck("Redirect URIs", "ok", $"{redirects.Count} redirect URI(s) properly formatted and matched to origin.");
+            }
+        }
+
+        // 4. Validate Approved Google Accounts list
+        var rawEmails = request?.ApprovedEmails ?? new List<string>();
+        var validEmails = new List<string>();
+        var invalidEmails = new List<string>();
+        foreach (var entry in rawEmails)
+        {
+            var e = (entry ?? string.Empty).Trim().ToLowerInvariant();
+            if (string.IsNullOrEmpty(e))
+            {
+                continue;
+            }
+
+            if (EmailRegex.IsMatch(e))
+            {
+                if (!validEmails.Contains(e, StringComparer.OrdinalIgnoreCase))
+                {
+                    validEmails.Add(e);
+                }
+            }
+            else
+            {
+                invalidEmails.Add(entry?.Trim() ?? string.Empty);
+            }
+        }
+
+        var lockedProfileCount = (config.Profiles ?? new List<StreamFlixProfileConfig>())
+            .Count(p => !string.IsNullOrWhiteSpace(p.GoogleAccountEmail));
+        if (invalidEmails.Count > 0)
+        {
+            AddCheck("Approved Google Accounts", "error", $"Invalid email syntax: {string.Join(", ", invalidEmails.Take(4))}");
+        }
+        else if (validEmails.Count == 0 && lockedProfileCount == 0)
+        {
+            AddCheck("Approved Google Accounts", "warn", "Allowlist is empty. Add at least one Gmail / Google Workspace address before enabling Google Sign-In.");
+        }
+        else
+        {
+            AddCheck("Approved Google Accounts", "ok", $"{validEmails.Count} approved email(s) valid" + (lockedProfileCount > 0 ? $" (+ {lockedProfileCount} profile-locked email(s))." : "."));
+        }
+
+        // 5. Probe outbound HTTPS reachability from Jellyfin Server to Google OAuth
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        try
+        {
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+            using var probeResp = await HttpClient.GetAsync("https://accounts.google.com/.well-known/openid-configuration", cts.Token).ConfigureAwait(false);
+            sw.Stop();
+            if (probeResp.IsSuccessStatusCode)
+            {
+                AddCheck("Server → Google HTTPS", "ok", $"Jellyfin server reached Google OAuth endpoints in {sw.ElapsedMilliseconds} ms.");
+            }
+            else
+            {
+                AddCheck("Server → Google HTTPS", "warn", $"Google discovery endpoint returned HTTP {(int)probeResp.StatusCode} ({sw.ElapsedMilliseconds} ms).");
+            }
+        }
+        catch (Exception ex)
+        {
+            sw.Stop();
+            AddCheck("Server → Google HTTPS", "error", $"Jellyfin server cannot reach accounts.google.com over HTTPS ({ex.GetType().Name}). Check container DNS / outbound firewall rules.");
+        }
+
+        var overall = hasError ? "error" : (hasWarn ? "warn" : "ok");
+        var summary = overall == "ok"
+            ? "All OAuth format & server connectivity checks passed."
+            : (overall == "warn"
+                ? "Configuration is syntactically valid, with warnings to review below."
+                : "One or more OAuth configuration issues must be fixed before Google Sign-In will work.");
+
+        return Ok(new
+        {
+            status = overall,
+            summary,
+            checks,
+        });
+    }
+
+    [HttpPost("Oidc/Begin")]
+    [AllowAnonymous]
+    [Produces(MediaTypeNames.Application.Json)]
+    public async Task<ActionResult<object>> BeginOidcSignIn([FromBody] BeginOidcRequest? request)
+    {
+        Response.Headers["Cache-Control"] = "no-store";
+        Response.Headers["Referrer-Policy"] = "no-referrer";
+        var config = Config;
+        var safeWebBase = ResolveSafeRelativeWebPath(request?.ReturnWebBase);
+
+        if (!StreamFlixOidcService.IsConfigured(config))
+        {
+            return BadRequest(new
+            {
+                code = "oidc_disabled",
+                message = "OpenID Connect sign-in is not enabled on this server.",
+            });
+        }
+
+        try
+        {
+            var authUrl = await PrepareOidcAuthorizationSessionAsync(
+                config,
+                safeWebBase,
+                request?.LoginHint,
+                request?.PendingProfileId).ConfigureAwait(false);
+            return Ok(new { authorizeUrl = authUrl });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "StreamFlix: failed to prepare OIDC authorization redirect.");
+            return StatusCode(502, new
+            {
+                code = "oidc_begin_failed",
+                message = ex.Message,
+            });
+        }
+    }
+
+    [HttpGet("Oidc/Start")]
+    [AllowAnonymous]
+    public async Task<ActionResult> StartOidcSignIn(
+        [FromQuery] string? returnWebBase = null,
+        [FromQuery] string? pendingProfileId = null,
+        [FromQuery] string? loginHint = null)
+    {
+        Response.Headers["Cache-Control"] = "no-store";
+        Response.Headers["Referrer-Policy"] = "no-referrer";
+        var config = Config;
+        var safeWebBase = ResolveSafeRelativeWebPath(returnWebBase);
+
+        if (!StreamFlixOidcService.IsConfigured(config))
+        {
+            return Redirect(BuildOidcReturnUrl(safeWebBase, errorMessage: "OpenID Connect sign-in is not enabled on this server."));
+        }
+
+        try
+        {
+            var authUrl = await PrepareOidcAuthorizationSessionAsync(
+                config,
+                safeWebBase,
+                loginHint,
+                pendingProfileId).ConfigureAwait(false);
+            return Redirect(authUrl);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "StreamFlix: failed to initiate OIDC authorization redirect.");
+            return Redirect(BuildOidcReturnUrl(safeWebBase, errorMessage: ex.Message));
+        }
+    }
+
+    private async Task<string> PrepareOidcAuthorizationSessionAsync(
+        PluginConfiguration config,
+        string safeWebBase,
+        string? loginHint,
+        string? pendingProfileId)
+    {
+        var callbackUri = BuildAbsoluteOidcCallbackUri();
+        var (authUrl, stateId, signedStateCookie) = await StreamFlixOidcService.CreateAuthorizationRedirectAsync(
+            config,
+            callbackUri,
+            safeWebBase,
+            loginHint,
+            pendingProfileId,
+            HttpContext.RequestAborted).ConfigureAwait(false);
+
+        // Clean up any legacy root-scoped state cookies (Path=/) and keep at most 2 concurrent per-tab state cookies
+        if (Request.Cookies.ContainsKey(StreamFlixOidcService.StateCookieName))
+        {
+            DeleteLegacyRootCookie(StreamFlixOidcService.StateCookieName);
+            DeleteOidcCookie(StreamFlixOidcService.StateCookieName);
+        }
+
+        var existingScopedStateCookies = Request.Cookies.Keys
+            .Where(k => k.StartsWith(StreamFlixOidcService.StateCookiePrefix, StringComparison.Ordinal))
+            .ToList();
+        if (existingScopedStateCookies.Count >= 2)
+        {
+            foreach (var oldKey in existingScopedStateCookies.Take(existingScopedStateCookies.Count - 1))
+            {
+                DeleteOidcCookie(oldKey);
+            }
+        }
+
+        var stateCookieName = StreamFlixOidcService.GetStateCookieName(stateId);
+        Response.Cookies.Append(
+            stateCookieName,
+            signedStateCookie,
+            BuildOidcCookieOptions(TimeSpan.FromMinutes(10)));
+
+        return authUrl;
+    }
+
+    [HttpGet("Oidc/Callback")]
+    [AllowAnonymous]
+    public async Task<ActionResult> CompleteOidcCallback(
+        [FromQuery] string? code = null,
+        [FromQuery] string? state = null,
+        [FromQuery] string? error = null,
+        [FromQuery(Name = "error_description")] string? errorDescription = null)
+    {
+        Response.Headers["Cache-Control"] = "no-store";
+        Response.Headers["Referrer-Policy"] = "no-referrer";
+        var config = Config;
+        var scopedCookieName = StreamFlixOidcService.GetStateCookieName(state);
+        var rawStateCookie = Request.Cookies[scopedCookieName];
+        if (string.IsNullOrEmpty(rawStateCookie)
+            && !string.Equals(scopedCookieName, StreamFlixOidcService.StateCookieName, StringComparison.Ordinal))
+        {
+            rawStateCookie = Request.Cookies[StreamFlixOidcService.StateCookieName];
+        }
+
+        DeleteOidcCookie(scopedCookieName);
+        if (Request.Cookies.ContainsKey(StreamFlixOidcService.StateCookieName))
+        {
+            DeleteOidcCookie(StreamFlixOidcService.StateCookieName);
+            DeleteLegacyRootCookie(StreamFlixOidcService.StateCookieName);
+        }
+
+        var statePayload = StreamFlixSessionService.VerifyShortLivedPayload<StreamFlixOidcService.OidcStatePayload>(
+            config,
+            StreamFlixOidcService.StateTokenPurpose,
+            rawStateCookie);
+        var safeWebBase = ResolveSafeRelativeWebPath(statePayload?.ReturnWebBase);
+
+        if (!StreamFlixOidcService.IsConfigured(config))
+        {
+            return Redirect(BuildOidcReturnUrl(safeWebBase, errorMessage: "OpenID Connect sign-in is disabled on this server."));
+        }
+
+        if (statePayload == null)
+        {
+            return Redirect(BuildOidcReturnUrl(safeWebBase, errorMessage: "Sign-in session expired or cookies were blocked. Please try signing in again."));
+        }
+
+        if (!string.IsNullOrWhiteSpace(error))
+        {
+            var friendly = string.Equals(error.Trim(), "access_denied", StringComparison.OrdinalIgnoreCase)
+                ? "Sign-in was canceled."
+                : (!string.IsNullOrWhiteSpace(errorDescription) ? errorDescription.Trim() : $"Identity provider returned error: {error.Trim()}");
+            if (friendly.Length > 220)
+            {
+                friendly = friendly.Substring(0, 220);
+            }
+
+            return Redirect(BuildOidcReturnUrl(safeWebBase, errorMessage: friendly));
+        }
+
+        try
+        {
+            var identity = await StreamFlixOidcService.CompleteCallbackAsync(
+                config,
+                code ?? string.Empty,
+                state ?? string.Empty,
+                statePayload,
+                HttpContext.RequestAborted).ConfigureAwait(false);
+
+            var verifiedEmail = identity.EmailVerified && !string.IsNullOrWhiteSpace(identity.Email)
+                ? identity.Email.Trim().ToLowerInvariant()
+                : null;
+
+            if (!StreamFlixSessionService.IsOidcUserApproved(config, verifiedEmail, identity.Username, identity.Subject))
+            {
+                var who = !string.IsNullOrWhiteSpace(identity.Email)
+                    ? identity.Email
+                    : (!string.IsNullOrWhiteSpace(identity.Username) ? identity.Username : identity.Subject);
+                return Redirect(BuildOidcReturnUrl(
+                    safeWebBase,
+                    errorMessage: $"{who} isn't on the approved OIDC allowlist for this StreamFlix server. Ask the owner to add it in Dashboard → Plugins → StreamFlix."));
+            }
+
+            var session = StreamFlixSessionService.IssueOidcSession(
+                config,
+                verifiedEmail,
+                identity.Username,
+                identity.Subject,
+                out var sessionToken);
+
+            var providerName = StreamFlixOidcService.GetDisplayProviderName(config);
+            var handoffPayload = new StreamFlixOidcService.OidcHandoffPayload(
+                SessionToken: sessionToken,
+                ProviderName: providerName,
+                Email: verifiedEmail ?? string.Empty,
+                Username: identity.Username,
+                Name: identity.Name,
+                Picture: identity.Picture,
+                ExpiresAt: session.ExpiresAt.ToString("O"),
+                PendingProfileId: statePayload.PendingProfileId ?? string.Empty);
+
+            var signedHandoff = StreamFlixSessionService.SignShortLivedPayload(
+                config,
+                StreamFlixOidcService.HandoffTokenPurpose,
+                handoffPayload,
+                TimeSpan.FromSeconds(75));
+
+            if (Request.Cookies.ContainsKey(StreamFlixOidcService.HandoffCookieName))
+            {
+                DeleteLegacyRootCookie(StreamFlixOidcService.HandoffCookieName);
+            }
+
+            Response.Cookies.Append(
+                StreamFlixOidcService.HandoffCookieName,
+                signedHandoff,
+                BuildOidcCookieOptions(TimeSpan.FromSeconds(75)));
+
+            return Redirect(BuildOidcReturnUrl(safeWebBase, errorMessage: null));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "StreamFlix: OIDC callback verification failed.");
+            return Redirect(BuildOidcReturnUrl(safeWebBase, errorMessage: ex.Message));
+        }
+    }
+
+    [HttpPost("Oidc/Complete")]
+    [AllowAnonymous]
+    [Produces(MediaTypeNames.Application.Json)]
+    public ActionResult<object> CompleteOidcHandoff()
+    {
+        Response.Headers["Cache-Control"] = "no-store";
+        var config = Config;
+        var rawHandoff = Request.Cookies[StreamFlixOidcService.HandoffCookieName];
+        DeleteOidcCookie(StreamFlixOidcService.HandoffCookieName);
+        DeleteLegacyRootCookie(StreamFlixOidcService.HandoffCookieName);
+
+        var handoff = StreamFlixSessionService.VerifyShortLivedPayload<StreamFlixOidcService.OidcHandoffPayload>(
+            config,
+            StreamFlixOidcService.HandoffTokenPurpose,
+            rawHandoff);
+
+        if (handoff == null || string.IsNullOrWhiteSpace(handoff.SessionToken))
+        {
+            return StatusCode(401, new
+            {
+                verified = false,
+                code = "oidc_handoff_expired",
+                message = "OpenID Connect sign-in handoff expired. Please sign in again.",
+            });
+        }
+
+        // Re-validate the minted session against current config before handing it to the browser
+        var validated = StreamFlixSessionService.Validate(config, handoff.SessionToken);
+        if (validated == null)
+        {
+            return StatusCode(401, new
+            {
+                verified = false,
+                code = "oidc_session_invalid",
+                message = "OpenID Connect session is no longer valid.",
+            });
+        }
+
+        return Ok(new
+        {
+            verified = true,
+            authKind = StreamFlixSessionService.AuthKindOidc,
+            providerName = handoff.ProviderName,
+            email = handoff.Email,
+            username = !string.IsNullOrWhiteSpace(handoff.Username) ? handoff.Username : (validated.Username ?? string.Empty),
+            name = handoff.Name,
+            picture = handoff.Picture,
+            sessionToken = handoff.SessionToken,
+            expiresAt = handoff.ExpiresAt,
+            pendingProfileId = handoff.PendingProfileId,
+        });
+    }
+
+    [HttpPost("TestOidcConfig")]
+    [AllowAnonymous]
+    [Produces(MediaTypeNames.Application.Json)]
+    public async Task<ActionResult<object>> TestOidcConfig([FromBody] TestOidcConfigRequest? request)
+    {
+        var config = Config;
+        var caller = await GetCallerAsync(config).ConfigureAwait(false);
+        if (!caller.IsAdmin)
+        {
+            return StatusCode(403, new { code = "admin_required", message = "Only a Jellyfin administrator can validate OIDC settings." });
+        }
+
+        var cleanAllowlist = (request?.ApprovedOidcUsers ?? new List<string>())
+            .Select(u => (u ?? string.Empty).Trim())
+            .Where(u => !string.IsNullOrEmpty(u))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        var callbackUri = !string.IsNullOrWhiteSpace(request?.CallbackUri)
+            ? request!.CallbackUri!.Trim()
+            : BuildAbsoluteOidcCallbackUri();
+
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(HttpContext.RequestAborted);
+        cts.CancelAfter(TimeSpan.FromSeconds(10));
+
+        var (status, summary, checks) = await StreamFlixOidcService.TestDiscoveryAsync(
+            request?.OidcIssuerUrl,
+            request?.OidcClientId,
+            callbackUri,
+            request?.OidcRequireAllowlist == true,
+            cleanAllowlist.Count,
+            cts.Token).ConfigureAwait(false);
+
+        return Ok(new
+        {
+            status,
+            summary,
+            checks = checks.Select(c => new
+            {
+                status = c.Status,
+                label = c.Label,
+                detail = c.Detail,
+            }).ToList(),
+        });
+    }
+
+    private async Task<string?> TryMintAdminJellyfinTokenAsync(JUser user, PasswordLoginRequest? request, string remoteIp)
+    {
+        try
+        {
+            var authReq = new AuthenticationRequest
+            {
+                App = !string.IsNullOrWhiteSpace(request?.AppName) ? request!.AppName!.Trim() : "Jellyfin Web",
+                AppVersion = !string.IsNullOrWhiteSpace(request?.AppVersion) ? request!.AppVersion!.Trim() : "10.11.0",
+                DeviceId = !string.IsNullOrWhiteSpace(request?.DeviceId) ? request!.DeviceId!.Trim() : $"streamflix-admin-{user.Id:N}",
+                DeviceName = !string.IsNullOrWhiteSpace(request?.DeviceName) ? request!.DeviceName!.Trim() : $"StreamFlix Admin ({user.Username})",
+                UserId = user.Id,
+                Username = user.Username,
+                RemoteEndPoint = remoteIp,
+            };
+            var res = await _sessionManager.AuthenticateDirect(authReq).ConfigureAwait(false);
+            return res?.AccessToken;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "StreamFlix: optional AuthenticateDirect token mint skipped for '{Username}'.", user.Username);
+            return null;
+        }
+    }
+
+    private string BuildAbsoluteOidcCallbackUri()
+    {
+        var scheme = Request.Scheme;
+        var host = Request.Host.Value;
+        var pathBase = Request.PathBase.HasValue ? Request.PathBase.Value : string.Empty;
+
+        // When behind a local/Docker reverse proxy (e.g. Caddy, Nginx, Traefik), honor forwarded scheme/host/prefix safely
+        var remoteIp = HttpContext.Connection.RemoteIpAddress;
+        if (remoteIp != null && StreamFlixSessionService.IsPrivateOrLoopbackIp(remoteIp))
+        {
+            var fwdProto = Request.Headers["X-Forwarded-Proto"].ToString().Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).FirstOrDefault();
+            if (fwdProto != null && (string.Equals(fwdProto, "https", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(fwdProto, "http", StringComparison.OrdinalIgnoreCase)))
+            {
+                scheme = fwdProto.ToLowerInvariant();
+            }
+
+            var fwdHost = Request.Headers["X-Forwarded-Host"].ToString().Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).FirstOrDefault();
+            if (!string.IsNullOrWhiteSpace(fwdHost) && IsSafeHostHeader(fwdHost))
+            {
+                host = fwdHost;
+            }
+
+            if (string.IsNullOrEmpty(pathBase))
+            {
+                var fwdPrefix = Request.Headers["X-Forwarded-Prefix"].ToString().Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).FirstOrDefault();
+                if (!string.IsNullOrWhiteSpace(fwdPrefix) && fwdPrefix.StartsWith('/') && !fwdPrefix.StartsWith("//", StringComparison.Ordinal) && !fwdPrefix.Contains('\\'))
+                {
+                    pathBase = fwdPrefix.TrimEnd('/');
+                }
+            }
+        }
+
+        return $"{scheme}://{host}{pathBase.TrimEnd('/')}/StreamFlix/Oidc/Callback";
+    }
+
+    private string ResolveSafeRelativeWebPath(string? requested)
+    {
+        var defaultWebPath = (Request.PathBase.HasValue ? Request.PathBase.Value.TrimEnd('/') : string.Empty) + "/web/index.html";
+        if (string.IsNullOrWhiteSpace(requested))
+        {
+            return defaultWebPath;
+        }
+
+        var trimmed = requested.Trim();
+        var qIdx = trimmed.IndexOfAny(new[] { '?', '#' });
+        if (qIdx >= 0)
+        {
+            trimmed = trimmed.Substring(0, qIdx);
+        }
+
+        if (trimmed.Length == 0
+            || trimmed.Length > 200
+            || !trimmed.StartsWith('/')
+            || trimmed.StartsWith("//", StringComparison.Ordinal)
+            || trimmed.Contains('\\')
+            || trimmed.Contains(':')
+            || trimmed.Any(c => char.IsControl(c)))
+        {
+            return defaultWebPath;
+        }
+
+        return trimmed;
+    }
+
+    private static string BuildOidcReturnUrl(string safeRelativeWebPath, string? errorMessage)
+    {
+        if (string.IsNullOrWhiteSpace(errorMessage))
+        {
+            return $"{safeRelativeWebPath}?sf_oidc=1#/home";
+        }
+
+        return $"{safeRelativeWebPath}?sf_oidc_error={Uri.EscapeDataString(errorMessage.Trim())}#/home";
+    }
+
+    private bool IsEffectiveHttps()
+    {
+        if (Request.IsHttps)
+        {
+            return true;
+        }
+
+        var remoteIp = HttpContext.Connection.RemoteIpAddress;
+        if (remoteIp != null && StreamFlixSessionService.IsPrivateOrLoopbackIp(remoteIp))
+        {
+            var fwdProto = Request.Headers["X-Forwarded-Proto"].ToString().Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).FirstOrDefault();
+            if (string.Equals(fwdProto, "https", StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private string GetCookieBasePath()
+    {
+        var pb = Request.PathBase.HasValue ? Request.PathBase.Value.TrimEnd('/') : string.Empty;
+        return string.IsNullOrEmpty(pb) ? "/" : pb;
+    }
+
+    private string GetScopedCookiePath(string subPath)
+    {
+        var pb = Request.PathBase.HasValue ? Request.PathBase.Value.TrimEnd('/') : string.Empty;
+        return pb + subPath;
+    }
+
+    private CookieOptions BuildOidcCookieOptions(TimeSpan maxAge)
+    {
+        return new CookieOptions
+        {
+            HttpOnly = true,
+            SameSite = SameSiteMode.Lax,
+            Secure = IsEffectiveHttps(),
+            Path = GetScopedCookiePath("/StreamFlix/Oidc"),
+            MaxAge = maxAge,
+            IsEssential = true,
+        };
+    }
+
+    private void DeleteOidcCookie(string cookieName)
+    {
+        Response.Cookies.Delete(cookieName, new CookieOptions
+        {
+            HttpOnly = true,
+            SameSite = SameSiteMode.Lax,
+            Secure = IsEffectiveHttps(),
+            Path = GetScopedCookiePath("/StreamFlix/Oidc"),
+            IsEssential = true,
+        });
+    }
+
+    private void DeleteLegacyRootCookie(string cookieName)
+    {
+        Response.Cookies.Delete(cookieName, new CookieOptions
+        {
+            HttpOnly = true,
+            SameSite = SameSiteMode.Lax,
+            Secure = IsEffectiveHttps(),
+            Path = GetCookieBasePath(),
+            IsEssential = true,
+        });
+    }
+
+    private static bool IsSafeHostHeader(string raw)
+    {
+        if (raw.Length == 0 || raw.Length > 255)
+        {
+            return false;
+        }
+
+        foreach (var ch in raw)
+        {
+            if (!(char.IsLetterOrDigit(ch) || ch is '.' or '-' or ':' or '[' or ']'))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+}

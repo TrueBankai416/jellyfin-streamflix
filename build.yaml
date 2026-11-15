@@ -1,7 +1,7 @@
 ---
 name: "StreamFlix"
 guid: "7cc1a505-91f6-4661-b4f9-7eee8be33b19"
-version: "0.7.8.0"
+version: "0.7.8.1"
 targetAbi: "12.0.0.0"
 framework: "net10.0"
 owner: "StreamFlix"
@@ -17,6 +17,6 @@ imageUrl: "https://raw.githubusercontent.com/streamflix-dev/jellyfin-streamflix/
 artifacts:
   - "Jellyfin.Plugin.StreamFlix.dll"
 changelog: >
-  - Mobile-Only Floating Capsule Dock: add a frosted-glass bottom pill dock on mobile phones (Home, New & Hot, Search, and My <Brand> with the active profile avatar) while leaving desktop, tablet, and Smart TV layouts untouched
-  - Uncluttered Mobile Chrome & Bottom-Anchored Account Sheet: replace boxed mobile subnav controls with clean individual category pills (Shows, Movies, Collections, My List), remove duplicate top-right profile chrome on phones, and anchor the account switcher sheet directly above the dock with 2-column quick tiles (My List, Surprise Me, Cast, Quick Connect)
-  - Redesigned User Settings, Active Devices Tab & Phone Guest Pass Share: cohesive dark-glass user settings, dedicated plugin Active Devices tab, and reliable phone-only native invite sharing
+  - Liquid-Glass Mobile Dock Polish & Zero Doubled Avatar: remove the inline-forced top-right profile pill whenever the mobile floating dock is active, add a spring-animated gliding glass highlight, ambient bottom scrim, bespoke dock icons, and smart title-case formatting for uppercase brand names (e.g. My Benflix)
+  - Clean Mobile Category Pills: remove stray active-pill bottom accent underlines and keep mobile subnav focused on clean individual category pills (Shows, Movies, Collections, My List)
+  - Modular Codebase Organization: split monolithic Web JS, Web CSS, and API Controller files into focused, readable modules under Web/js/, Web/css/, and Controllers/ while preserving single-request in-memory bundle assembly and ETag caching

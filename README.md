@@ -4,7 +4,7 @@
 
 **A Netflix-style web UI, flexible household sign-in gate (Google OAuth, OIDC, Jellyfin & QR Guest Passes), native Seerr requests, and household profiles backed by real Jellyfin users.**
 
-[![Version](https://img.shields.io/badge/version-0.7.8-E50914?style=flat-square)](manifest.json)
+[![Version](https://img.shields.io/badge/version-0.7.8.1-E50914?style=flat-square)](manifest.json)
 [![Jellyfin](https://img.shields.io/badge/Jellyfin-10.9%20%E2%80%93%2012.x-00A4DC?style=flat-square)](manifest.json)
 [![.NET](https://img.shields.io/badge/.NET-8.0%20%7C%209.0%20%7C%2010.0-512BD4?style=flat-square)](Jellyfin.Plugin.StreamFlix/Jellyfin.Plugin.StreamFlix.csproj)
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg?style=flat-square)](LICENSE)
@@ -182,13 +182,19 @@ Pushing code changes to `main` triggers [`.github/workflows/build-plugin.yml`](.
 ├── manifest.json                        # Jellyfin plugin repository manifest
 ├── docs/screenshots/                    # UI screenshots
 └── Jellyfin.Plugin.StreamFlix/
-    ├── Plugin.cs                        # Plugin entry point & throttled index.html injection
+    ├── Plugin.cs                        # Plugin entry point, embedded asset bundler & index.html injection
     ├── PluginServiceRegistrator.cs      # DI registration for services & startup filter
     ├── Configuration/
     │   ├── PluginConfiguration.cs       # Profiles, multi-auth, Guest Pass & Seerr config
     │   └── configPage.html              # Admin UI (Dashboard → Plugins → StreamFlix)
     ├── Controllers/
-    │   └── StreamFlixController.cs      # Auth, OIDC, Guest Pass, Active Devices, Seerr & profile endpoints
+    │   ├── StreamFlixDtos.cs            # Request & response DTO models
+    │   ├── StreamFlixController.cs      # Core config, asset endpoints & caller context
+    │   ├── StreamFlixController.Auth.cs # Google OAuth, Jellyfin login & Custom OIDC endpoints
+    │   ├── StreamFlixController.Profiles.cs          # Profile CRUD, PINs & account locks
+    │   ├── StreamFlixController.GuestPasses.cs       # Temporary Guest Passes & QR share links
+    │   ├── StreamFlixController.DevicesAndSessions.cs # Active Devices & session revocation
+    │   └── StreamFlixController.SeerrAndShowcase.cs  # Seerr requests & popularity scoring
     ├── Services/
     │   ├── StreamFlixOidcService.cs     # OIDC Relying Party (PKCE S256, discovery & JWKS verification)
     │   ├── StreamFlixQrCode.cs          # Zero-dependency ISO/IEC 18004 SVG QR code encoder
@@ -197,8 +203,8 @@ Pushing code changes to `main` triggers [`.github/workflows/build-plugin.yml`](.
     │   ├── StreamFlixStartupFilter.cs   # Request-time index.html script/style injection
     │   └── StreamFlixStartupTask.cs     # Jellyfin user provisioning, password hardening & linking
     └── Web/
-        ├── streamflix.css               # Cinema theme, responsive/TV layouts & animations
-        └── streamflix.js                # Sign-in gate, profile picker, home hub & player UI
+        ├── css/                         # Modular stylesheets (01..08: base, hub, player, TV & mobile dock)
+        └── js/                          # Modular client scripts (01..14: auth, profiles, hub, player & settings)
 ```
 
 ## Credits

@@ -647,48 +647,30 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages
         }
     }
 
-    private static readonly Lazy<string> AssetVersionCache = new(() =>
+    private static (string Text, byte[] Bytes, string ETag) AssembleEmbeddedBundle(string resourcePrefix, string extension)
     {
-        var v = typeof(Plugin).Assembly.GetName().Version;
-        var fullVer = v == null ? "0.0.0.0" : $"{v.Major}.{v.Minor}.{v.Build}.{Math.Max(0, v.Revision)}";
         try
         {
             var asm = typeof(Plugin).Assembly;
-            using var sha = SHA256.Create();
-            foreach (var resName in new[] { "Jellyfin.Plugin.StreamFlix.Web.streamflix.css", "Jellyfin.Plugin.StreamFlix.Web.streamflix.js" })
+            var names = asm.GetManifestResourceNames()
+                .Where(n => n.StartsWith(resourcePrefix, StringComparison.Ordinal) && n.EndsWith(extension, StringComparison.Ordinal))
+                .OrderBy(n => n, StringComparer.Ordinal)
+                .ToArray();
+
+            if (names.Length > 0)
             {
-                using var s = asm.GetManifestResourceStream(resName);
-                if (s != null)
+                var parts = new List<string>(names.Length);
+                foreach (var resName in names)
                 {
-                    var buf = new byte[8192];
-                    int read;
-                    while ((read = s.Read(buf, 0, buf.Length)) > 0)
+                    using var stream = asm.GetManifestResourceStream(resName);
+                    if (stream != null)
                     {
-                        sha.TransformBlock(buf, 0, read, null, 0);
+                        using var reader = new StreamReader(stream, Encoding.UTF8);
+                        parts.Add(reader.ReadToEnd());
                     }
                 }
-            }
 
-            sha.TransformFinalBlock(Array.Empty<byte>(), 0, 0);
-            var shortHash = Convert.ToHexString(sha.Hash ?? Array.Empty<byte>(), 0, 4).ToLowerInvariant();
-            return string.IsNullOrEmpty(shortHash) ? fullVer : $"{fullVer}-{shortHash}";
-        }
-        catch
-        {
-            return fullVer;
-        }
-    });
-
-    private static readonly Lazy<(string Text, byte[] Bytes, string ETag)> EmbeddedStylesheet = new(() =>
-    {
-        try
-        {
-            var asm = typeof(Plugin).Assembly;
-            using var stream = asm.GetManifestResourceStream("Jellyfin.Plugin.StreamFlix.Web.streamflix.css");
-            if (stream != null)
-            {
-                using var reader = new StreamReader(stream, Encoding.UTF8);
-                var text = reader.ReadToEnd();
+                var text = string.Join("\n", parts);
                 var bytes = Encoding.UTF8.GetBytes(text);
                 var hash = SHA256.HashData(bytes);
                 var etag = "\"" + Convert.ToHexString(hash, 0, 12).ToLowerInvariant() + "\"";
@@ -701,12 +683,53 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages
         }
 
         return (string.Empty, Array.Empty<byte>(), string.Empty);
+    }
+
+    private static readonly Lazy<(string Text, byte[] Bytes, string ETag)> EmbeddedStylesheet =
+        new(() => AssembleEmbeddedBundle("Jellyfin.Plugin.StreamFlix.Web.css.", ".css"));
+
+    private static readonly Lazy<(string Text, byte[] Bytes, string ETag)> EmbeddedScript =
+        new(() => AssembleEmbeddedBundle("Jellyfin.Plugin.StreamFlix.Web.js.", ".js"));
+
+    private static readonly Lazy<string> AssetVersionCache = new(() =>
+    {
+        var v = typeof(Plugin).Assembly.GetName().Version;
+        var fullVer = v == null ? "0.0.0.0" : $"{v.Major}.{v.Minor}.{v.Build}.{Math.Max(0, v.Revision)}";
+        try
+        {
+            var cssBytes = EmbeddedStylesheet.Value.Bytes;
+            var jsBytes = EmbeddedScript.Value.Bytes;
+            using var sha = SHA256.Create();
+            if (cssBytes.Length > 0)
+            {
+                sha.TransformBlock(cssBytes, 0, cssBytes.Length, null, 0);
+            }
+
+            if (jsBytes.Length > 0)
+            {
+                sha.TransformBlock(jsBytes, 0, jsBytes.Length, null, 0);
+            }
+
+            sha.TransformFinalBlock(Array.Empty<byte>(), 0, 0);
+            var shortHash = Convert.ToHexString(sha.Hash ?? Array.Empty<byte>(), 0, 4).ToLowerInvariant();
+            return string.IsNullOrEmpty(shortHash) ? fullVer : $"{fullVer}-{shortHash}";
+        }
+        catch
+        {
+            return fullVer;
+        }
     });
 
     public static string GetEmbeddedStylesheetContent() => EmbeddedStylesheet.Value.Text;
 
+    public static (string Text, byte[] Bytes, string ETag) GetEmbeddedStylesheetBundle() => EmbeddedStylesheet.Value;
+
     public static (byte[] Bytes, string ETag) GetEmbeddedStylesheetAsset() =>
         (EmbeddedStylesheet.Value.Bytes, EmbeddedStylesheet.Value.ETag);
+
+    public static string GetEmbeddedScriptContent() => EmbeddedScript.Value.Text;
+
+    public static (string Text, byte[] Bytes, string ETag) GetEmbeddedScriptBundle() => EmbeddedScript.Value;
 
     public void CleanConflictingBrandingCssIfPresent()
     {

@@ -1,0 +1,1136 @@
+/* StreamFlix Styles (08/08) — Redesigned User Settings & Mobile Floating Liquid-Glass Dock */
+/* Prevent native Jellyfin header title/back arrow from colliding with top-left brand on Settings screens */
+body.bfx-settings-route .skinHeader:not(.osdHeader) .pageTitle,
+body.bfx-settings-route .skinHeader:not(.osdHeader) .headerBackButton {
+    display: none !important;
+}
+
+body.bfx-settings-route {
+    background-image: radial-gradient(ellipse 85% 420px at 50% 0%, rgba(229, 9, 20, 0.085) 0%, rgba(20, 20, 20, 0) 72%);
+    background-attachment: fixed;
+}
+
+/* Settings Page Containers */
+body.bfx-settings-route #myPreferencesMenuPage:not(.hide),
+body.bfx-settings-route #userProfilePage:not(.hide),
+body.bfx-settings-route #displayPreferencesPage:not(.hide),
+body.bfx-settings-route #homePreferencesPage:not(.hide),
+body.bfx-settings-route #languagePreferencesPage:not(.hide),
+body.bfx-settings-route #playbackPreferencesPage:not(.hide),
+body.bfx-settings-route #subtitlePreferencesPage:not(.hide),
+body.bfx-settings-route #controlsPreferencesPage:not(.hide),
+body.bfx-settings-route #myPreferencesQuickConnectPage:not(.hide),
+body.bfx-settings-route .bfx-prefs-subpage-enhanced:not(.hide) {
+    padding-top: 68px !important;
+    padding-bottom: calc(64px + env(safe-area-inset-bottom, 0px)) !important;
+    box-sizing: border-box !important;
+}
+
+body.bfx-settings-route #myPreferencesMenuPage .readOnlyContent,
+body.bfx-settings-route #myPreferencesMenuPage .content-primary,
+body.bfx-settings-route #userProfilePage .readOnlyContent,
+body.bfx-settings-route #controlsPreferencesPage .readOnlyContent,
+body.bfx-settings-route #myPreferencesQuickConnectPage .readOnlyContent,
+body.bfx-settings-route #displayPreferencesPage > .padded-left,
+body.bfx-settings-route #homePreferencesPage > .padded-left,
+body.bfx-settings-route #languagePreferencesPage > .padded-left,
+body.bfx-settings-route #playbackPreferencesPage > .padded-left,
+body.bfx-settings-route #subtitlePreferencesPage > .padded-left,
+body.bfx-settings-route .bfx-prefs-subpage-enhanced > .padded-left,
+body.bfx-settings-route .bfx-prefs-subpage-enhanced .readOnlyContent {
+    max-width: 880px !important;
+    width: 100% !important;
+    margin: 0 auto !important;
+    padding-top: 8px !important;
+    padding-left: clamp(16px, 4vw, 32px) !important;
+    padding-right: clamp(16px, 4vw, 32px) !important;
+    box-sizing: border-box !important;
+}
+
+body.bfx-settings-route #displayPreferencesPage form,
+body.bfx-settings-route #homePreferencesPage form,
+body.bfx-settings-route #languagePreferencesPage form,
+body.bfx-settings-route #playbackPreferencesPage form,
+body.bfx-settings-route #subtitlePreferencesPage form,
+body.bfx-settings-route #userProfilePage form,
+body.bfx-settings-route .bfx-prefs-subpage-enhanced form {
+    max-width: 100% !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+    padding-top: 0 !important;
+    box-sizing: border-box !important;
+}
+
+/* ---------- Settings Overview Hero (#bfx-prefs-hero) ---------- */
+.bfx-prefs-hero,
+.bfx-prefs-subbar {
+    margin: 0 0 18px 0;
+    box-sizing: border-box;
+}
+
+.bfx-prefs-topbar,
+.bfx-prefs-subtop {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-bottom: 14px;
+}
+
+.bfx-prefs-back-btn,
+.bfx-prefs-home-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 36px;
+    padding: 0 14px 0 10px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    color: #f3f4f6 !important;
+    font-size: 13px;
+    font-weight: 700;
+    text-decoration: none !important;
+    cursor: pointer;
+    transition: background 0.16s ease, border-color 0.16s ease, transform 0.16s ease;
+    box-sizing: border-box;
+}
+.bfx-prefs-home-chip {
+    padding: 0 14px;
+}
+.bfx-prefs-back-btn svg,
+.bfx-prefs-home-chip svg {
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
+}
+.bfx-prefs-back-btn:hover,
+.bfx-prefs-home-chip:hover {
+    background: rgba(255, 255, 255, 0.13);
+    border-color: rgba(255, 255, 255, 0.32);
+    color: #ffffff !important;
+    transform: translateY(-1px);
+}
+
+.bfx-prefs-kicker {
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 1.6px;
+    text-transform: uppercase;
+    color: #9ca3af;
+}
+
+.bfx-prefs-profile-card {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 18px 20px;
+    border-radius: 18px;
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.075) 0%, rgba(255, 255, 255, 0.025) 100%);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    box-shadow: 0 18px 42px rgba(0, 0, 0, 0.38), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
+    margin-bottom: 12px;
+    box-sizing: border-box;
+}
+
+.bfx-prefs-avatar {
+    width: 64px;
+    height: 64px;
+    border-radius: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 32px;
+    flex-shrink: 0;
+    box-shadow: 0 10px 26px rgba(0, 0, 0, 0.45), inset 0 0 0 1px rgba(255, 255, 255, 0.22);
+}
+
+.bfx-prefs-profile-meta {
+    flex: 1 1 0%;
+    min-width: 0;
+}
+
+.bfx-prefs-profile-title-row {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.bfx-prefs-profile-name {
+    margin: 0 !important;
+    font-size: clamp(20px, 2.4vw, 25px) !important;
+    font-weight: 800 !important;
+    letter-spacing: -0.02em !important;
+    color: #ffffff !important;
+    line-height: 1.15 !important;
+    word-break: break-word;
+}
+
+.bfx-prefs-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 9px;
+    border-radius: 999px;
+    font-size: 10.5px;
+    font-weight: 800;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+}
+.bfx-prefs-badge svg {
+    width: 11px;
+    height: 11px;
+}
+.bfx-prefs-badge.is-admin {
+    background: rgba(229, 9, 20, 0.2);
+    border: 1px solid rgba(229, 9, 20, 0.45);
+    color: #fca5a5;
+}
+.bfx-prefs-badge.is-kids {
+    background: rgba(16, 185, 129, 0.18);
+    border: 1px solid rgba(16, 185, 129, 0.42);
+    color: #6ee7b7;
+}
+.bfx-prefs-badge.is-guest {
+    background: rgba(245, 158, 11, 0.18);
+    border: 1px solid rgba(245, 158, 11, 0.42);
+    color: #fde68a;
+}
+.bfx-prefs-badge.is-pin {
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    color: #e5e7eb;
+}
+
+.bfx-prefs-profile-sub {
+    margin-top: 5px;
+    font-size: 13px;
+    color: #a3a3a3;
+    word-break: break-word;
+}
+
+.bfx-prefs-profile-actions,
+.bfx-prefs-admin-actions {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    flex-shrink: 0;
+}
+
+.bfx-prefs-pill-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    height: 38px;
+    padding: 0 15px;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.07);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    color: #f3f4f6 !important;
+    font-size: 13px;
+    font-weight: 700;
+    text-decoration: none !important;
+    cursor: pointer;
+    transition: background 0.16s ease, border-color 0.16s ease, transform 0.16s ease;
+    box-sizing: border-box;
+    white-space: nowrap;
+}
+.bfx-prefs-pill-btn svg {
+    width: 15px;
+    height: 15px;
+    flex-shrink: 0;
+}
+.bfx-prefs-pill-btn:hover {
+    background: rgba(255, 255, 255, 0.14);
+    border-color: rgba(255, 255, 255, 0.34);
+    color: #ffffff !important;
+    transform: translateY(-1px);
+}
+.bfx-prefs-pill-btn.is-primary {
+    background: #ffffff;
+    border-color: #ffffff;
+    color: #0b0b0b !important;
+}
+.bfx-prefs-pill-btn.is-primary:hover {
+    background: #e5e7eb;
+    border-color: #e5e7eb;
+    color: #000000 !important;
+}
+.bfx-prefs-pill-btn.is-accent {
+    background: rgba(99, 102, 241, 0.2);
+    border-color: rgba(129, 140, 248, 0.45);
+    color: #e0e7ff !important;
+}
+.bfx-prefs-pill-btn.is-accent:hover {
+    background: rgba(99, 102, 241, 0.32);
+    border-color: rgba(165, 180, 252, 0.65);
+    color: #ffffff !important;
+}
+
+/* Feature Toggle Card (<Brand> Home) & Admin Quick Card */
+.bfx-prefs-feature-card,
+.bfx-prefs-admin-card,
+.bfx-prefs-context-card {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 15px 18px;
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.09);
+    margin-bottom: 12px;
+    box-sizing: border-box;
+    transition: background 0.16s ease, border-color 0.16s ease;
+}
+.bfx-prefs-feature-card {
+    cursor: pointer;
+}
+.bfx-prefs-feature-card:hover {
+    background: rgba(255, 255, 255, 0.065);
+    border-color: rgba(255, 255, 255, 0.16);
+}
+.bfx-prefs-admin-card {
+    background: linear-gradient(135deg, rgba(99, 102, 241, 0.1) 0%, rgba(255, 255, 255, 0.03) 100%);
+    border-color: rgba(129, 140, 248, 0.24);
+}
+.bfx-prefs-context-av {
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 22px;
+    flex-shrink: 0;
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.2);
+}
+
+.bfx-prefs-feature-ico {
+    width: 42px;
+    height: 42px;
+    border-radius: 12px;
+    background: rgba(229, 9, 20, 0.16);
+    border: 1px solid rgba(229, 9, 20, 0.34);
+    color: #f87171;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+.bfx-prefs-feature-ico.is-admin {
+    background: rgba(99, 102, 241, 0.18);
+    border-color: rgba(129, 140, 248, 0.4);
+    color: #a5b4fc;
+}
+.bfx-prefs-feature-ico svg {
+    width: 20px;
+    height: 20px;
+}
+
+.bfx-prefs-feature-copy {
+    flex: 1 1 0%;
+    min-width: 0;
+}
+
+.bfx-prefs-feature-title-row {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.bfx-prefs-feature-title {
+    font-size: 15px;
+    font-weight: 800;
+    color: #ffffff;
+    line-height: 1.25;
+}
+
+.bfx-prefs-status-pill {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 10.5px;
+    font-weight: 800;
+    letter-spacing: 0.4px;
+    text-transform: uppercase;
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    color: #d1d5db;
+}
+.bfx-prefs-status-pill.is-on {
+    background: rgba(16, 185, 129, 0.18);
+    border-color: rgba(16, 185, 129, 0.42);
+    color: #6ee7b7;
+}
+.bfx-prefs-status-pill.is-admin {
+    background: rgba(99, 102, 241, 0.22);
+    border-color: rgba(129, 140, 248, 0.45);
+    color: #c7d2fe;
+}
+
+.bfx-prefs-feature-desc {
+    margin-top: 3px;
+    font-size: 12.5px;
+    line-height: 1.45;
+    color: #9ca3af;
+}
+
+.bfx-prefs-toggle-btn {
+    background: transparent;
+    border: none;
+    padding: 4px;
+    margin: 0;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 999px;
+    flex-shrink: 0;
+}
+
+/* ---------- Enhanced Native Menu Rows (#myPreferencesMenuPage) ---------- */
+#myPreferencesMenuPage.bfx-prefs-menu-enhanced .headerUsername {
+    display: none !important;
+}
+
+#myPreferencesMenuPage.bfx-prefs-menu-enhanced .verticalSection:not(.hide) {
+    background: rgba(255, 255, 255, 0.035) !important;
+    border: 1px solid rgba(255, 255, 255, 0.085) !important;
+    border-radius: 16px !important;
+    padding: 6px !important;
+    margin: 0 0 14px 0 !important;
+    box-sizing: border-box !important;
+}
+
+#myPreferencesMenuPage.bfx-prefs-menu-enhanced .sectionTitle:not(.headerUsername) {
+    font-size: 11px !important;
+    font-weight: 800 !important;
+    letter-spacing: 1.4px !important;
+    text-transform: uppercase !important;
+    color: #9ca3af !important;
+    margin: 0 !important;
+    padding: 8px 12px 4px 12px !important;
+}
+
+#myPreferencesMenuPage.bfx-prefs-menu-enhanced a.emby-button:not(.hide),
+#myPreferencesMenuPage.bfx-prefs-menu-enhanced .listItem-border:not(.hide) {
+    display: block !important;
+    margin: 2px 0 !important;
+    padding: 0 !important;
+    border: none !important;
+    border-radius: 12px !important;
+    background: transparent !important;
+    text-decoration: none !important;
+    transition: background 0.16s ease, transform 0.16s ease !important;
+}
+
+#myPreferencesMenuPage.bfx-prefs-menu-enhanced a.emby-button:not(.hide):hover,
+#myPreferencesMenuPage.bfx-prefs-menu-enhanced .listItem-border:not(.hide):hover {
+    background: rgba(255, 255, 255, 0.065) !important;
+}
+
+#myPreferencesMenuPage.bfx-prefs-menu-enhanced .listItem {
+    display: flex !important;
+    align-items: center !important;
+    gap: 14px !important;
+    padding: 11px 12px !important;
+    background: transparent !important;
+    border: none !important;
+    box-sizing: border-box !important;
+}
+
+#myPreferencesMenuPage.bfx-prefs-menu-enhanced .listItemIcon {
+    width: 40px !important;
+    height: 40px !important;
+    min-width: 40px !important;
+    border-radius: 11px !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    font-size: 20px !important;
+    background: rgba(255, 255, 255, 0.07) !important;
+    border: 1px solid rgba(255, 255, 255, 0.1) !important;
+    color: #e5e7eb !important;
+    flex-shrink: 0 !important;
+}
+
+#myPreferencesMenuPage.bfx-prefs-menu-enhanced [data-bfx-row-kind="profile"] .listItemIcon {
+    background: rgba(229, 9, 20, 0.15) !important;
+    border-color: rgba(229, 9, 20, 0.32) !important;
+    color: #fca5a5 !important;
+}
+#myPreferencesMenuPage.bfx-prefs-menu-enhanced [data-bfx-row-kind="display"] .listItemIcon {
+    background: rgba(14, 165, 233, 0.15) !important;
+    border-color: rgba(56, 189, 248, 0.32) !important;
+    color: #7dd3fc !important;
+}
+#myPreferencesMenuPage.bfx-prefs-menu-enhanced [data-bfx-row-kind="home"] .listItemIcon {
+    background: rgba(245, 158, 11, 0.15) !important;
+    border-color: rgba(251, 191, 36, 0.32) !important;
+    color: #fcd34d !important;
+}
+#myPreferencesMenuPage.bfx-prefs-menu-enhanced [data-bfx-row-kind="playback"] .listItemIcon {
+    background: rgba(16, 185, 129, 0.15) !important;
+    border-color: rgba(52, 211, 153, 0.32) !important;
+    color: #6ee7b7 !important;
+}
+#myPreferencesMenuPage.bfx-prefs-menu-enhanced [data-bfx-row-kind="subtitles"] .listItemIcon {
+    background: rgba(168, 85, 247, 0.16) !important;
+    border-color: rgba(192, 132, 252, 0.34) !important;
+    color: #d8b4fe !important;
+}
+#myPreferencesMenuPage.bfx-prefs-menu-enhanced [data-bfx-row-kind="controls"] .listItemIcon {
+    background: rgba(6, 182, 212, 0.15) !important;
+    border-color: rgba(34, 211, 238, 0.32) !important;
+    color: #67e8f9 !important;
+}
+#myPreferencesMenuPage.bfx-prefs-menu-enhanced [data-bfx-row-kind="quickconnect"] .listItemIcon,
+#myPreferencesMenuPage.bfx-prefs-menu-enhanced [data-bfx-row-kind="dashboard"] .listItemIcon {
+    background: rgba(99, 102, 241, 0.17) !important;
+    border-color: rgba(129, 140, 248, 0.36) !important;
+    color: #a5b4fc !important;
+}
+#myPreferencesMenuPage.bfx-prefs-menu-enhanced [data-bfx-row-kind="logout"] .listItemIcon {
+    background: rgba(239, 68, 68, 0.15) !important;
+    border-color: rgba(248, 113, 113, 0.32) !important;
+    color: #fca5a5 !important;
+}
+
+#myPreferencesMenuPage.bfx-prefs-menu-enhanced .listItemBody {
+    padding: 0 !important;
+    flex: 1 1 0% !important;
+    min-width: 0 !important;
+}
+
+#myPreferencesMenuPage.bfx-prefs-menu-enhanced .listItemBodyText {
+    font-size: 15px !important;
+    font-weight: 700 !important;
+    color: #ffffff !important;
+    margin: 0 !important;
+    line-height: 1.25 !important;
+}
+
+.bfx-prefs-row-sub {
+    margin-top: 2px;
+    font-size: 12.5px;
+    font-weight: 400;
+    color: #9ca3af;
+    line-height: 1.35;
+}
+
+.bfx-prefs-row-chev {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: #6b7280;
+    flex-shrink: 0;
+    transition: transform 0.16s ease, color 0.16s ease;
+}
+.bfx-prefs-row-chev svg {
+    width: 17px;
+    height: 17px;
+}
+#myPreferencesMenuPage.bfx-prefs-menu-enhanced a.emby-button:hover .bfx-prefs-row-chev,
+#myPreferencesMenuPage.bfx-prefs-menu-enhanced .listItem-border:hover .bfx-prefs-row-chev {
+    color: #e5e7eb;
+    transform: translateX(2px);
+}
+
+/* ---------- Subpage Header & Section Pill Switcher (#bfx-prefs-subbar) ---------- */
+.bfx-prefs-subhead {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-bottom: 14px;
+}
+
+.bfx-prefs-subhead-ico {
+    width: 46px;
+    height: 46px;
+    border-radius: 13px;
+    background: rgba(229, 9, 20, 0.16);
+    border: 1px solid rgba(229, 9, 20, 0.36);
+    color: #f87171;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+.bfx-prefs-subhead-ico svg {
+    width: 22px;
+    height: 22px;
+}
+
+.bfx-prefs-subhead-copy {
+    flex: 1 1 0%;
+    min-width: 0;
+}
+
+.bfx-prefs-subhead-title {
+    margin: 0 !important;
+    font-size: clamp(21px, 2.5vw, 26px) !important;
+    font-weight: 800 !important;
+    letter-spacing: -0.02em !important;
+    color: #ffffff !important;
+    line-height: 1.15 !important;
+}
+
+.bfx-prefs-subhead-desc {
+    margin: 3px 0 0 0 !important;
+    font-size: 13px !important;
+    color: #9ca3af !important;
+    line-height: 1.4 !important;
+}
+
+.bfx-prefs-tabs {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 5px;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.09);
+    overflow-x: auto;
+    scrollbar-width: none;
+    margin-bottom: 14px;
+    box-sizing: border-box;
+}
+.bfx-prefs-tabs::-webkit-scrollbar {
+    display: none;
+}
+
+.bfx-prefs-tab {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    height: 34px;
+    padding: 0 14px;
+    border-radius: 10px;
+    color: #cbd5e1 !important;
+    font-size: 13px;
+    font-weight: 700;
+    text-decoration: none !important;
+    transition: background 0.16s ease, color 0.16s ease;
+    white-space: nowrap;
+}
+.bfx-prefs-tab:hover {
+    background: rgba(255, 255, 255, 0.08);
+    color: #ffffff !important;
+}
+.bfx-prefs-tab.is-active {
+    background: var(--streamflix-red, #e50914);
+    color: #ffffff !important;
+    box-shadow: 0 4px 14px rgba(229, 9, 20, 0.4);
+}
+
+/* ---------- Subpage Native Form Cards, Non-Overlapping Labels & Controls ---------- */
+body.bfx-settings-subpage #userProfilePage .username,
+body.bfx-settings-subpage #userProfilePage .sectionTitle.username {
+    display: none !important;
+}
+
+body.bfx-settings-subpage .verticalSection:not(.hide) {
+    background: rgba(255, 255, 255, 0.035) !important;
+    border: 1px solid rgba(255, 255, 255, 0.085) !important;
+    border-radius: 16px !important;
+    padding: 18px 20px !important;
+    margin: 0 0 16px 0 !important;
+    box-sizing: border-box !important;
+}
+
+body.bfx-settings-subpage .verticalSection .sectionTitle,
+body.bfx-settings-subpage h2.sectionTitle {
+    font-size: 16px !important;
+    font-weight: 800 !important;
+    letter-spacing: -0.01em !important;
+    color: #ffffff !important;
+    margin: 0 0 14px 0 !important;
+    padding: 0 !important;
+}
+
+body.bfx-settings-subpage .inputContainer:not(.hide),
+body.bfx-settings-subpage .selectContainer:not(.hide) {
+    position: relative !important;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+    margin: 0 0 16px 0 !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+}
+
+body.bfx-settings-subpage .inputLabel,
+body.bfx-settings-subpage .inputLabelUnfocused,
+body.bfx-settings-subpage .inputLabel-float,
+body.bfx-settings-subpage .selectLabel {
+    position: static !important;
+    transform: none !important;
+    top: auto !important;
+    left: auto !important;
+    display: block !important;
+    margin: 0 0 6px 0 !important;
+    padding: 0 !important;
+    font-size: 11.5px !important;
+    font-weight: 800 !important;
+    letter-spacing: 0.6px !important;
+    text-transform: uppercase !important;
+    color: #cbd5e1 !important;
+    line-height: 1.35 !important;
+}
+
+body.bfx-settings-subpage input.emby-input,
+body.bfx-settings-subpage textarea.emby-textarea,
+body.bfx-settings-subpage select.emby-select {
+    width: 100% !important;
+    min-height: 44px !important;
+    padding: 10px 14px !important;
+    border-radius: 10px !important;
+    background-color: rgba(10, 10, 14, 0.78) !important;
+    border: 1px solid rgba(255, 255, 255, 0.16) !important;
+    color: #ffffff !important;
+    font-size: 14px !important;
+    font-weight: 500 !important;
+    box-sizing: border-box !important;
+    box-shadow: none !important;
+    transition: border-color 0.16s ease, box-shadow 0.16s ease !important;
+}
+
+body.bfx-settings-subpage select.emby-select {
+    -webkit-appearance: none !important;
+    -moz-appearance: none !important;
+    appearance: none !important;
+    padding-right: 38px !important;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23cbd5e1' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E") !important;
+    background-repeat: no-repeat !important;
+    background-position: right 12px center !important;
+    background-size: 16px 16px !important;
+}
+body.bfx-settings-subpage select.emby-select option {
+    background-color: #16161a;
+    color: #ffffff;
+}
+body.bfx-settings-subpage .selectArrowContainer {
+    display: none !important;
+}
+
+body.bfx-settings-subpage input.emby-input:focus,
+body.bfx-settings-subpage textarea.emby-textarea:focus,
+body.bfx-settings-subpage select.emby-select:focus {
+    border-color: var(--streamflix-red, #e50914) !important;
+    box-shadow: 0 0 0 3px rgba(229, 9, 20, 0.24) !important;
+    outline: none !important;
+}
+
+body.bfx-settings-subpage .fieldDescription {
+    margin-top: 6px !important;
+    font-size: 12.5px !important;
+    line-height: 1.45 !important;
+    color: #9ca3af !important;
+}
+
+body.bfx-settings-subpage .checkboxContainer:not(.hide) {
+    margin: 0 0 10px 0 !important;
+    padding: 8px 10px !important;
+    border-radius: 10px !important;
+    background: rgba(255, 255, 255, 0.02);
+    transition: background 0.15s ease;
+}
+body.bfx-settings-subpage .checkboxContainer:hover {
+    background: rgba(255, 255, 255, 0.045);
+}
+body.bfx-settings-subpage .emby-checkbox-label {
+    font-size: 14px !important;
+    font-weight: 600 !important;
+    color: #f3f4f6 !important;
+}
+body.bfx-settings-subpage .checkboxFieldDescription {
+    margin: -4px 0 12px 10px !important;
+}
+
+/* Home Preferences reorderable list items & Controls / Profile rows */
+body.bfx-settings-subpage .paperList {
+    background: transparent !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+}
+body.bfx-settings-subpage .listItem:not(.hide) {
+    background: rgba(255, 255, 255, 0.04) !important;
+    border: 1px solid rgba(255, 255, 255, 0.08) !important;
+    border-radius: 11px !important;
+    margin: 0 0 8px 0 !important;
+    padding: 8px 12px !important;
+    box-sizing: border-box !important;
+}
+
+/* Subtitle Appearance Live Preview Framing (preserve inline preview text styles!) */
+body.bfx-settings-subpage #subtitlePreferencesPage .subtitleappearance-preview {
+    border-radius: 14px !important;
+    overflow: hidden !important;
+    border: 1px solid rgba(255, 255, 255, 0.14) !important;
+    margin: 8px 0 18px 0 !important;
+    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.45) !important;
+}
+
+/* Buttons inside Settings Subpages */
+body.bfx-settings-subpage button.raised:not(.button-submit):not(.hide),
+body.bfx-settings-subpage .emby-button.raised:not(.button-submit):not(.hide) {
+    border-radius: 10px !important;
+    background: rgba(255, 255, 255, 0.08) !important;
+    border: 1px solid rgba(255, 255, 255, 0.16) !important;
+    color: #ffffff !important;
+    min-height: 42px !important;
+    font-weight: 700 !important;
+    box-shadow: none !important;
+}
+body.bfx-settings-subpage button.raised:not(.button-submit):not(.hide):hover {
+    background: rgba(255, 255, 255, 0.15) !important;
+    border-color: rgba(255, 255, 255, 0.34) !important;
+}
+
+body.bfx-settings-subpage .button-submit:not(.hide),
+body.bfx-settings-subpage button.raised.button-submit:not(.hide) {
+    background: linear-gradient(135deg, #e50914 0%, #b80710 100%) !important;
+    border: 1px solid rgba(255, 255, 255, 0.14) !important;
+    border-radius: 11px !important;
+    color: #ffffff !important;
+    min-height: 46px !important;
+    font-size: 15px !important;
+    font-weight: 800 !important;
+    letter-spacing: 0.2px !important;
+    box-shadow: 0 10px 26px rgba(229, 9, 20, 0.34) !important;
+    transition: transform 0.16s ease, filter 0.16s ease !important;
+}
+body.bfx-settings-subpage .button-submit:not(.hide):hover {
+    filter: brightness(1.08);
+    transform: translateY(-1px);
+}
+
+/* TV / Keyboard Focus Halos inside Settings */
+body.bfx-settings-route .bfx-prefs-back-btn:focus-visible,
+body.bfx-settings-route .bfx-prefs-home-chip:focus-visible,
+body.bfx-settings-route .bfx-prefs-pill-btn:focus-visible,
+body.bfx-settings-route .bfx-prefs-toggle-btn:focus-visible,
+body.bfx-settings-route .bfx-prefs-tab:focus-visible,
+body.bfx-settings-route a.emby-button:focus-visible,
+body.bfx-settings-route button:focus-visible {
+    outline: 2px solid #ffffff !important;
+    outline-offset: 2px !important;
+}
+
+@media (max-width: 640px) {
+    .bfx-prefs-profile-card,
+    .bfx-prefs-admin-card,
+    .bfx-prefs-context-card {
+        flex-wrap: wrap;
+        align-items: flex-start;
+        padding: 15px;
+    }
+    .bfx-prefs-avatar {
+        width: 54px;
+        height: 54px;
+        border-radius: 14px;
+        font-size: 27px;
+    }
+    .bfx-prefs-profile-meta {
+        flex: 1 1 calc(100% - 72px);
+    }
+    .bfx-prefs-profile-actions,
+    .bfx-prefs-admin-actions,
+    .bfx-prefs-context-card > .bfx-prefs-pill-btn {
+        width: 100%;
+        padding-top: 6px;
+    }
+    .bfx-prefs-profile-actions > .bfx-prefs-pill-btn,
+    .bfx-prefs-admin-actions > .bfx-prefs-pill-btn {
+        flex: 1 1 0%;
+    }
+    .bfx-prefs-feature-card {
+        padding: 14px;
+        gap: 12px;
+    }
+    body.bfx-settings-subpage .verticalSection:not(.hide) {
+        padding: 14px 15px !important;
+    }
+}
+
+/* ==========================================================================
+   Mobile-Only Floating Capsule Dock & Uncluttered Phone Chrome
+   (Strictly scoped to phones <= 640px; desktop, tablet & TV are untouched)
+   ========================================================================== */
+#streamflix-mobile-dock {
+    display: none !important;
+}
+
+@media (max-width: 640px) {
+    /* Subtle cinema bottom scrim so scrolling cards & titles melt smoothly behind the floating glass dock */
+    html:not(.layout-tv) body.bfx-phone-mode.bfx-mobile-dock-ready:not(.bfx-tv-mode):not(.streamflix-in-video-player):not(.streamflix-gate-locked):not(.bfx-admin-route)::after {
+        content: "";
+        position: fixed;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        height: calc(88px + env(safe-area-inset-bottom, 0px));
+        background: linear-gradient(180deg, rgba(14, 14, 16, 0) 0%, rgba(12, 12, 14, 0.72) 58%, rgba(10, 10, 12, 0.96) 100%);
+        pointer-events: none;
+        z-index: 9980;
+        transition: opacity 0.2s ease;
+    }
+    html:not(.layout-tv) body.bfx-phone-mode.bfx-mobile-search-focused::after,
+    html:not(.layout-tv) body.bfx-phone-mode:has(.streamflix-modal-backdrop:not(.streamflix-modal-leave))::after {
+        opacity: 0 !important;
+    }
+
+    /* Show floating liquid-glass capsule dock ONLY on phones (never on TV mode, gate, video player, or admin routes) */
+    html:not(.layout-tv) body.bfx-phone-mode.bfx-mobile-dock-ready:not(.bfx-tv-mode):not(.streamflix-in-video-player):not(.streamflix-gate-locked):not(.bfx-admin-route) #streamflix-mobile-dock {
+        position: fixed;
+        left: 50%;
+        bottom: calc(11px + env(safe-area-inset-bottom, 0px));
+        transform: translateX(-50%);
+        width: min(calc(100vw - 44px), 348px);
+        height: 58px;
+        padding: 4px;
+        box-sizing: border-box;
+        border-radius: 999px;
+        background: linear-gradient(180deg, rgba(42, 42, 48, 0.80) 0%, rgba(20, 20, 24, 0.90) 100%);
+        backdrop-filter: blur(30px) saturate(190%);
+        -webkit-backdrop-filter: blur(30px) saturate(190%);
+        border: 1px solid rgba(255, 255, 255, 0.13);
+        box-shadow: 0 16px 40px rgba(0, 0, 0, 0.82), 0 4px 12px rgba(0, 0, 0, 0.48), inset 0 1px 0 rgba(255, 255, 255, 0.14);
+        z-index: 9985;
+        display: flex !important;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0;
+        transition: opacity 0.2s ease, transform 0.22s cubic-bezier(0.2, 0.8, 0.2, 1);
+    }
+
+    /* Smoothly tuck dock away while soft keyboard is active in search or a modal sheet is open */
+    html:not(.layout-tv) body.bfx-phone-mode.bfx-mobile-search-focused #streamflix-mobile-dock,
+    html:not(.layout-tv) body.bfx-phone-mode:has(.streamflix-modal-backdrop:not(.streamflix-modal-leave)) #streamflix-mobile-dock {
+        opacity: 0 !important;
+        pointer-events: none !important;
+        transform: translate(-50%, 22px) !important;
+    }
+
+    /* Spring-animated gliding inner glass capsule behind the active tab */
+    .bfx-dock-glider {
+        position: absolute;
+        top: 4px;
+        bottom: 4px;
+        left: 4px;
+        width: calc((100% - 8px) / 4);
+        border-radius: 999px;
+        background: linear-gradient(180deg, rgba(255, 255, 255, 0.17) 0%, rgba(255, 255, 255, 0.085) 100%);
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18), 0 2px 10px rgba(0, 0, 0, 0.30);
+        pointer-events: none;
+        z-index: 0;
+        transform: translateX(calc(var(--bfx-dock-idx, 0) * 100%));
+        transition: transform 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+    }
+
+    .bfx-dock-btn {
+        position: relative;
+        z-index: 1;
+        appearance: none;
+        -webkit-appearance: none;
+        flex: 1 1 0%;
+        min-width: 0;
+        height: 100%;
+        padding: 0 3px;
+        border: none;
+        border-radius: 999px;
+        background: transparent;
+        color: rgba(255, 255, 255, 0.64);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 2.5px;
+        cursor: pointer;
+        user-select: none;
+        -webkit-tap-highlight-color: transparent;
+        transition: color 0.18s ease, transform 0.14s ease;
+    }
+    .bfx-dock-btn:active {
+        transform: scale(0.94);
+    }
+    .bfx-dock-btn.is-active {
+        background: transparent;
+        color: #ffffff;
+    }
+    .bfx-dock-btn:focus-visible {
+        outline: 2px solid rgba(255, 255, 255, 0.85);
+        outline-offset: -2px;
+    }
+
+    .bfx-dock-ico {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 22px;
+        height: 22px;
+        flex: none;
+        transition: transform 0.18s ease;
+    }
+    .bfx-dock-ico .bfx-icon {
+        width: 21px;
+        height: 21px;
+        stroke-width: 1.85;
+        transition: stroke-width 0.18s ease, filter 0.18s ease;
+    }
+    .bfx-dock-btn.is-active .bfx-dock-ico {
+        transform: translateY(-0.5px);
+    }
+    .bfx-dock-btn.is-active .bfx-dock-ico .bfx-icon {
+        stroke-width: 2.25;
+        filter: drop-shadow(0 1px 4px rgba(0, 0, 0, 0.35));
+    }
+
+    .bfx-dock-avatar {
+        width: 23px;
+        height: 23px;
+        min-width: 23px;
+        flex: 0 0 23px;
+        border-radius: 6px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 13.5px;
+        line-height: 1;
+        box-sizing: border-box;
+        background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.18) 0%, rgba(0, 0, 0, 0.14) 100%);
+        border: 1.5px solid rgba(255, 255, 255, 0.18);
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.24), 0 2px 7px rgba(0, 0, 0, 0.50);
+        transition: border-color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease;
+    }
+    .bfx-dock-btn.is-active .bfx-dock-avatar {
+        transform: translateY(-0.5px);
+        border-color: #ffffff;
+        box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.35), 0 3px 9px rgba(0, 0, 0, 0.60);
+    }
+
+    .bfx-dock-label {
+        font-size: 10px;
+        font-weight: 500;
+        letter-spacing: 0.01em;
+        line-height: 1.1;
+        max-width: 100%;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+    .bfx-dock-btn.is-active .bfx-dock-label {
+        font-weight: 700;
+        color: #ffffff;
+    }
+
+    /* De-clutter top-right profile pill when mobile dock's "My <Brand>" tab is present */
+    html:not(.layout-tv) body.bfx-phone-mode.bfx-mobile-dock-ready:not(.bfx-tv-mode):not(.bfx-admin-route) #streamflix-header-profile-btn {
+        display: none !important;
+        visibility: hidden !important;
+        opacity: 0 !important;
+        pointer-events: none !important;
+    }
+
+    /* Anchor Account Sheet cleanly right above the floating dock for thumb reachability */
+    html:not(.layout-tv) body.bfx-phone-mode.bfx-mobile-dock-ready:not(.bfx-tv-mode) #streamflix-account-dropdown {
+        top: auto !important;
+        bottom: calc(78px + env(safe-area-inset-bottom, 0px)) !important;
+        left: 12px !important;
+        right: 12px !important;
+        max-height: calc(100dvh - 96px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px)) !important;
+        border-radius: 22px !important;
+        transform-origin: bottom center !important;
+    }
+    html:not(.layout-tv) body.bfx-phone-mode:not(.bfx-tv-mode) #streamflix-account-dropdown .bfx-dd-tiles {
+        grid-auto-flow: row !important;
+        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+        gap: 8px !important;
+    }
+
+    /* De-clutter Mobile Subnav: clean individual Netflix-style category pills, no redundant Home/Top10/Search/Shuffle icons */
+    html:not(.layout-tv) body.bfx-phone-mode.bfx-mobile-dock-ready:not(.bfx-tv-mode) .streamflix-subnav {
+        padding: 6px var(--bfx-gutter) 8px var(--bfx-gutter) !important;
+        gap: 8px !important;
+    }
+    html:not(.layout-tv) body.bfx-phone-mode.bfx-mobile-dock-ready:not(.bfx-tv-mode) .streamflix-FilterPills {
+        background: transparent !important;
+        border: none !important;
+        box-shadow: none !important;
+        backdrop-filter: none !important;
+        -webkit-backdrop-filter: none !important;
+        padding: 0 !important;
+        gap: 8px !important;
+    }
+    html:not(.layout-tv) body.bfx-phone-mode.bfx-mobile-dock-ready:not(.bfx-tv-mode) .streamflix-FilterPills .streamflix-pill[data-cat-id="all"],
+    html:not(.layout-tv) body.bfx-phone-mode.bfx-mobile-dock-ready:not(.bfx-tv-mode) .streamflix-FilterPills .streamflix-pill[data-cat-id="top10"] {
+        display: none !important;
+    }
+    html:not(.layout-tv) body.bfx-phone-mode.bfx-mobile-dock-ready:not(.bfx-tv-mode) .streamflix-FilterPills .streamflix-pill {
+        padding: 7px 15px !important;
+        border-radius: 999px !important;
+        border: 1px solid rgba(255, 255, 255, 0.28) !important;
+        background: rgba(18, 18, 22, 0.52) !important;
+        backdrop-filter: blur(14px) saturate(140%);
+        -webkit-backdrop-filter: blur(14px) saturate(140%);
+        color: rgba(255, 255, 255, 0.92) !important;
+        font-size: 13px !important;
+        font-weight: 600 !important;
+        box-shadow: none !important;
+    }
+    html:not(.layout-tv) body.bfx-phone-mode.bfx-mobile-dock-ready:not(.bfx-tv-mode) .streamflix-FilterPills .streamflix-pill.active {
+        background: #ffffff !important;
+        border-color: #ffffff !important;
+        color: #0b0b0b !important;
+        box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35) !important;
+    }
+    html:not(.layout-tv) body.bfx-phone-mode.bfx-mobile-dock-ready:not(.bfx-tv-mode) #streamflix-surprise-btn {
+        display: none !important;
+    }
+    html:not(.layout-tv) body.bfx-phone-mode.bfx-mobile-dock-ready:not(.bfx-tv-mode) .streamflix-subnav:not(.is-search-open) .streamflix-search-box:not(:focus-within):not(.has-value) {
+        display: none !important;
+    }
+
+    /* When Search is opened from the mobile dock, show a clean full-width search bar */
+    html:not(.layout-tv) body.bfx-phone-mode.bfx-mobile-dock-ready:not(.bfx-tv-mode) .streamflix-subnav.is-search-open .streamflix-FilterPills,
+    html:not(.layout-tv) body.bfx-phone-mode.bfx-mobile-dock-ready:not(.bfx-tv-mode) .streamflix-subnav:has(.streamflix-search-box:focus-within) .streamflix-FilterPills,
+    html:not(.layout-tv) body.bfx-phone-mode.bfx-mobile-dock-ready:not(.bfx-tv-mode) .streamflix-subnav:has(.streamflix-search-box.has-value) .streamflix-FilterPills {
+        display: none !important;
+    }
+    html:not(.layout-tv) body.bfx-phone-mode.bfx-mobile-dock-ready:not(.bfx-tv-mode) .streamflix-subnav.is-search-open + #streamflix-hero-billboard {
+        padding-top: calc(max(var(--bfx-bleed, 0px), var(--bfx-header-h)) + 66px) !important;
+    }
+
+    /* Bottom clearance so the floating dock never overlaps content rows, settings cards, or toasts */
+    html:not(.layout-tv) body.bfx-phone-mode.bfx-mobile-dock-ready:not(.bfx-tv-mode) .streamflix-rows,
+    html:not(.layout-tv) body.bfx-phone-mode.bfx-mobile-dock-ready:not(.bfx-tv-mode) #streamflix-library-page-fallback {
+        padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px)) !important;
+    }
+    html:not(.layout-tv) body.bfx-phone-mode.bfx-mobile-dock-ready.bfx-settings-route:not(.bfx-tv-mode) #myPreferencesMenuPage:not(.hide),
+    html:not(.layout-tv) body.bfx-phone-mode.bfx-mobile-dock-ready.bfx-settings-route:not(.bfx-tv-mode) #userProfilePage:not(.hide),
+    html:not(.layout-tv) body.bfx-phone-mode.bfx-mobile-dock-ready.bfx-settings-route:not(.bfx-tv-mode) #displayPreferencesPage:not(.hide),
+    html:not(.layout-tv) body.bfx-phone-mode.bfx-mobile-dock-ready.bfx-settings-route:not(.bfx-tv-mode) #homePreferencesPage:not(.hide),
+    html:not(.layout-tv) body.bfx-phone-mode.bfx-mobile-dock-ready.bfx-settings-route:not(.bfx-tv-mode) #languagePreferencesPage:not(.hide),
+    html:not(.layout-tv) body.bfx-phone-mode.bfx-mobile-dock-ready.bfx-settings-route:not(.bfx-tv-mode) #playbackPreferencesPage:not(.hide),
+    html:not(.layout-tv) body.bfx-phone-mode.bfx-mobile-dock-ready.bfx-settings-route:not(.bfx-tv-mode) #subtitlePreferencesPage:not(.hide),
+    html:not(.layout-tv) body.bfx-phone-mode.bfx-mobile-dock-ready.bfx-settings-route:not(.bfx-tv-mode) #controlsPreferencesPage:not(.hide),
+    html:not(.layout-tv) body.bfx-phone-mode.bfx-mobile-dock-ready.bfx-settings-route:not(.bfx-tv-mode) #myPreferencesQuickConnectPage:not(.hide) {
+        padding-bottom: calc(104px + env(safe-area-inset-bottom, 0px)) !important;
+    }
+    html:not(.layout-tv) body.bfx-phone-mode.bfx-mobile-dock-ready:not(.bfx-tv-mode) #streamflix-toast-host {
+        bottom: calc(82px + env(safe-area-inset-bottom, 0px)) !important;
+    }
+}

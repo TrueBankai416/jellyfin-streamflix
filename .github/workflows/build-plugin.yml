@@ -15,12 +15,12 @@ permissions:
   contents: write
 
 env:
-  PLUGIN_VERSION: "0.7.8.0"
+  PLUGIN_VERSION: "0.7.8.1"
   PLUGIN_GUID: "7cc1a505-91f6-4661-b4f9-7eee8be33b19"
   PLUGIN_NAME: "StreamFlix"
   PLUGIN_OVERVIEW: "Netflix-style UI, Household Profiles, Guest Passes & Seerr Requests for Jellyfin"
   PLUGIN_DESCRIPTION: "Transforms Jellyfin Web into StreamFlix: a Netflix-style cinema UI with flexible Google/OIDC/Jellyfin sign-in, toggleable QR Guest Passes, optional Seerr/Jellyseerr search requests, and 'Who's watching?' profiles mapped to real Jellyfin users."
-  PLUGIN_CHANGELOG: "- Mobile-Only Floating Capsule Dock: add a frosted-glass bottom pill dock on mobile phones (Home, New & Hot, Search, and My <Brand> with the active profile avatar) while leaving desktop, tablet, and Smart TV layouts untouched\n- Uncluttered Mobile Chrome & Bottom-Anchored Account Sheet: replace boxed mobile subnav controls with clean individual category pills (Shows, Movies, Collections, My List), remove duplicate top-right profile chrome on phones, and anchor the account switcher sheet directly above the dock with 2-column quick tiles (My List, Surprise Me, Cast, Quick Connect)\n- Redesigned User Settings, Active Devices Tab & Phone Guest Pass Share: cohesive dark-glass user settings, dedicated plugin Active Devices tab, and reliable phone-only native invite sharing"
+  PLUGIN_CHANGELOG: "- Liquid-Glass Mobile Dock Polish & Zero Doubled Avatar: remove the inline-forced top-right profile pill whenever the mobile floating dock is active, add a spring-animated gliding glass highlight, ambient bottom scrim, bespoke dock icons, and smart title-case formatting for uppercase brand names (e.g. My Benflix)\n- Clean Mobile Category Pills: remove stray active-pill bottom accent underlines and keep mobile subnav focused on clean individual category pills (Shows, Movies, Collections, My List)\n- Modular Codebase Organization: split monolithic Web JS, Web CSS, and API Controller files into focused, readable modules under Web/js/, Web/css/, and Controllers/ while preserving single-request in-memory bundle assembly and ETag caching"
 
 jobs:
   build-and-publish:

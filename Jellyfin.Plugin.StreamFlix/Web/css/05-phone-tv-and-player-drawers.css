@@ -1,0 +1,1329 @@
+/* StreamFlix Styles (05/08) — Phone Layout, 10-Foot TV Mode & Player Episode/Track Drawers */
+/* ---------- Phone Layout (<= 640px) ---------- */
+@media (max-width: 640px) {
+    :root {
+        --bfx-gutter: 16px;
+        --bfx-header-h: 54px;
+    }
+
+    /* Header & Wordmark */
+    .skinHeader,
+    .appHeader,
+    header.MuiAppBar-root {
+        min-height: 54px !important;
+        padding-top: env(safe-area-inset-top, 0px) !important;
+    }
+    [data-streamflix-corner-brand="true"],
+    .streamflix-toolbar-brand-link,
+    .streamflix-inline-brand,
+    .skinHeader .pageTitleWithDefaultLogo,
+    .skinHeader .pageTitleWithLogo {
+        font-size: 20px !important;
+    }
+    #streamflix-header-profile-btn {
+        top: calc(env(safe-area-inset-top, 0px) + 8px) !important;
+        right: 12px !important;
+        height: 38px !important;
+        padding: 3px 7px 3px 3px !important;
+        border-radius: 11px !important;
+        gap: 5px !important;
+    }
+    .streamflix-header-avatar {
+        width: 30px;
+        height: 30px;
+        min-width: 30px;
+        flex: 0 0 30px;
+        font-size: 15px;
+        border-radius: 8px;
+    }
+
+    /* Account Dropdown: full-width floating card with zero overflow */
+    #streamflix-account-dropdown {
+        top: calc(env(safe-area-inset-top, 0px) + 8px) !important;
+        left: 10px !important;
+        right: 10px !important;
+        width: auto !important;
+        max-width: none !important;
+        max-height: calc(100dvh - 20px) !important;
+    }
+
+    /* Single-row Subnav: scrollable category pills + compact search circle that expands on tap */
+    .streamflix-subnav {
+        flex-wrap: nowrap !important;
+        align-items: center;
+        gap: 8px;
+        padding: 8px var(--bfx-gutter) 8px var(--bfx-gutter);
+    }
+    .streamflix-FilterPills {
+        flex: 1 1 auto;
+        min-width: 0;
+        padding: 3px;
+    }
+    .streamflix-pill {
+        padding: 6px 13px;
+        font-size: 13px;
+    }
+    .streamflix-subnav:not(.is-search-open) .streamflix-search-box:not(:focus-within):not(.has-value) {
+        flex: 0 0 38px !important;
+        width: 38px !important;
+        height: 38px !important;
+        padding: 0 !important;
+        order: 0 !important;
+        justify-content: center;
+        border-radius: 50%;
+        cursor: pointer;
+    }
+    .streamflix-subnav:not(.is-search-open) .streamflix-search-box:not(:focus-within):not(.has-value) .streamflix-search-input {
+        width: 0 !important;
+        min-width: 0 !important;
+        padding: 0 !important;
+        opacity: 0;
+        pointer-events: none;
+    }
+    .streamflix-subnav:not(.is-search-open) .streamflix-search-box:not(:focus-within):not(.has-value) .streamflix-search-icon {
+        margin: 0 !important;
+    }
+    .streamflix-subnav.is-search-open,
+    .streamflix-subnav:has(.streamflix-search-box:focus-within),
+    .streamflix-subnav:has(.streamflix-search-box.has-value) {
+        flex-wrap: wrap !important;
+    }
+    .streamflix-subnav.is-search-open .streamflix-search-box,
+    .streamflix-search-box:focus-within,
+    .streamflix-search-box.has-value {
+        flex: 1 1 100% !important;
+        width: 100% !important;
+        order: 2 !important;
+    }
+
+    /* Hero Billboard: balanced mobile height so Continue Watching & Top Picks sit above the fold */
+    #streamflix-hero-billboard {
+        min-height: clamp(370px, 56svh, 480px) !important;
+        margin-bottom: -20px !important;
+        padding-top: calc(max(var(--bfx-bleed, 0px), var(--bfx-header-h)) + 64px) !important;
+        padding-bottom: 44px !important;
+    }
+    .streamflix-subnav.is-search-open + #streamflix-hero-billboard {
+        padding-top: calc(max(var(--bfx-bleed, 0px), var(--bfx-header-h)) + 112px) !important;
+    }
+    .streamflix-hero-brand-row { margin-bottom: 6px; }
+    .streamflix-hero-title {
+        font-size: clamp(1.75rem, 7.6vw, 2.35rem) !important;
+        margin-bottom: 8px !important;
+        line-height: 1.08;
+    }
+    .streamflix-hero-logo { max-height: 82px !important; max-width: 74vw !important; }
+    .streamflix-hero-meta-row { font-size: 12.5px; gap: 8px; margin-bottom: 8px; }
+    .streamflix-hero-overview {
+        font-size: 13.5px;
+        line-height: 1.42;
+        -webkit-line-clamp: 2 !important;
+        margin-bottom: 14px !important;
+    }
+    .streamflix-hero-actions { gap: 8px; flex-wrap: nowrap; }
+    .streamflix-hero-play,
+    .streamflix-hero-secondary {
+        height: 42px !important;
+        padding: 0 16px 0 14px !important;
+        font-size: 14px !important;
+    }
+    .streamflix-hero-icon-btn {
+        width: 42px !important;
+        height: 42px !important;
+        flex: none;
+    }
+
+    /* Rows & Cards: 3 posters + peek of 4th, crisp touch scroll-snap */
+    #streamflix-hero-billboard + .streamflix-rows { margin-top: 4px !important; }
+    .streamflix-rows { gap: 20px; padding-bottom: calc(40px + env(safe-area-inset-bottom, 0px)); }
+    .streamflix-row-header { margin-bottom: 8px; }
+    .streamflix-row-title { font-size: 16.5px !important; }
+    .streamflix-carousel-track {
+        gap: 10px !important;
+        scroll-snap-type: x proximity;
+    }
+    .streamflix-poster-card {
+        flex: 0 0 clamp(106px, 28.5vw, 132px) !important;
+        width: clamp(106px, 28.5vw, 132px) !important;
+        scroll-snap-align: start;
+    }
+    .streamflix-wide-card {
+        flex: 0 0 clamp(218px, 68vw, 268px) !important;
+        width: clamp(218px, 68vw, 268px) !important;
+        scroll-snap-align: start;
+    }
+    .streamflix-top10-card {
+        flex: 0 0 auto !important;
+        width: auto !important;
+        scroll-snap-align: start;
+    }
+    .streamflix-top10-poster {
+        width: clamp(96px, 25vw, 118px) !important;
+    }
+    .streamflix-top10-num { font-size: clamp(82px, 21vw, 102px) !important; }
+
+    /* Gate Overlay (Login & Profile Picker) on Phone */
+    .streamflix-topbar {
+        padding: calc(14px + env(safe-area-inset-top, 0px)) 16px 12px 16px !important;
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+    .streamflix-wordmark { font-size: 22px !important; letter-spacing: 2.5px !important; }
+    .streamflix-whos-watching-title { font-size: clamp(1.65rem, 7vw, 2.1rem) !important; margin-bottom: 6px !important; }
+    .streamflix-whos-watching-subtitle { font-size: 13.5px !important; margin-bottom: 22px !important; padding: 0 8px; }
+    .streamflix-profiles-grid {
+        gap: 18px 16px !important;
+        max-width: 320px;
+        margin-left: auto;
+        margin-right: auto;
+    }
+    .streamflix-profile-tile { width: 118px !important; }
+    .streamflix-profile-avatar { width: 104px !important; height: 104px !important; font-size: 44px !important; border-radius: 18px !important; }
+    .streamflix-profile-name { font-size: 14px !important; }
+    .streamflix-auth-card { padding: 26px 20px !important; margin: 0 12px; border-radius: 18px !important; }
+
+    /* Bottom-Sheet Modals (Profile Editor, Detail Modal, PIN Pad) — zero top clipping */
+    .streamflix-modal-backdrop {
+        padding: 0 !important;
+        align-items: flex-end !important;
+    }
+    .streamflix-modal-backdrop > .streamflix-modal,
+    .streamflix-modal-backdrop > .streamflix-detail-modal {
+        width: 100% !important;
+        max-width: 100% !important;
+        max-height: min(92dvh, calc(100vh - 16px)) !important;
+        margin: 0 !important;
+        border-radius: 20px 20px 0 0 !important;
+        border-bottom: 0 !important;
+        box-sizing: border-box !important;
+        overflow-x: hidden !important;
+    }
+    .streamflix-modal-backdrop > .streamflix-modal:not(.bfx-seerr-modal) {
+        padding: 20px 16px calc(24px + env(safe-area-inset-bottom, 0px)) !important;
+    }
+    .streamflix-modal-editor {
+        padding: 18px 16px calc(22px + env(safe-area-inset-bottom, 0px)) !important;
+    }
+    .streamflix-editor-head {
+        flex-wrap: nowrap !important;
+        align-items: center;
+        gap: 12px !important;
+        margin-bottom: 14px !important;
+    }
+    .streamflix-editor-preview {
+        width: 52px !important;
+        height: 52px !important;
+        font-size: 26px !important;
+        border-radius: 12px !important;
+        flex: none;
+    }
+    .streamflix-editor-head-copy {
+        flex: 1 1 auto !important;
+        min-width: 0;
+    }
+    .streamflix-editor-title-row h2 {
+        font-size: 19px !important;
+        line-height: 1.2;
+    }
+    .streamflix-editor-head .streamflix-modal-text {
+        display: none;
+    }
+    .streamflix-field-label-row {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 6px;
+    }
+    .streamflix-icon-tabs {
+        width: 100%;
+        overflow-x: auto;
+        scrollbar-width: none;
+        flex-wrap: nowrap;
+    }
+    .streamflix-icon-tabs::-webkit-scrollbar { display: none; }
+    .streamflix-icon-tab {
+        white-space: nowrap;
+        flex: none;
+        padding: 5px 11px;
+    }
+    #streamflix-color-picker {
+        display: grid;
+        grid-template-columns: repeat(7, minmax(0, 1fr));
+        gap: 8px;
+        justify-items: center;
+    }
+    .streamflix-field-row {
+        flex-direction: column;
+        align-items: stretch !important;
+        gap: 10px !important;
+    }
+    .streamflix-detail-hero { height: 240px !important; padding: 18px 16px !important; }
+    .streamflix-detail-body { padding: 0 16px calc(24px + env(safe-area-inset-bottom, 0px)) 16px !important; }
+    .streamflix-detail-close { top: 12px !important; right: 12px !important; width: 38px !important; height: 38px !important; }
+}
+
+/* ---------- Compact & Landscape Phone Video Player ---------- */
+@media (max-width: 1024px), (max-height: 520px) {
+    /* Move player title to the top bar between Back and Cast so it never collides with bottom controls */
+    body.streamflix-nf-player .skinHeader.osdHeader {
+        z-index: 4 !important;
+    }
+    body.streamflix-nf-player .videoOsdBottom {
+        z-index: 6 !important;
+    }
+    body.streamflix-nf-player .streamflix-osd-title {
+        display: block !important;
+        pointer-events: none !important;
+        position: fixed !important;
+        top: calc(env(safe-area-inset-top, 0px) + 20px) !important;
+        left: 68px !important;
+        right: 68px !important;
+        bottom: auto !important;
+        transform: none !important;
+        max-width: none !important;
+        font-size: 15px !important;
+        line-height: 24px !important;
+        color: #ffffff !important;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        text-shadow: 0 2px 10px rgba(0, 0, 0, 0.9);
+        z-index: 1005 !important;
+    }
+    body.streamflix-nf-player .videoOsdBottom.videoOsdBottom-hidden .streamflix-osd-title,
+    body.streamflix-nf-player .videoOsdBottom.hide .streamflix-osd-title,
+    body.streamflix-osd-paused-on .streamflix-osd-title {
+        opacity: 0 !important;
+    }
+}
+@media (max-height: 520px) and (max-width: 960px) {
+    body.streamflix-nf-player .videoOsdBottom {
+        padding: 18px max(16px, env(safe-area-inset-right, 16px)) max(10px, env(safe-area-inset-bottom, 10px)) max(16px, env(safe-area-inset-left, 16px)) !important;
+    }
+    body.streamflix-nf-player .videoOsdBottom .osdVolumeSliderContainer,
+    body.streamflix-nf-player .videoOsdBottom .volumeButtons .emby-slider-background-lower,
+    body.streamflix-nf-player .videoOsdBottom .osdVolumeSlider {
+        display: none !important;
+    }
+    #streamflix-osd-paused .streamflix-osd-paused-inner {
+        padding: 20px 28px !important;
+        gap: 6px !important;
+    }
+    #streamflix-osd-paused .streamflix-osd-paused-title {
+        font-size: clamp(1.5rem, 5vw, 2.2rem) !important;
+    }
+    #streamflix-osd-paused .streamflix-osd-paused-overview {
+        -webkit-line-clamp: 2 !important;
+        font-size: 13.5px !important;
+    }
+}
+
+/* ---------- TV Mode (10-Foot UI: .layout-tv / Smart TVs / ?tv=1) ---------- */
+body.bfx-tv-mode,
+html.layout-tv body {
+    --bfx-gutter: clamp(48px, 5vw, 96px);
+    --bfx-header-h: 82px;
+}
+
+body.bfx-tv-mode .streamflix-paddle,
+html.layout-tv .streamflix-paddle,
+body.bfx-tv-mode .streamflix-search-kbd,
+html.layout-tv .streamflix-search-kbd {
+    display: none !important;
+}
+
+/* TV Header & Subnav */
+body.bfx-tv-mode [data-streamflix-corner-brand="true"],
+body.bfx-tv-mode .streamflix-toolbar-brand-link,
+body.bfx-tv-mode .skinHeader .pageTitleWithDefaultLogo,
+html.layout-tv [data-streamflix-corner-brand="true"],
+html.layout-tv .streamflix-toolbar-brand-link {
+    font-size: 30px !important;
+}
+body.bfx-tv-mode .skinHeader,
+html.layout-tv .skinHeader,
+body.bfx-tv-mode .skinHeader .headerTop,
+html.layout-tv .skinHeader .headerTop {
+    min-height: 76px !important;
+}
+body.bfx-tv-mode #streamflix-header-profile-btn,
+html.layout-tv #streamflix-header-profile-btn {
+    top: 12px !important;
+    right: var(--bfx-gutter) !important;
+    height: 52px !important;
+    padding: 5px 14px 5px 5px !important;
+    border-radius: 15px !important;
+    gap: 10px !important;
+    font-size: 16.5px !important;
+}
+body.bfx-tv-mode .streamflix-header-avatar,
+html.layout-tv .streamflix-header-avatar {
+    width: 40px;
+    height: 40px;
+    min-width: 40px;
+    flex: 0 0 40px;
+    font-size: 20px;
+    border-radius: 10px;
+}
+body.bfx-tv-mode .streamflix-pill,
+html.layout-tv .streamflix-pill {
+    padding: 10px 22px;
+    font-size: 16px;
+}
+body.bfx-tv-mode .streamflix-search-box,
+html.layout-tv .streamflix-search-box {
+    height: 46px;
+    font-size: 16px;
+}
+
+/* TV Hero Billboard */
+body.bfx-tv-mode #streamflix-hero-billboard,
+html.layout-tv #streamflix-hero-billboard {
+    min-height: clamp(540px, 72vh, 860px);
+    margin-bottom: -84px !important;
+    padding-top: calc(max(var(--bfx-bleed, 0px), var(--bfx-header-h)) + 64px);
+    padding-bottom: 132px !important;
+}
+body.bfx-tv-mode .streamflix-hero-title,
+html.layout-tv .streamflix-hero-title {
+    font-size: clamp(2.8rem, 4.8vw, 4.8rem);
+}
+body.bfx-tv-mode .streamflix-hero-meta-row,
+html.layout-tv .streamflix-hero-meta-row {
+    font-size: 16.5px;
+    gap: 14px;
+}
+body.bfx-tv-mode .streamflix-hero-overview,
+html.layout-tv .streamflix-hero-overview {
+    font-size: 18px;
+    max-width: 680px;
+    line-height: 1.5;
+}
+body.bfx-tv-mode .streamflix-hero-play,
+body.bfx-tv-mode .streamflix-hero-secondary,
+html.layout-tv .streamflix-hero-play,
+html.layout-tv .streamflix-hero-secondary {
+    height: 56px;
+    padding: 0 28px 0 24px;
+    font-size: 18px;
+    border-radius: 12px;
+}
+body.bfx-tv-mode .streamflix-hero-icon-btn,
+html.layout-tv .streamflix-hero-icon-btn {
+    width: 56px;
+    height: 56px;
+}
+
+/* TV Rows & Cards */
+body.bfx-tv-mode .streamflix-rows,
+html.layout-tv .streamflix-rows {
+    gap: 36px;
+}
+body.bfx-tv-mode .streamflix-row-title,
+html.layout-tv .streamflix-row-title {
+    font-size: 24px;
+}
+body.bfx-tv-mode .streamflix-carousel-track,
+html.layout-tv .streamflix-carousel-track {
+    gap: 18px;
+    padding-top: 16px;
+    padding-bottom: 18px;
+}
+body.bfx-tv-mode .streamflix-poster-card,
+html.layout-tv .streamflix-poster-card {
+    flex: 0 0 clamp(204px, 13vw, 268px) !important;
+    width: clamp(204px, 13vw, 268px) !important;
+}
+body.bfx-tv-mode .streamflix-wide-card,
+html.layout-tv .streamflix-wide-card {
+    flex: 0 0 clamp(340px, 22vw, 440px) !important;
+    width: clamp(340px, 22vw, 440px) !important;
+}
+body.bfx-tv-mode .streamflix-top10-card,
+html.layout-tv .streamflix-top10-card {
+    flex: 0 0 auto !important;
+    width: auto !important;
+}
+body.bfx-tv-mode .streamflix-top10-poster,
+html.layout-tv .streamflix-top10-poster {
+    width: clamp(170px, 10.8vw, 224px) !important;
+}
+body.bfx-tv-mode .streamflix-top10-num,
+html.layout-tv .streamflix-top10-num {
+    font-size: clamp(148px, 11.5vw, 210px) !important;
+}
+
+/* TV Profile Picker ("Who's watching?") */
+body.bfx-tv-mode .streamflix-whos-watching-title,
+html.layout-tv .streamflix-whos-watching-title {
+    font-size: clamp(2.8rem, 4.2vw, 3.8rem);
+}
+body.bfx-tv-mode .streamflix-whos-watching-subtitle,
+html.layout-tv .streamflix-whos-watching-subtitle {
+    font-size: 18px;
+    margin-bottom: 38px;
+}
+body.bfx-tv-mode .streamflix-profiles-grid,
+html.layout-tv .streamflix-profiles-grid {
+    gap: 32px;
+}
+body.bfx-tv-mode .streamflix-profile-tile,
+html.layout-tv .streamflix-profile-tile {
+    width: 180px;
+}
+body.bfx-tv-mode .streamflix-profile-avatar,
+html.layout-tv .streamflix-profile-avatar {
+    width: 164px;
+    height: 164px;
+    font-size: 68px;
+    border-radius: 24px;
+}
+body.bfx-tv-mode .streamflix-profile-name,
+html.layout-tv .streamflix-profile-name {
+    font-size: 20px;
+    margin-top: 14px;
+}
+body.bfx-tv-mode .streamflix-manage-btn,
+html.layout-tv .streamflix-manage-btn {
+    height: 50px;
+    padding: 0 26px;
+    font-size: 16.5px;
+}
+
+/* TV Video Player 10-Foot Controls */
+body.bfx-tv-mode.streamflix-nf-player .streamflix-osd-title,
+html.layout-tv body.streamflix-nf-player .streamflix-osd-title {
+    font-size: clamp(19px, 1.5vw, 26px);
+}
+body.bfx-tv-mode.streamflix-nf-player .videoOsdBottom .buttons button,
+html.layout-tv body.streamflix-nf-player .videoOsdBottom .buttons button {
+    width: 58px;
+    height: 58px;
+}
+body.bfx-tv-mode.streamflix-nf-player .osdPositionSlider,
+html.layout-tv body.streamflix-nf-player .osdPositionSlider {
+    height: 8px !important;
+}
+
+/* ---------- 10-Foot / D-Pad Remote Focus Ring ---------- */
+body.bfx-tv-mode .streamflix-poster-card:focus,
+body.bfx-tv-mode .streamflix-wide-card:focus,
+body.bfx-tv-mode .streamflix-top10-card:focus,
+body.bfx-dpad-nav .streamflix-poster-card:focus,
+body.bfx-dpad-nav .streamflix-wide-card:focus,
+body.bfx-dpad-nav .streamflix-top10-card:focus {
+    outline: none !important;
+    transform: translateY(-4px) scale(1.055) !important;
+    z-index: 12 !important;
+}
+body.bfx-tv-mode .streamflix-poster-card:focus .streamflix-poster-img-wrap,
+body.bfx-tv-mode .streamflix-wide-card:focus .streamflix-wide-img-wrap,
+body.bfx-tv-mode .streamflix-top10-card:focus .streamflix-top10-poster,
+body.bfx-dpad-nav .streamflix-poster-card:focus .streamflix-poster-img-wrap,
+body.bfx-dpad-nav .streamflix-wide-card:focus .streamflix-wide-img-wrap,
+body.bfx-dpad-nav .streamflix-top10-card:focus .streamflix-top10-poster {
+    box-shadow: 0 0 0 3px #ffffff, 0 0 0 6px rgba(229, 9, 20, 0.42), 0 18px 40px rgba(0, 0, 0, 0.78) !important;
+}
+body.bfx-tv-mode .streamflix-poster-card:focus .streamflix-card-hover-overlay,
+body.bfx-tv-mode .streamflix-top10-card:focus .streamflix-card-hover-overlay,
+body.bfx-dpad-nav .streamflix-poster-card:focus .streamflix-card-hover-overlay,
+body.bfx-dpad-nav .streamflix-top10-card:focus .streamflix-card-hover-overlay {
+    opacity: 1 !important;
+}
+body.bfx-tv-mode .streamflix-poster-card:focus .streamflix-card-quick-row,
+body.bfx-dpad-nav .streamflix-poster-card:focus .streamflix-card-quick-row {
+    display: none;
+}
+
+body.bfx-tv-mode .streamflix-profile-tile:focus,
+body.bfx-dpad-nav .streamflix-profile-tile:focus {
+    outline: none !important;
+    transform: translateY(-6px) scale(1.05) !important;
+}
+body.bfx-tv-mode .streamflix-profile-tile:focus .streamflix-profile-avatar,
+body.bfx-dpad-nav .streamflix-profile-tile:focus .streamflix-profile-avatar {
+    box-shadow: 0 0 0 4px #ffffff, 0 0 0 8px rgba(229, 9, 20, 0.4), 0 20px 44px rgba(0, 0, 0, 0.8) !important;
+}
+body.bfx-tv-mode .streamflix-profile-tile:focus .streamflix-profile-name,
+body.bfx-dpad-nav .streamflix-profile-tile:focus .streamflix-profile-name {
+    color: #ffffff !important;
+}
+
+body.bfx-tv-mode button:focus,
+body.bfx-dpad-nav button:focus,
+body.bfx-tv-mode select:focus,
+body.bfx-dpad-nav select:focus {
+    outline: 3px solid #ffffff !important;
+    outline-offset: 3px !important;
+}
+
+/* ==========================================================================
+   v7.8 — Episodes Drawer, Two-Column Audio & Subtitles, Next Episode & Undo
+   ========================================================================== */
+
+/* ---------- Remove from Continue Watching (×) & 5-Second Undo Toast ---------- */
+.streamflix-qbtn-remove-resume:hover,
+.bfx-pv-remove:hover {
+    background: rgba(229, 9, 20, 0.88) !important;
+    border-color: rgba(229, 9, 20, 0.98) !important;
+    color: #ffffff !important;
+}
+@media (hover: none) and (pointer: coarse) {
+    body:not(.bfx-tv-mode) .streamflix-wide-card .streamflix-wide-actions {
+        opacity: 1;
+    }
+}
+
+.streamflix-toast.streamflix-toast-action {
+    position: relative;
+    overflow: hidden;
+    cursor: default;
+    padding: 11px 12px 14px 16px;
+    gap: 12px;
+    border-radius: 12px;
+    background: rgba(22, 22, 24, 0.96);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    box-shadow: 0 20px 48px rgba(0, 0, 0, 0.72);
+}
+.streamflix-toast-action .streamflix-toast-msg {
+    font-size: 13.5px;
+    font-weight: 500;
+    color: rgba(255, 255, 255, 0.92);
+}
+.streamflix-toast-undo-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 30px;
+    padding: 0 12px;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    background: #ffffff;
+    color: #0a0a0a;
+    font-family: inherit;
+    font-size: 12.5px;
+    font-weight: 700;
+    cursor: pointer;
+    flex: none;
+    transition: transform 0.15s ease, background 0.15s ease;
+}
+.streamflix-toast-undo-btn .bfx-icon {
+    width: 14px;
+    height: 14px;
+}
+.streamflix-toast-undo-btn:hover,
+.streamflix-toast-undo-btn:focus-visible {
+    background: rgba(255, 255, 255, 0.88);
+    transform: scale(1.04);
+    outline: none;
+}
+.streamflix-toast-dismiss {
+    width: 26px;
+    height: 26px;
+    padding: 0;
+    border-radius: 50%;
+    border: 0;
+    background: transparent;
+    color: rgba(255, 255, 255, 0.55);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    flex: none;
+    transition: color 0.15s ease, background 0.15s ease;
+}
+.streamflix-toast-dismiss .bfx-icon {
+    width: 14px;
+    height: 14px;
+}
+.streamflix-toast-dismiss:hover {
+    color: #ffffff;
+    background: rgba(255, 255, 255, 0.1);
+}
+.streamflix-toast-progress {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 3px;
+    background: var(--bfx-accent, var(--streamflix-red, #e50914));
+    transform-origin: left center;
+    animation: bfxToastCountdown var(--bfx-toast-ms, 5000ms) linear forwards;
+}
+@keyframes bfxToastCountdown {
+    from { transform: scaleX(1); }
+    to { transform: scaleX(0); }
+}
+
+/* ---------- Player Bar Custom Buttons (Episodes & Unified Audio/Subtitles) ---------- */
+body.streamflix-nf-player.bfx-unified-tracks .videoOsdBottom .btnSubtitles,
+body.streamflix-nf-player.bfx-unified-tracks .videoOsdBottom .btnAudio {
+    display: none !important;
+}
+body.streamflix-nf-player .videoOsdBottom .buttons .streamflix-osd-custom-btn {
+    position: relative;
+    border: 0;
+    cursor: pointer;
+    color: #ffffff;
+    transition: transform 0.15s ease, color 0.15s ease, background 0.15s ease;
+}
+body.streamflix-nf-player .videoOsdBottom .buttons .streamflix-osd-custom-btn .bfx-icon {
+    width: 27px;
+    height: 27px;
+    transition: transform 0.15s ease;
+}
+body.streamflix-nf-player .videoOsdBottom .buttons .streamflix-osd-custom-btn:hover .bfx-icon,
+body.streamflix-nf-player .videoOsdBottom .buttons .streamflix-osd-custom-btn:focus-visible .bfx-icon {
+    transform: scale(1.18);
+}
+body.streamflix-nf-player .videoOsdBottom .buttons .streamflix-osd-custom-btn.is-active {
+    background: rgba(255, 255, 255, 0.14) !important;
+}
+body.streamflix-nf-player .videoOsdBottom .buttons .streamflix-osd-custom-btn.is-active::after {
+    content: "";
+    position: absolute;
+    bottom: 6px;
+    left: 50%;
+    width: 5px;
+    height: 5px;
+    margin-left: -2.5px;
+    border-radius: 50%;
+    background: var(--streamflix-red, #e50914);
+}
+@media (max-width: 600px) {
+    body.streamflix-nf-player .videoOsdBottom .buttons .streamflix-osd-custom-btn .bfx-icon {
+        width: 22px;
+        height: 22px;
+    }
+}
+body.bfx-tv-mode.streamflix-nf-player .videoOsdBottom .buttons .streamflix-osd-custom-btn .bfx-icon,
+html.layout-tv body.streamflix-nf-player .videoOsdBottom .buttons .streamflix-osd-custom-btn .bfx-icon {
+    width: 31px;
+    height: 31px;
+}
+
+/* ---------- In-Player Episodes & Seasons Slide-In Drawer ---------- */
+@keyframes bfxDrawerSlideIn {
+    from { opacity: 0; transform: translateX(28px); }
+    to { opacity: 1; transform: none; }
+}
+#streamflix-osd-episodes {
+    position: fixed;
+    inset: 0;
+    z-index: 10020;
+    display: flex;
+    justify-content: flex-end;
+    font-family: "Netflix Sans", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+.bfx-osd-drawer-scrim {
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.48);
+    animation: streamflixFadeIn 0.2s ease both;
+}
+.bfx-osd-drawer-panel {
+    position: relative;
+    z-index: 1;
+    width: min(448px, 92vw);
+    height: 100%;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    background: rgba(16, 16, 18, 0.94);
+    -webkit-backdrop-filter: blur(26px) saturate(140%);
+    backdrop-filter: blur(26px) saturate(140%);
+    border-left: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: -28px 0 72px rgba(0, 0, 0, 0.8);
+    color: #ffffff;
+    animation: bfxDrawerSlideIn 0.26s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+.bfx-osd-drawer-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: max(20px, env(safe-area-inset-top, 20px)) 20px 14px 22px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+.bfx-osd-drawer-titles {
+    min-width: 0;
+}
+.bfx-osd-drawer-kicker {
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--streamflix-red, #e50914);
+    margin-bottom: 3px;
+}
+.bfx-osd-drawer-title {
+    margin: 0;
+    font-size: 20px;
+    font-weight: 800;
+    letter-spacing: -0.015em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.bfx-osd-drawer-close {
+    width: 36px;
+    height: 36px;
+    padding: 0;
+    border-radius: 50%;
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    background: rgba(255, 255, 255, 0.07);
+    color: #ffffff;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    flex: none;
+    transition: background 0.15s ease, transform 0.15s ease;
+}
+.bfx-osd-drawer-close .bfx-icon {
+    width: 18px;
+    height: 18px;
+}
+.bfx-osd-drawer-close:hover {
+    background: rgba(255, 255, 255, 0.18);
+    transform: scale(1.06);
+}
+.bfx-osd-season-tabs {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 22px 10px 22px;
+    overflow-x: auto;
+    scrollbar-width: none;
+    flex: none;
+}
+.bfx-osd-season-tabs::-webkit-scrollbar { display: none; }
+.bfx-osd-season-tab {
+    height: 32px;
+    padding: 0 14px;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    background: rgba(255, 255, 255, 0.06);
+    color: rgba(255, 255, 255, 0.78);
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 700;
+    white-space: nowrap;
+    cursor: pointer;
+    flex: none;
+    transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+.bfx-osd-season-tab:hover {
+    color: #ffffff;
+    background: rgba(255, 255, 255, 0.14);
+}
+.bfx-osd-season-tab.active {
+    background: #ffffff;
+    color: #0a0a0a;
+    border-color: #ffffff;
+}
+.bfx-osd-ep-list {
+    flex: 1 1 auto;
+    overflow-y: auto;
+    padding: 8px 16px max(20px, env(safe-area-inset-bottom, 20px)) 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+.bfx-osd-ep-loading,
+.bfx-osd-ep-empty {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    padding: 36px 16px;
+    color: rgba(255, 255, 255, 0.65);
+    font-size: 14px;
+}
+.bfx-osd-ep-card {
+    width: 100%;
+    box-sizing: border-box;
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 10px;
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    background: rgba(255, 255, 255, 0.03);
+    color: #ffffff;
+    font-family: inherit;
+    text-align: left;
+    cursor: pointer;
+    transition: background 0.16s ease, border-color 0.16s ease, transform 0.16s ease;
+}
+.bfx-osd-ep-card:hover,
+.bfx-osd-ep-card:focus-visible {
+    background: rgba(255, 255, 255, 0.09);
+    border-color: rgba(255, 255, 255, 0.2);
+    outline: none;
+}
+.bfx-osd-ep-card.is-current {
+    background: rgba(229, 9, 20, 0.14);
+    border-color: rgba(229, 9, 20, 0.55);
+}
+.bfx-osd-ep-thumb {
+    position: relative;
+    width: 128px;
+    aspect-ratio: 16 / 9;
+    border-radius: 8px;
+    overflow: hidden;
+    background: #222;
+    flex: none;
+}
+.bfx-osd-ep-thumb img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+    opacity: 0;
+    transition: opacity 0.25s ease;
+}
+.bfx-osd-ep-thumb img.is-loaded { opacity: 1; }
+.bfx-osd-ep-now {
+    position: absolute;
+    left: 6px;
+    bottom: 6px;
+    padding: 2px 7px;
+    border-radius: 5px;
+    background: var(--streamflix-red, #e50914);
+    color: #ffffff;
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+}
+.bfx-osd-ep-play {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 30px;
+    height: 30px;
+    margin: -15px 0 0 -15px;
+    border-radius: 50%;
+    background: rgba(10, 10, 12, 0.62);
+    border: 1px solid rgba(255, 255, 255, 0.65);
+    color: #ffffff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transform: scale(0.88);
+    transition: opacity 0.16s ease, transform 0.16s ease;
+}
+.bfx-osd-ep-play .bfx-icon { width: 14px; height: 14px; margin-left: 1px; }
+.bfx-osd-ep-card:hover .bfx-osd-ep-play,
+.bfx-osd-ep-card:focus-visible .bfx-osd-ep-play {
+    opacity: 1;
+    transform: none;
+}
+.bfx-osd-ep-watched {
+    position: absolute;
+    top: 5px;
+    right: 5px;
+    width: 19px;
+    height: 19px;
+    border-radius: 50%;
+    background: rgba(10, 10, 12, 0.76);
+    color: #46d369;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.bfx-osd-ep-watched .bfx-icon { width: 11px; height: 11px; stroke-width: 3; }
+.bfx-osd-ep-bar {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 3px;
+    background: rgba(255, 255, 255, 0.25);
+}
+.bfx-osd-ep-bar i {
+    display: block;
+    height: 100%;
+    background: var(--streamflix-red, #e50914);
+}
+.bfx-osd-ep-body {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+.bfx-osd-ep-top {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px;
+}
+.bfx-osd-ep-name {
+    font-size: 14px;
+    font-weight: 700;
+    color: #ffffff;
+    line-height: 1.25;
+}
+.bfx-osd-ep-dur {
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.56);
+    flex: none;
+}
+.bfx-osd-ep-desc {
+    margin-top: 4px;
+    font-size: 12.2px;
+    line-height: 1.4;
+    color: rgba(255, 255, 255, 0.68);
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+/* ---------- Netflix-Style Two-Column Audio & Subtitles Popover ---------- */
+#streamflix-osd-tracks {
+    position: fixed;
+    inset: 0;
+    z-index: 10020;
+    font-family: "Netflix Sans", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+.bfx-tracks-scrim {
+    position: absolute;
+    inset: 0;
+    background: transparent;
+}
+.bfx-tracks-card {
+    position: fixed;
+    right: clamp(16px, 3vw, 48px);
+    bottom: clamp(84px, 12vh, 110px);
+    z-index: 1;
+    width: min(496px, calc(100vw - 24px));
+    max-height: min(420px, 68vh);
+    box-sizing: border-box;
+    padding: 18px 20px;
+    border-radius: 14px;
+    background: rgba(18, 18, 20, 0.94);
+    -webkit-backdrop-filter: blur(24px) saturate(140%);
+    backdrop-filter: blur(24px) saturate(140%);
+    border: 1px solid rgba(255, 255, 255, 0.13);
+    box-shadow: 0 24px 64px rgba(0, 0, 0, 0.82);
+    color: #ffffff;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    animation: streamflixPopIn 0.2s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+.bfx-tracks-cols {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 18px;
+    min-height: 0;
+    flex: 1 1 auto;
+}
+.bfx-tracks-col {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+}
+.bfx-tracks-col + .bfx-tracks-col {
+    border-left: 1px solid rgba(255, 255, 255, 0.09);
+    padding-left: 18px;
+}
+.bfx-tracks-heading {
+    font-size: 13px;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.58);
+    margin-bottom: 10px;
+    padding-left: 6px;
+}
+.bfx-tracks-list {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    overflow-y: auto;
+    max-height: 310px;
+    padding-right: 4px;
+}
+.bfx-track-opt {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    width: 100%;
+    padding: 9px 10px;
+    border: 0;
+    border-radius: 9px;
+    background: transparent;
+    color: rgba(255, 255, 255, 0.74);
+    font-family: inherit;
+    font-size: 14px;
+    font-weight: 500;
+    text-align: left;
+    cursor: pointer;
+    transition: background 0.14s ease, color 0.14s ease;
+}
+.bfx-track-opt:hover,
+.bfx-track-opt:focus-visible {
+    background: rgba(255, 255, 255, 0.09);
+    color: #ffffff;
+    outline: none;
+}
+.bfx-track-opt.is-selected {
+    color: #ffffff;
+    font-weight: 700;
+    background: rgba(255, 255, 255, 0.06);
+}
+.bfx-track-check {
+    width: 18px;
+    height: 18px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: #ffffff;
+    flex: none;
+}
+.bfx-track-check .bfx-icon {
+    width: 16px;
+    height: 16px;
+    stroke-width: 2.6;
+}
+.bfx-track-label {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.bfx-track-empty {
+    padding: 8px 6px;
+    font-size: 13px;
+    color: rgba(255, 255, 255, 0.45);
+}
+
+/* ---------- End-of-Episode "Next Episode" Thumbnail Countdown Card ---------- */
+#streamflix-osd-upnext {
+    position: fixed;
+    right: clamp(20px, 3.4vw, 52px);
+    bottom: clamp(92px, 13vh, 126px);
+    z-index: 10012;
+    width: min(432px, calc(100vw - 28px));
+    box-sizing: border-box;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 12px;
+    border-radius: 14px;
+    background: rgba(16, 16, 18, 0.9);
+    -webkit-backdrop-filter: blur(22px) saturate(140%);
+    backdrop-filter: blur(22px) saturate(140%);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.76);
+    color: #ffffff;
+    font-family: "Netflix Sans", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    animation: streamflixRiseIn 0.3s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+.bfx-upnext-thumb {
+    position: relative;
+    width: 138px;
+    aspect-ratio: 16 / 9;
+    border-radius: 9px;
+    overflow: hidden;
+    background: #222;
+    flex: none;
+    cursor: pointer;
+}
+.bfx-upnext-thumb img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+    opacity: 0;
+    transition: opacity 0.25s ease, transform 0.25s ease;
+}
+.bfx-upnext-thumb img.is-loaded { opacity: 1; }
+.bfx-upnext-thumb:hover img { transform: scale(1.05); }
+.bfx-upnext-thumb-play {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 34px;
+    height: 34px;
+    margin: -17px 0 0 -17px;
+    border-radius: 50%;
+    background: rgba(10, 10, 12, 0.62);
+    border: 1px solid rgba(255, 255, 255, 0.72);
+    color: #ffffff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.bfx-upnext-thumb-play .bfx-icon { width: 15px; height: 15px; margin-left: 1px; }
+.bfx-upnext-body {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+.bfx-upnext-kicker {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.65);
+    margin-bottom: 4px;
+}
+.bfx-upnext-kicker b {
+    color: #ffffff;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    text-transform: none;
+}
+.bfx-upnext-title {
+    font-size: 15px;
+    font-weight: 800;
+    color: #ffffff;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin-bottom: 10px;
+}
+.bfx-upnext-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.bfx-upnext-play-btn {
+    position: relative;
+    overflow: hidden;
+    height: 36px;
+    padding: 0 15px 0 12px;
+    border-radius: 8px;
+    border: 0;
+    background: rgba(255, 255, 255, 0.88);
+    color: #0a0a0a;
+    font-family: inherit;
+    font-size: 13.5px;
+    font-weight: 800;
+    cursor: pointer;
+    transition: background 0.15s ease, transform 0.15s ease;
+}
+.bfx-upnext-play-btn:hover {
+    background: #ffffff;
+    transform: translateY(-1px);
+}
+.bfx-upnext-fill {
+    position: absolute;
+    inset: 0;
+    background: #ffffff;
+    transform-origin: left center;
+    transition: transform 0.35s linear;
+}
+.bfx-upnext-play-content {
+    position: relative;
+    z-index: 1;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+.bfx-upnext-play-content .bfx-icon { width: 15px; height: 15px; }
+.bfx-upnext-dismiss-btn {
+    height: 36px;
+    padding: 0 12px;
+    border-radius: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    background: rgba(255, 255, 255, 0.08);
+    color: rgba(255, 255, 255, 0.88);
+    font-family: inherit;
+    font-size: 12.5px;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.15s ease, color 0.15s ease;
+}
+.bfx-upnext-dismiss-btn:hover {
+    background: rgba(255, 255, 255, 0.16);
+    color: #ffffff;
+}
+
+/* ---------- Responsive Tuning for v7.8 Overlays (Phone & Smart TV) ---------- */
+@media (max-width: 640px) {
+    .bfx-osd-drawer-panel {
+        width: 100vw;
+        border-left: 0;
+    }
+    .bfx-osd-ep-thumb {
+        width: 106px;
+    }
+    .bfx-tracks-scrim {
+        background: rgba(0, 0, 0, 0.45);
+    }
+    .bfx-tracks-card {
+        left: 10px;
+        right: 10px;
+        bottom: max(12px, env(safe-area-inset-bottom, 12px));
+        width: auto;
+        padding: 16px;
+    }
+    .bfx-tracks-cols {
+        gap: 12px;
+    }
+    .bfx-tracks-col + .bfx-tracks-col {
+        padding-left: 12px;
+    }
+    #streamflix-osd-upnext {
+        left: 12px;
+        right: 12px;
+        bottom: 78px;
+        width: auto;
+        padding: 10px;
+        gap: 10px;
+    }
+    .bfx-upnext-thumb {
+        width: 108px;
+    }
+}
+@media (max-height: 520px) and (max-width: 960px) {
+    #streamflix-osd-upnext {
+        bottom: 74px;
+        padding: 9px 11px;
+    }
+    .bfx-upnext-thumb {
+        width: 112px;
+    }
+    .bfx-tracks-card {
+        bottom: 68px;
+        max-height: 76vh;
+    }
+}
+body.bfx-tv-mode .bfx-osd-drawer-panel,
+html.layout-tv .bfx-osd-drawer-panel {
+    width: min(540px, 46vw);
+}
+body.bfx-tv-mode .bfx-osd-ep-name,
+html.layout-tv .bfx-osd-ep-name {
+    font-size: 16px;
+}
+body.bfx-tv-mode .bfx-tracks-card,
+html.layout-tv .bfx-tracks-card {
+    width: min(580px, 50vw);
+    padding: 22px 24px;
+}
+body.bfx-tv-mode .bfx-track-opt,
+html.layout-tv .bfx-track-opt {
+    font-size: 16px;
+    padding: 11px 12px;
+}
+@media (prefers-reduced-motion: reduce) {
+    .bfx-osd-drawer-panel,
+    .bfx-tracks-card,
+    #streamflix-osd-upnext {
+        animation: none !important;
+    }
+}
+
+/* ==========================================================================
+   v0.5.6 — Themed Auth Forms (Hybrid / Standard / Admin), Bold Top 10 Rank
+   Badges, Configurable Hero Navigation & Keyboard / TV D-Pad Focus Polish
+   ========================================================================== */

@@ -1,0 +1,280 @@
+using System.Collections.Generic;
+
+namespace Jellyfin.Plugin.StreamFlix.Controllers;
+
+public class SetupSecretsRequest
+{
+    public string? GoogleClientId { get; set; }
+
+    public string? GoogleClientSecret { get; set; }
+
+    public bool? RequireGoogleAuth { get; set; }
+
+    public List<string>? ApprovedGoogleAccounts { get; set; }
+}
+
+public class VerifyGoogleRequest
+{
+    public string AccessToken { get; set; } = string.Empty;
+
+    public bool ApproveIfUnlisted { get; set; }
+}
+
+public class PasswordLoginRequest
+{
+    public string Username { get; set; } = string.Empty;
+
+    public string? Password { get; set; }
+
+    public string? DeviceId { get; set; }
+
+    public string? DeviceName { get; set; }
+
+    public string? AppName { get; set; }
+
+    public string? AppVersion { get; set; }
+}
+
+public class TestOAuthConfigRequest
+{
+    public string? GoogleClientId { get; set; }
+
+    public string? OriginUri { get; set; }
+
+    public List<string>? RedirectUris { get; set; }
+
+    public List<string>? ApprovedEmails { get; set; }
+}
+
+public class TestOidcConfigRequest
+{
+    public string? OidcIssuerUrl { get; set; }
+
+    public string? OidcClientId { get; set; }
+
+    public string? CallbackUri { get; set; }
+
+    public bool OidcRequireAllowlist { get; set; }
+
+    public List<string>? ApprovedOidcUsers { get; set; }
+}
+
+public class BeginOidcRequest
+{
+    public string? ReturnWebBase { get; set; }
+
+    public string? PendingProfileId { get; set; }
+
+    public string? LoginHint { get; set; }
+}
+
+public class ActivateProfileRequest
+{
+    public string ProfileId { get; set; } = string.Empty;
+
+    public string? Pin { get; set; }
+
+    public string? PinCode { get; set; }
+
+    public string? DeviceId { get; set; }
+
+    public string? DeviceName { get; set; }
+
+    public string? AppName { get; set; }
+
+    public string? AppVersion { get; set; }
+}
+
+public class VerifyPinRequest
+{
+    public string ProfileId { get; set; } = string.Empty;
+
+    public string? Pin { get; set; }
+}
+
+public class SaveProfileRequest
+{
+    public string? Id { get; set; }
+
+    public string Name { get; set; } = string.Empty;
+
+    public int AvatarColorIndex { get; set; }
+
+    public int AvatarIconIndex { get; set; }
+
+    public string? AvatarEmoji { get; set; }
+
+    public string? AvatarColorHex { get; set; }
+
+    public bool IsKids { get; set; }
+
+    public string? MaturityRating { get; set; }
+
+    public string? Pin { get; set; }
+
+    public string? PinCode { get; set; }
+
+    /// <summary>
+    /// Gets or sets the profile's current PIN, required to edit a PIN-protected profile unless the caller is an admin.
+    /// </summary>
+    public string? CurrentPin { get; set; }
+
+    /// <summary>
+    /// Gets or sets the profile account lock identifier (email or username). <c>null</c> leaves it unchanged, an empty string clears it.
+    /// </summary>
+    public string? GoogleAccountEmail { get; set; }
+
+    /// <summary>
+    /// Gets or sets the optional authentication provider kind for <see cref="GoogleAccountEmail"/> (<c>google</c>, <c>oidc</c>, <c>jellyfin</c>, or empty).
+    /// </summary>
+    public string? AccountLockKind { get; set; }
+
+    public bool AutoplayNextEpisode { get; set; } = true;
+
+    public bool AutoplayPreviews { get; set; } = true;
+
+    public string? JellyfinUserId { get; set; }
+
+    public string? JellyfinUsername { get; set; }
+}
+
+public class ReorderProfilesRequest
+{
+    public List<string> ProfileIds { get; set; } = new();
+}
+
+public class DeleteProfileRequest
+{
+    public string ProfileId { get; set; } = string.Empty;
+
+    public bool DeleteJellyfinUser { get; set; }
+
+    public string? CurrentPin { get; set; }
+}
+
+public class SaveAdminConfigRequest
+{
+    public bool EnableStreamFlixUi { get; set; } = true;
+
+    public string? CustomBrandName { get; set; }
+
+    public bool RequireGoogleAuth { get; set; } = true;
+
+    public bool EnableGoogleSignIn { get; set; } = true;
+
+    public bool AllowStandardJellyfinLogin { get; set; }
+
+    public bool AllowAdminFallbackLogin { get; set; }
+
+    public bool AdminFallbackLanOnly { get; set; }
+
+    public bool BypassLoginGateOnLan { get; set; }
+
+    public bool AutoProvisionJellyfinUsers { get; set; } = true;
+
+    public string? GoogleClientId { get; set; }
+
+    public string? GoogleClientSecret { get; set; }
+
+    public bool ClearGoogleClientSecret { get; set; }
+
+    public List<string>? ApprovedGoogleAccounts { get; set; }
+
+    public int SessionLifetimeDays { get; set; } = 30;
+
+    public string? Top10SelectionMode { get; set; }
+
+    public int HeroRotationSeconds { get; set; } = 9;
+
+    public int HeroSlideCount { get; set; } = 8;
+
+    public string? HeroSelectionMode { get; set; }
+
+    public string? HeroContentType { get; set; }
+
+    public List<string>? HeroLibraryIds { get; set; }
+
+    public bool EnableCustomOidc { get; set; }
+
+    public string? OidcProviderName { get; set; }
+
+    public string? OidcIssuerUrl { get; set; }
+
+    public string? OidcClientId { get; set; }
+
+    public string? OidcClientSecret { get; set; }
+
+    public bool ClearOidcClientSecret { get; set; }
+
+    public bool OidcRequireAllowlist { get; set; }
+
+    public List<string>? ApprovedOidcUsers { get; set; }
+
+    public bool EnableGuestPasses { get; set; } = true;
+
+    public bool EnableSeerr { get; set; }
+
+    public string? SeerrUrl { get; set; }
+
+    public string? SeerrApiKey { get; set; }
+
+    public bool ClearSeerrApiKey { get; set; }
+
+    public bool SeerrAllowKids { get; set; }
+
+    public bool SeerrAllowGuests { get; set; }
+}
+
+public class CreateGuestPassRequest
+{
+    public string? Label { get; set; }
+
+    public string ProfileId { get; set; } = string.Empty;
+
+    public int DurationHours { get; set; } = 24;
+
+    public int MaxRedemptions { get; set; } = 2;
+}
+
+public class RevokeGuestPassRequest
+{
+    public string Id { get; set; } = string.Empty;
+}
+
+public class RedeemGuestPassRequest
+{
+    public string Code { get; set; } = string.Empty;
+
+    public string? DeviceId { get; set; }
+
+    public string? DeviceName { get; set; }
+
+    public string? AppName { get; set; }
+
+    public string? AppVersion { get; set; }
+}
+
+public class TestSeerrConfigRequest
+{
+    public string? SeerrUrl { get; set; }
+
+    public string? SeerrApiKey { get; set; }
+}
+
+public class SubmitSeerrMediaRequest
+{
+    public int TmdbId { get; set; }
+
+    public string MediaType { get; set; } = string.Empty;
+
+    public List<int>? Seasons { get; set; }
+
+    public string? ProfileId { get; set; }
+}
+
+public class RevokeDeviceRequest
+{
+    public string DeviceId { get; set; } = string.Empty;
+
+    public string? UserId { get; set; }
+}
