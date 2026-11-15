@@ -3,11 +3,35 @@
     "guid": "7cc1a505-91f6-4661-b4f9-7eee8be33b19",
     "name": "StreamFlix",
     "overview": "Netflix-style UI, Household Profiles, Guest Passes & Seerr Requests for Jellyfin",
-    "description": "Transforms Jellyfin Web into StreamFlix: a Netflix-style cinema UI with flexible Google/OIDC/Jellyfin sign-in, toggleable QR Guest Passes, optional Seerr/Jellyseerr search requests, and 'Who's watching?' profiles mapped to real Jellyfin users.",
+    "description": "Transforms Jellyfin Web into StreamFlix: a Netflix-style cinema UI with flexible Google/OIDC/Jellyfin sign-in, dedicated Kids profiles, clean Watch Together, toggleable QR Guest Passes, optional Seerr/Jellyseerr search requests, and 'Who's watching?' profiles mapped to real Jellyfin users.",
     "owner": "StreamFlix",
     "category": "General",
     "imageUrl": "https://raw.githubusercontent.com/streamflix-dev/jellyfin-streamflix/main/Jellyfin.Plugin.StreamFlix/thumb.png",
     "versions": [
+      {
+        "version": "0.7.9.0",
+        "changelog": "Build for Jellyfin 12.x (.NET 10).\n\n- Dedicated Kids Profile Mode & Parental Exit Lock: launch a playful, child-safe Kids experience with a vibrant KIDS brand pill, interactive Kids World filter bubbles (Animation, Family, Adventure, Silly & Funny, Magic & Fantasy, Quick Watch), locked-down settings/admin routes, defense-in-depth maturity filtering, and a configurable Parental Exit Lock (server-verified adult profile PIN or a 4-word Grown-Up Check when no adult PINs exist)\n- Clean Watch Together (SyncPlay): bring back real-time synced watch parties cleanly via the Title Details modal, Account Menu, and Video Player OSD — keeping Jellyfin's stock header icon hidden with zero idle clutter, a live badge only while in a room, 1-click household invite links (?watchparty=), and optional 6-hour Guest Pass + Watch Party combo links",
+        "targetAbi": "12.0.0.0",
+        "sourceUrl": "https://raw.githubusercontent.com/streamflix-dev/jellyfin-streamflix/main/dist/Jellyfin.Plugin.StreamFlix_0.7.9.0_12.0.0.zip",
+        "checksum": "41d792d89fa4773411a16b82e4f5212d",
+        "timestamp": "2026-11-15T01:56:38Z"
+      },
+      {
+        "version": "0.7.9.0",
+        "changelog": "Build for Jellyfin 10.11.x (.NET 9).\n\n- Dedicated Kids Profile Mode & Parental Exit Lock: launch a playful, child-safe Kids experience with a vibrant KIDS brand pill, interactive Kids World filter bubbles (Animation, Family, Adventure, Silly & Funny, Magic & Fantasy, Quick Watch), locked-down settings/admin routes, defense-in-depth maturity filtering, and a configurable Parental Exit Lock (server-verified adult profile PIN or a 4-word Grown-Up Check when no adult PINs exist)\n- Clean Watch Together (SyncPlay): bring back real-time synced watch parties cleanly via the Title Details modal, Account Menu, and Video Player OSD — keeping Jellyfin's stock header icon hidden with zero idle clutter, a live badge only while in a room, 1-click household invite links (?watchparty=), and optional 6-hour Guest Pass + Watch Party combo links",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://raw.githubusercontent.com/streamflix-dev/jellyfin-streamflix/main/dist/Jellyfin.Plugin.StreamFlix_0.7.9.0_10.11.0.zip",
+        "checksum": "a14fa85b8a13c3cf8fc0940e019ceff0",
+        "timestamp": "2026-11-15T01:56:38Z"
+      },
+      {
+        "version": "0.7.9.0",
+        "changelog": "Build for Jellyfin 10.9 - 10.10 (.NET 8).\n\n- Dedicated Kids Profile Mode & Parental Exit Lock: launch a playful, child-safe Kids experience with a vibrant KIDS brand pill, interactive Kids World filter bubbles (Animation, Family, Adventure, Silly & Funny, Magic & Fantasy, Quick Watch), locked-down settings/admin routes, defense-in-depth maturity filtering, and a configurable Parental Exit Lock (server-verified adult profile PIN or a 4-word Grown-Up Check when no adult PINs exist)\n- Clean Watch Together (SyncPlay): bring back real-time synced watch parties cleanly via the Title Details modal, Account Menu, and Video Player OSD — keeping Jellyfin's stock header icon hidden with zero idle clutter, a live badge only while in a room, 1-click household invite links (?watchparty=), and optional 6-hour Guest Pass + Watch Party combo links",
+        "targetAbi": "10.9.0.0",
+        "sourceUrl": "https://raw.githubusercontent.com/streamflix-dev/jellyfin-streamflix/main/dist/Jellyfin.Plugin.StreamFlix_0.7.9.0_10.9.0.zip",
+        "checksum": "ddda55cc2a885d3ccb29591ef44839e5",
+        "timestamp": "2026-11-15T01:56:38Z"
+      },
       {
         "version": "0.7.8.1",
         "changelog": "Build for Jellyfin 12.x (.NET 10).\n\n- Liquid-Glass Mobile Dock Polish & Zero Doubled Avatar: remove the inline-forced top-right profile pill whenever the mobile floating dock is active, add a spring-animated gliding glass highlight, ambient bottom scrim, bespoke dock icons, and smart title-case formatting for uppercase brand names (e.g. My StreamFlix)\n- Clean Mobile Category Pills: remove stray active-pill bottom accent underlines and keep mobile subnav focused on clean individual category pills (Shows, Movies, Collections, My List)\n- Modular Codebase Organization: split monolithic Web JS, Web CSS, and API Controller files into focused, readable modules under Web/js/, Web/css/, and Controllers/ while preserving single-request in-memory bundle assembly and ETag caching",
