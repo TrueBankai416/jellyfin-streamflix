@@ -3,11 +3,35 @@
     "guid": "7cc1a505-91f6-4661-b4f9-7eee8be33b19",
     "name": "StreamFlix",
     "overview": "Netflix-style UI, Household Profiles, Guest Passes & Seerr Requests for Jellyfin",
-    "description": "Transforms Jellyfin Web into StreamFlix: a Netflix-style cinema UI with flexible Google/OIDC/Jellyfin sign-in, dedicated Kids profiles, clean Watch Together, toggleable QR Guest Passes, optional Seerr/Jellyseerr search requests, and 'Who's watching?' profiles mapped to real Jellyfin users.",
+    "description": "Transforms Jellyfin Web into StreamFlix: a Netflix-style cinema UI with flexible Google/OIDC/Jellyfin sign-in, dedicated Kids profiles, real-time synced Watch Together, toggleable QR Guest Passes, optional Seerr/Jellyseerr search requests, and 'Who's watching?' profiles mapped to real Jellyfin users.",
     "owner": "StreamFlix",
     "category": "General",
     "imageUrl": "https://raw.githubusercontent.com/streamflix-dev/jellyfin-streamflix/main/Jellyfin.Plugin.StreamFlix/thumb.png",
     "versions": [
+      {
+        "version": "0.7.9.1",
+        "changelog": "Build for Jellyfin 12.x (.NET 10).\n\n- Complete Watch Together Overhaul (First-Party Server-Authoritative Sync Engine): replace Jellyfin's broken SyncPlay integration with a dedicated StreamFlix Watch Party engine featuring instant-wake long-polling across reverse proxies, server-monotonic RTT-compensated timeline sync, smooth Direct Play + HLS transcode seeking, exact 0:00 Start-from-Beginning vs Resume timestamp alignment across all viewers, 6-character Room Codes, Host-Controls-Only toggle, automatic room-wide media/episode transitions, and 1-tap autoplay-blocked sync recovery\n- Zero-Truncation Account Menu & Modal Polish: move Watch Together out of the horizontal quick-tile bar into a full-width Account Menu row with a live room indicator so Cast, Quick Connect, and Watch Together labels never truncate on any screen",
+        "targetAbi": "12.0.0.0",
+        "sourceUrl": "https://raw.githubusercontent.com/streamflix-dev/jellyfin-streamflix/main/dist/Jellyfin.Plugin.StreamFlix_0.7.9.1_12.0.0.zip",
+        "checksum": "d688fffd3ba3ce9a0054e7461a0c4673",
+        "timestamp": "2026-11-15T03:15:03Z"
+      },
+      {
+        "version": "0.7.9.1",
+        "changelog": "Build for Jellyfin 10.11.x (.NET 9).\n\n- Complete Watch Together Overhaul (First-Party Server-Authoritative Sync Engine): replace Jellyfin's broken SyncPlay integration with a dedicated StreamFlix Watch Party engine featuring instant-wake long-polling across reverse proxies, server-monotonic RTT-compensated timeline sync, smooth Direct Play + HLS transcode seeking, exact 0:00 Start-from-Beginning vs Resume timestamp alignment across all viewers, 6-character Room Codes, Host-Controls-Only toggle, automatic room-wide media/episode transitions, and 1-tap autoplay-blocked sync recovery\n- Zero-Truncation Account Menu & Modal Polish: move Watch Together out of the horizontal quick-tile bar into a full-width Account Menu row with a live room indicator so Cast, Quick Connect, and Watch Together labels never truncate on any screen",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://raw.githubusercontent.com/streamflix-dev/jellyfin-streamflix/main/dist/Jellyfin.Plugin.StreamFlix_0.7.9.1_10.11.0.zip",
+        "checksum": "80dd547138bacf0dab3173719b931aa3",
+        "timestamp": "2026-11-15T03:15:03Z"
+      },
+      {
+        "version": "0.7.9.1",
+        "changelog": "Build for Jellyfin 10.9 - 10.10 (.NET 8).\n\n- Complete Watch Together Overhaul (First-Party Server-Authoritative Sync Engine): replace Jellyfin's broken SyncPlay integration with a dedicated StreamFlix Watch Party engine featuring instant-wake long-polling across reverse proxies, server-monotonic RTT-compensated timeline sync, smooth Direct Play + HLS transcode seeking, exact 0:00 Start-from-Beginning vs Resume timestamp alignment across all viewers, 6-character Room Codes, Host-Controls-Only toggle, automatic room-wide media/episode transitions, and 1-tap autoplay-blocked sync recovery\n- Zero-Truncation Account Menu & Modal Polish: move Watch Together out of the horizontal quick-tile bar into a full-width Account Menu row with a live room indicator so Cast, Quick Connect, and Watch Together labels never truncate on any screen",
+        "targetAbi": "10.9.0.0",
+        "sourceUrl": "https://raw.githubusercontent.com/streamflix-dev/jellyfin-streamflix/main/dist/Jellyfin.Plugin.StreamFlix_0.7.9.1_10.9.0.zip",
+        "checksum": "39b263608b4cb41ab7cd027b6a9d82c0",
+        "timestamp": "2026-11-15T03:15:03Z"
+      },
       {
         "version": "0.7.9.0",
         "changelog": "Build for Jellyfin 12.x (.NET 10).\n\n- Dedicated Kids Profile Mode & Parental Exit Lock: launch a playful, child-safe Kids experience with a vibrant KIDS brand pill, interactive Kids World filter bubbles (Animation, Family, Adventure, Silly & Funny, Magic & Fantasy, Quick Watch), locked-down settings/admin routes, defense-in-depth maturity filtering, and a configurable Parental Exit Lock (server-verified adult profile PIN or a 4-word Grown-Up Check when no adult PINs exist)\n- Clean Watch Together (SyncPlay): bring back real-time synced watch parties cleanly via the Title Details modal, Account Menu, and Video Player OSD — keeping Jellyfin's stock header icon hidden with zero idle clutter, a live badge only while in a room, 1-click household invite links (?watchparty=), and optional 6-hour Guest Pass + Watch Party combo links",
