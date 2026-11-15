@@ -439,3 +439,15 @@ public class WatchPartyCommandRequest
     [JsonPropertyName("isBuffering")]
     public bool? IsBuffering { get; set; }
 }
+
+public class DeleteWatchPartyRoomRequest
+{
+    [JsonPropertyName("roomId")]
+    public string RoomId { get; set; } = string.Empty;
+
+    [JsonPropertyName("participantId")]
+    public string? ParticipantId { get; set; }
+
+    [JsonPropertyName("profileId")]
+    public string? ProfileId { get; set; }
+}

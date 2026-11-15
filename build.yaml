@@ -1,7 +1,7 @@
 ---
 name: "StreamFlix"
 guid: "7cc1a505-91f6-4661-b4f9-7eee8be33b19"
-version: "0.9.1.2"
+version: "0.9.1.3"
 targetAbi: "12.0.0.0"
 framework: "net10.0"
 owner: "StreamFlix"
@@ -17,6 +17,5 @@ imageUrl: "https://raw.githubusercontent.com/streamflix-dev/jellyfin-streamflix/
 artifacts:
   - "Jellyfin.Plugin.StreamFlix.dll"
 changelog: >
-  - Restore Account Pill Menu Quick Connect: restore the working 6-character Quick Connect TV/device authorization tile and modal in the Account Pill Menu while keeping the broken Settings subpage Quick Connect tab removed
-  - Watch Together Room Serialization Fix & Elevated Cinema Lounge UI: explicit camelCase JSON property attributes on server Watch Party DTOs/snapshots plus client-side normalization, segmented Playback Controls & Start Position switches, full-width inputs, and live room deck
-  - Settings Anti-Clipping & Phone Client Settings: fix Profile & Password (#userProfilePage) avatar layout collision, wrap Settings section pills without clipping, and surface Client Settings directly in the phone Account Sheet and Settings overview
+  - Watch Together Mobile & Transcode Sync Stability Fix: prevent infinite HLS/transcode re-seek buffering loops when OSD controls auto-hide by calibrating stream offsets from Jellyfin playback progress reports, enforce one-shot per-media auto-launch so mobile native players (ExoPlayer/AVPlayer) and slow connections never stack sessions or crash, remove playbackRate micro-mutation, and suppress buffering/keyframe-snap command ping-pong
+  - Explicit Delete Watch Party Controls: add server-side WatchParty/Delete endpoint and one-tap Delete Party / Delete buttons inside active Watch Party rooms and in the Active Household Parties list with clean detachment for connected viewers

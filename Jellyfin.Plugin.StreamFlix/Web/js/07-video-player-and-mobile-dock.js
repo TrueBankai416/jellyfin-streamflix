@@ -272,7 +272,10 @@
         document.body.classList.add('streamflix-osd-paused-on');
     }
 
-    function onOsdActivity() {
+    function onOsdActivity(ev) {
+        if (ev && (ev.type === 'pointerdown' || ev.type === 'touchstart' || ev.type === 'keydown') && typeof onWatchPartyUserPlayerGesture === 'function') {
+            onWatchPartyUserPlayerGesture(ev.type);
+        }
         if (!osdState.video) {
             return;
         }

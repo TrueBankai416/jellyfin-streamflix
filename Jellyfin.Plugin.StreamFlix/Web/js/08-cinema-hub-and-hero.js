@@ -506,11 +506,12 @@
             return;
         }
 
-        // Prevent duplicate concurrent play calls for the same item within 2000ms (unless triggered by Watch Party sync transition)
+        // Prevent duplicate concurrent play calls for the same item on slow mobile/HLS connections
         var isWpFollow = Boolean(playOpts && playOpts.fromWatchPartyFollow);
         var normTarget = normalizeGuid(targetId);
         var nowTs = Date.now();
-        if (!isWpFollow && state.lastPlayNormId === normTarget && state.lastPlayTimestamp && (nowTs - state.lastPlayTimestamp < 2000)) {
+        var dedupWindowMs = isWpFollow ? 4500 : 2000;
+        if (!(playOpts && playOpts.forceReplay) && state.lastPlayNormId === normTarget && state.lastPlayTimestamp && (nowTs - state.lastPlayTimestamp < dedupWindowMs)) {
             return;
         }
         state.lastPlayNormId = normTarget;

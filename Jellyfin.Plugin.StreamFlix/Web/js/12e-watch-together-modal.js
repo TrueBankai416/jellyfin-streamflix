@@ -189,8 +189,9 @@
                         avatarColorHex: (state.activeProfile && state.activeProfile.color) || '#E50914',
                         isHost: true
                     }];
-                var isMyHost = activeRoom.hostParticipantId === getMyWatchPartyParticipantId() || isAdmin;
+                var isMyHost = activeRoom.hostParticipantId === getMyWatchPartyParticipantId() || isMyWatchPartyHostProfile(activeRoom) || isAdmin;
                 var canControl = canControlWatchPartyRoom(activeRoom);
+                var canDeleteActive = canDeleteWatchPartyRoom(activeRoom);
                 var inviteUrl = buildWatchPartyInviteUrl(activeRoom.roomId);
                 var roomMediaLabel = formatWatchPartyMediaLabel(activeRoom);
                 var livePosSec = getAuthoritativeRoomPositionSec(activeRoom);
@@ -301,7 +302,12 @@
                             : '<span class="bfx-wp-host-toggle" style="cursor:default;">' + icon('users') + '<span>Everyone Controls</span></span>'))
                     + '      </div>'
                     + '    </div>'
-                    + '    <button type="button" class="streamflix-btn-danger bfx-wp-leave-btn" id="bfx-wp-leave-btn">' + iconLabel('logout', 'Leave') + '</button>'
+                    + '    <div class="bfx-wp-active-actions">'
+                    + (canDeleteActive
+                        ? ('      <button type="button" class="streamflix-ghost-btn bfx-wp-leave-btn" id="bfx-wp-leave-btn" title="Leave on this device">' + iconLabel('logout', 'Leave') + '</button>'
+                            + '      <button type="button" class="streamflix-btn-danger bfx-wp-delete-btn" id="bfx-wp-delete-party-btn" title="End and delete Watch Party for everyone">' + iconLabel('trash', 'Delete Party') + '</button>')
+                        : ('      <button type="button" class="streamflix-btn-danger bfx-wp-leave-btn" id="bfx-wp-leave-btn">' + iconLabel('logout', 'Leave') + '</button>'))
+                    + '    </div>'
                     + '  </div>'
                     + '  <div class="bfx-wp-members-wrap">'
                     + '    <div class="bfx-wp-field-label">Viewers in Room (' + participants.length + ')</div>'
@@ -333,6 +339,7 @@
                             var mediaText = formatWatchPartyMediaLabel(r);
                             var names = parts.map(function (p) { return p.displayName; }).filter(Boolean).slice(0, 3).join(', ');
                             var statusDetail = mediaText ? ((r.isPlaying ? 'Playing ' : 'Paused · ') + mediaText) : 'Waiting in lobby';
+                            var canDeleteRow = canDeleteWatchPartyRoom(r);
                             return ''
                                 + '<div class="bfx-wp-room-row">'
                                 + '  <div class="bfx-wp-room-meta">'
@@ -343,7 +350,12 @@
                                 + '    </div>'
                                 + '    <div class="bfx-wp-room-row-sub">' + escapeHtml([countLabel, statusDetail, names].filter(Boolean).join(' · ')) + '</div>'
                                 + '  </div>'
-                                + '  <button type="button" class="streamflix-btn-primary bfx-wp-inline-btn" data-join-room-id="' + escapeHtml(r.roomId) + '">' + iconLabel('play', 'Join') + '</button>'
+                                + '  <div class="bfx-wp-room-row-actions">'
+                                + '    <button type="button" class="streamflix-btn-primary bfx-wp-inline-btn" data-join-room-id="' + escapeHtml(r.roomId) + '">' + iconLabel('play', 'Join') + '</button>'
+                                + (canDeleteRow
+                                    ? '    <button type="button" class="streamflix-btn-danger bfx-wp-row-delete-btn" data-delete-room-id="' + escapeHtml(r.roomId) + '" title="Delete Watch Party" aria-label="Delete Watch Party ' + escapeHtml(r.name || r.roomId) + '">' + iconLabel('trash', 'Delete') + '</button>'
+                                    : '')
+                                + '  </div>'
                                 + '</div>';
                         }).join('')
                         + '  </div>'
@@ -552,6 +564,26 @@
                 });
             });
 
+            Array.prototype.forEach.call(rootEl.querySelectorAll('[data-delete-room-id]'), function (delBtn) {
+                delBtn.addEventListener('click', function () {
+                    var rid = delBtn.getAttribute('data-delete-room-id');
+                    if (!rid) {
+                        return;
+                    }
+                    captureDraftInputs();
+                    delBtn.disabled = true;
+                    delBtn.classList.add('streamflix-btn-loading');
+                    deleteWatchPartyRoom(rid).then(function () {
+                        showToast('Watch Party deleted.', 'info');
+                        renderModalBody();
+                    }).catch(function (err) {
+                        delBtn.disabled = false;
+                        delBtn.classList.remove('streamflix-btn-loading');
+                        showToast((err && err.message) || 'Could not delete Watch Party.', 'error');
+                    });
+                });
+            });
+
             var copyCodeBtn = rootEl.querySelector('#bfx-wp-copy-code-btn');
             if (copyCodeBtn && activeRoom) {
                 copyCodeBtn.addEventListener('click', function () {
@@ -581,11 +613,12 @@
             if (watchRoomBtn && activeRoom && activeRoom.itemId) {
                 watchRoomBtn.addEventListener('click', function () {
                     var targetTicks = Math.max(0, Math.round(getAuthoritativeRoomPositionSec(activeRoom) * 10000000));
+                    markWatchPartyRoomItemAutoLaunched(activeRoom.roomId, activeRoom.itemId);
                     m.close();
                     if (state.activeDetailModal && typeof state.activeDetailModal.close === 'function') {
                         state.activeDetailModal.close(true);
                     }
-                    playItemImmediately(activeRoom.itemId, null, null, targetTicks, { fromWatchPartyFollow: true });
+                    playItemImmediately(activeRoom.itemId, null, null, targetTicks, { fromWatchPartyFollow: true, forceReplay: true });
                 });
             }
 
@@ -597,7 +630,7 @@
                     if (state.activeDetailModal && typeof state.activeDetailModal.close === 'function') {
                         state.activeDetailModal.close(true);
                     }
-                    playItemImmediately(resolvedPlayable, null, null, Math.round(startSec * 10000000));
+                    playItemImmediately(resolvedPlayable, null, null, Math.round(startSec * 10000000), { forceReplay: true });
                 });
             }
 
@@ -610,6 +643,23 @@
                         showToast('Left Watch Party.', 'info');
                         return refreshWatchPartyRoomsList(true);
                     }).then(renderModalBody);
+                });
+            }
+
+            var deletePartyBtn = rootEl.querySelector('#bfx-wp-delete-party-btn');
+            if (deletePartyBtn && activeRoom) {
+                deletePartyBtn.addEventListener('click', function () {
+                    deletePartyBtn.disabled = true;
+                    deletePartyBtn.classList.add('streamflix-btn-loading');
+                    deleteWatchPartyRoom(activeRoom.roomId).then(function () {
+                        guestInvitePass = null;
+                        showToast('Watch Party deleted.', 'info');
+                        renderModalBody();
+                    }).catch(function (err) {
+                        deletePartyBtn.disabled = false;
+                        deletePartyBtn.classList.remove('streamflix-btn-loading');
+                        showToast((err && err.message) || 'Could not delete Watch Party.', 'error');
+                    });
                 });
             }
 

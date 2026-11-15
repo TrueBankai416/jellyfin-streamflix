@@ -883,14 +883,34 @@ button.headerSyncButton {
     white-space: normal;
     overflow-wrap: anywhere;
 }
+.bfx-wp-room-row-actions {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    flex-shrink: 0;
+}
+.bfx-wp-row-delete-btn {
+    height: 40px !important;
+    padding: 0 13px !important;
+    font-size: 12.5px !important;
+    font-weight: 750 !important;
+}
 
 /* Active Live Room Deck */
 .bfx-wp-active-top {
     display: flex;
     align-items: flex-start;
     justify-content: space-between;
+    flex-wrap: wrap;
     gap: 12px;
     margin-bottom: 15px;
+}
+.bfx-wp-active-actions {
+    display: inline-flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    flex-shrink: 0;
 }
 .bfx-wp-active-heading {
     min-width: 0;
@@ -980,7 +1000,8 @@ button.headerSyncButton {
     flex-shrink: 0;
 }
 
-.bfx-wp-leave-btn {
+.bfx-wp-leave-btn,
+.bfx-wp-delete-btn {
     height: 36px !important;
     padding: 0 13px !important;
     font-size: 12.5px !important;
@@ -1264,8 +1285,21 @@ button.headerSyncButton {
     .bfx-wp-join-row,
     .bfx-wp-invite-row,
     .bfx-wp-nowplaying-card,
-    .bfx-wp-lobby-ready {
+    .bfx-wp-lobby-ready,
+    .bfx-wp-room-row {
         flex-wrap: wrap;
+    }
+    .bfx-wp-room-row-actions {
+        width: 100%;
+    }
+    .bfx-wp-room-row-actions > button {
+        flex: 1 1 auto;
+    }
+    .bfx-wp-active-actions {
+        width: 100%;
+    }
+    .bfx-wp-active-actions > button {
+        flex: 1 1 auto;
     }
     .bfx-wp-join-row > .bfx-wp-join-submit-btn,
     .bfx-wp-invite-row > button,

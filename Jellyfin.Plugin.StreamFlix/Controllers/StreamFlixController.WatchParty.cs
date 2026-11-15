@@ -169,9 +169,70 @@ public partial class StreamFlixController
             positionSeconds: null,
             isBuffering: null);
 
-        StreamFlixWatchPartyService.LeaveRoom(request?.RoomId, participant.ParticipantId, request?.CloseRoom == true);
+        var isLeaveAdmin = caller.IsAdmin || (!IsGuestSession(caller) && resolvedProfile != null && StreamFlixStartupTask.IsOwnerProfile(resolvedProfile));
+        StreamFlixWatchPartyService.LeaveRoom(
+            request?.RoomId,
+            participant.ParticipantId,
+            request?.CloseRoom == true,
+            participant.ProfileId,
+            isLeaveAdmin);
         return Ok(new
         {
+            active = false,
+            rooms = StreamFlixWatchPartyService.ListActiveRooms(),
+        });
+    }
+
+    [HttpPost("WatchParty/Delete")]
+    [AllowAnonymous]
+    [Produces(MediaTypeNames.Application.Json)]
+    public async Task<ActionResult<object>> DeleteWatchParty([FromBody] DeleteWatchPartyRoomRequest? request)
+    {
+        SetNoStoreSecurityHeaders();
+        if (request == null || string.IsNullOrWhiteSpace(request.RoomId))
+        {
+            return BadRequest(new { message = "Missing Watch Party room code." });
+        }
+
+        var config = Config;
+        var caller = await GetCallerAsync(config).ConfigureAwait(false);
+        if (!HasHouseholdAccess(config, caller) && !caller.IsJellyfinAuthenticated)
+        {
+            return GoogleRequired(config);
+        }
+
+        var resolvedProfile = ResolveWatchPartyProfile(config, caller, request.ProfileId);
+        var participant = BuildParticipantIdentity(
+            caller,
+            resolvedProfile,
+            request.ParticipantId,
+            displayNameOverride: null,
+            emojiOverride: null,
+            colorOverride: null,
+            positionSeconds: null,
+            isBuffering: null);
+
+        var isGuest = IsGuestSession(caller);
+        var isAdmin = caller.IsAdmin || (!isGuest && resolvedProfile != null && StreamFlixStartupTask.IsOwnerProfile(resolvedProfile));
+        var (deleted, statusCode, errorMessage) = StreamFlixWatchPartyService.DeleteRoom(
+            request.RoomId,
+            participant,
+            isAdmin,
+            isGuest);
+
+        if (!deleted || statusCode != 200)
+        {
+            return StatusCode(statusCode == 200 ? 403 : statusCode, new
+            {
+                deleted = false,
+                message = errorMessage ?? "Could not delete Watch Party room.",
+                rooms = StreamFlixWatchPartyService.ListActiveRooms(),
+            });
+        }
+
+        return Ok(new
+        {
+            deleted = true,
             active = false,
             rooms = StreamFlixWatchPartyService.ListActiveRooms(),
         });

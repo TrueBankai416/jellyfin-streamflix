@@ -23,7 +23,10 @@
         driftTimer: null,
         pauseVerifyTimer: null,
         seekDebounceTimer: null,
+        hardSeekSettleTimer: null,
+        startupAlignTimer: null,
         bannerTimer: null,
+        visibilityBound: false,
         snapshotPerfMs: 0,
         lastHalfRttSec: 0,
         lastVersion: 0,
@@ -32,8 +35,20 @@
         suppressEventsUntil: 0,
         joinedAtMs: 0,
         followingItemId: '',
+        autoLaunchedRoomItemKey: '',
         lastAutoLaunchItemId: '',
         lastAutoLaunchAtMs: 0,
+        videoAttachedAtMs: 0,
+        lastProgrammaticSeekAtMs: 0,
+        lastProgrammaticSeekTargetSec: -1,
+        lastTranscodeSeekAtMs: 0,
+        lastUserGestureAtMs: 0,
+        lastCommandSentAtMs: 0,
+        lastCommandKind: '',
+        streamOffsetSec: null,
+        calibratedSrc: '',
+        isTranscodingStream: false,
+        lastNativeProgressAtMs: 0,
         isBuffering: false,
         autoplayBlocked: false,
         actionCounter: 0
@@ -147,6 +162,8 @@
             version: Number(raw.version !== undefined ? raw.version : (raw.Version || 0)) || 0,
             serverNowUtcMs: Number(raw.serverNowUtcMs !== undefined ? raw.serverNowUtcMs : (raw.ServerNowUtcMs || Date.now())) || Date.now(),
             hostParticipantId: String(raw.hostParticipantId || raw.HostParticipantId || ''),
+            hostProfileId: String(raw.hostProfileId || raw.HostProfileId || ''),
+            creatorProfileId: String(raw.creatorProfileId || raw.CreatorProfileId || ''),
             hostName: String(raw.hostName || raw.HostName || ''),
             hostControlOnly: Boolean(raw.hostControlOnly !== undefined ? raw.hostControlOnly : raw.HostControlOnly),
             itemId: String(raw.itemId || raw.ItemId || ''),
@@ -191,8 +208,18 @@
         } catch (e) {}
     }
 
+    function markWatchPartyRoomItemAutoLaunched(roomId, itemId) {
+        var r = String(roomId || '').trim().toUpperCase();
+        var it = itemId ? normalizeGuid(itemId) : '';
+        if (r && it) {
+            wpSync.autoLaunchedRoomItemKey = r + ':' + it;
+            wpSync.lastAutoLaunchItemId = it;
+            wpSync.lastAutoLaunchAtMs = Date.now();
+        }
+    }
+
     function suppressLocalWatchPartyEvents(ms) {
-        var until = performance.now() + Math.max(150, Number(ms) || 1200);
+        var until = performance.now() + Math.max(250, Number(ms) || 2500);
         if (until > wpSync.suppressEventsUntil) {
             wpSync.suppressEventsUntil = until;
         }
@@ -200,6 +227,19 @@
 
     function isLocalWatchPartySuppressed() {
         return performance.now() < wpSync.suppressEventsUntil;
+    }
+
+    function isMyWatchPartyHostProfile(room) {
+        if (!room || isGuestPassSession()) {
+            return false;
+        }
+        var myProfId = String((state.activeProfile && state.activeProfile.id) || '').trim().toLowerCase();
+        if (!myProfId) {
+            return false;
+        }
+        var hostProf = String(room.hostProfileId || '').trim().toLowerCase();
+        var creatorProf = String(room.creatorProfileId || '').trim().toLowerCase();
+        return Boolean((hostProf && hostProf === myProfId) || (creatorProf && creatorProf === myProfId));
     }
 
     function canControlWatchPartyRoom(room) {
@@ -213,7 +253,30 @@
         if (r.hostParticipantId && r.hostParticipantId === getMyWatchPartyParticipantId()) {
             return true;
         }
+        if (isMyWatchPartyHostProfile(r)) {
+            return true;
+        }
         return Boolean(!isGuestPassSession() && (isHouseholdAdmin() || (state.activeProfile && state.activeProfile.isAdmin)));
+    }
+
+    function canDeleteWatchPartyRoom(room) {
+        var r = room || watchPartyState.activeGroup;
+        if (!r) {
+            return false;
+        }
+        if (r.hostParticipantId && r.hostParticipantId === getMyWatchPartyParticipantId()) {
+            return true;
+        }
+        if (!isGuestPassSession() && (isHouseholdAdmin() || (state.activeProfile && state.activeProfile.isAdmin))) {
+            return true;
+        }
+        if (isMyWatchPartyHostProfile(r)) {
+            return true;
+        }
+        if (!isGuestPassSession() && !r.hostControlOnly) {
+            return true;
+        }
+        return false;
     }
 
     function getAuthoritativeRoomPositionSec(room) {
@@ -265,20 +328,62 @@
         if (!v) {
             return false;
         }
+        if (wpSync.streamOffsetSec !== null) {
+            return wpSync.streamOffsetSec === 0 && !wpSync.isTranscodingStream;
+        }
         var vd = Number(v.duration);
         if (!isFinite(vd) || vd <= 5) {
             return false;
         }
         var totalSec = getKnownTotalDurationSec(v);
         if (!totalSec || Math.abs(vd - totalSec) <= Math.max(25, totalSec * 0.06)) {
-            var posTextEl = document.querySelector('#videoOsdPage .osdPositionText');
-            var clockSec = posTextEl ? parseOsdClockTextToSec(posTextEl.textContent) : null;
-            if (clockSec !== null && Math.abs(clockSec - (Number(v.currentTime) || 0)) > 12) {
-                return false;
-            }
             return true;
         }
         return false;
+    }
+
+    function isTranscodedOrHlsStream(v) {
+        if (wpSync.isTranscodingStream) {
+            return true;
+        }
+        if (wpSync.streamOffsetSec !== null && wpSync.streamOffsetSec > 2) {
+            return true;
+        }
+        var src = v ? String(v.currentSrc || v.src || '').toLowerCase() : '';
+        if (src && (src.indexOf('.m3u8') !== -1 || src.indexOf('/videos/') !== -1 && src.indexOf('master.') !== -1 || src.indexOf('blob:') === 0)) {
+            return true;
+        }
+        return !isDirectFullTimelineVideo(v);
+    }
+
+    function inferStreamOffsetSecIfNeeded(v, rawCur) {
+        var curSrc = String(v.currentSrc || v.src || '');
+        if (curSrc && wpSync.calibratedSrc && curSrc !== wpSync.calibratedSrc) {
+            wpSync.streamOffsetSec = null;
+            wpSync.calibratedSrc = '';
+        }
+        if (wpSync.streamOffsetSec !== null) {
+            return wpSync.streamOffsetSec;
+        }
+        if (curSrc) {
+            var m = curSrc.match(/[?&]StartTimeTicks=(\d+)/i);
+            if (m && m[1]) {
+                var startSec = parseInt(m[1], 10) / 10000000;
+                if (isFinite(startSec) && startSec > 5 && rawCur < 20 && rawCur < startSec - 4) {
+                    return startSec;
+                }
+            }
+        }
+        // Only inspect OSD clock when the OSD bottom bar is actively visible (Jellyfin freezes slider/clock DOM when OSD hides!)
+        var visibleBottom = document.querySelector('#videoOsdPage:not(.hide) .videoOsdBottom:not(.hide)');
+        if (visibleBottom) {
+            var posEl = visibleBottom.querySelector('.osdPositionText');
+            var clockSec = posEl ? parseOsdClockTextToSec(posEl.textContent) : null;
+            if (clockSec !== null && Math.abs(clockSec - rawCur) > 12) {
+                return Math.max(0, clockSec - rawCur);
+            }
+        }
+        return 0;
     }
 
     function getEffectiveVideoPositionSec(v) {
@@ -286,30 +391,32 @@
         if (!v) {
             return 0;
         }
-        var rawCur = Number(v.currentTime) || 0;
-        if (isDirectFullTimelineVideo(v)) {
-            return Math.max(0, rawCur);
-        }
-        var totalSec = getKnownTotalDurationSec(v);
-        var slider = document.querySelector('#videoOsdPage .osdPositionSlider');
-        if (slider && totalSec > 0) {
-            var pct = parseFloat(slider.value);
-            if (isFinite(pct) && pct >= 0 && pct <= 100) {
-                var sliderSec = (pct / 100) * totalSec;
-                var posEl = document.querySelector('#videoOsdPage .osdPositionText');
-                var clockSec = posEl ? parseOsdClockTextToSec(posEl.textContent) : null;
-                if (clockSec !== null && Math.abs(clockSec - sliderSec) < 8) {
-                    return Math.max(0, sliderSec);
-                }
-                if (!isFinite(Number(v.duration)) || Math.abs(sliderSec - rawCur) > 8) {
-                    return Math.max(0, sliderSec);
-                }
-            }
-        }
-        return Math.max(0, rawCur);
+        var rawCur = Math.max(0, Number(v.currentTime) || 0);
+        var offset = inferStreamOffsetSecIfNeeded(v, rawCur);
+        return Math.max(0, offset + rawCur);
     }
 
-    function seekEffectiveVideoToSec(v, targetSec) {
+    function isWithinVideoSeekable(v, localSec) {
+        if (!v || !isFinite(localSec) || localSec < 0) {
+            return false;
+        }
+        try {
+            var ranges = v.seekable;
+            if (!ranges || !ranges.length) {
+                return false;
+            }
+            for (var i = 0; i < ranges.length; i++) {
+                var start = ranges.start(i);
+                var end = ranges.end(i);
+                if (localSec >= start - 0.5 && localSec <= end + 1.0 && (end - start > 25 || isDirectFullTimelineVideo(v))) {
+                    return true;
+                }
+            }
+        } catch (e) {}
+        return false;
+    }
+
+    function seekEffectiveVideoToSec(v, targetSec, allowTranscodeRestart) {
         v = v || (osdState && osdState.video);
         if (!v) {
             return false;
@@ -320,39 +427,70 @@
             clamped = Math.max(0, totalSec - 0.5);
         }
 
-        suppressLocalWatchPartyEvents(1600);
+        var isTranscode = isTranscodedOrHlsStream(v);
+        var offset = inferStreamOffsetSecIfNeeded(v, Math.max(0, Number(v.currentTime) || 0));
+        var localTarget = clamped - offset;
 
-        if (isDirectFullTimelineVideo(v)) {
+        // 1. Prefer direct HTMLMediaElement seek whenever target lies inside seekable buffer/timeline (zero FFmpeg restart!)
+        if (localTarget >= 0 && (isDirectFullTimelineVideo(v) || isWithinVideoSeekable(v, localTarget))) {
+            wpSync.lastProgrammaticSeekAtMs = Date.now();
+            wpSync.lastProgrammaticSeekTargetSec = clamped;
+            suppressLocalWatchPartyEvents(isTranscode ? 5500 : 3200);
             try {
-                v.currentTime = clamped;
+                v.currentTime = localTarget;
                 return true;
-            } catch (e) {}
+            } catch (eDirect) {}
         }
 
+        // 2. Never restart server FFmpeg transcoding on routine background drift checks!
+        if (allowTranscodeRestart === false) {
+            return false;
+        }
+
+        var nowMs = Date.now();
+        if (nowMs - wpSync.lastTranscodeSeekAtMs < 6000) {
+            return false;
+        }
+
+        wpSync.lastTranscodeSeekAtMs = nowMs;
+        wpSync.lastProgrammaticSeekAtMs = nowMs;
+        wpSync.lastProgrammaticSeekTargetSec = clamped;
+        suppressLocalWatchPartyEvents(8000);
+
+        // 3. Try Jellyfin playbackManager.seek(ticks) first if exposed
+        try {
+            var pm = window.StreamFlixPlaybackManager || window.playbackManager;
+            if (pm && typeof pm.seek === 'function') {
+                pm.seek(Math.round(clamped * 10000000));
+                if (wpSync.streamOffsetSec !== null && wpSync.streamOffsetSec > 0) {
+                    wpSync.streamOffsetSec = clamped;
+                }
+                return true;
+            }
+        } catch (ePm) {}
+
+        // 4. Fallback: single .osdPositionSlider 'change' event (never 'input' + 'change' double dispatch)
         var slider = document.querySelector('#videoOsdPage .osdPositionSlider');
         if (slider && totalSec > 5) {
             var pct = Math.min(99.95, Math.max(0, (clamped / totalSec) * 100));
             slider.__bfxWpProgrammatic = true;
             try {
                 slider.value = String(pct.toFixed(3));
-                slider.dispatchEvent(new Event('input', { bubbles: true }));
                 slider.dispatchEvent(new Event('change', { bubbles: true }));
+                if (wpSync.streamOffsetSec !== null && wpSync.streamOffsetSec > 0) {
+                    wpSync.streamOffsetSec = clamped;
+                }
             } catch (eSlider) {
-                try { v.currentTime = clamped; } catch (e2) {}
+                try { v.currentTime = Math.max(0, localTarget); } catch (e2) {}
             } finally {
                 setTimeout(function () {
                     slider.__bfxWpProgrammatic = false;
-                }, 80);
+                }, 250);
             }
             return true;
         }
 
-        try {
-            v.currentTime = clamped;
-            return true;
-        } catch (eFallback) {
-            return false;
-        }
+        return false;
     }
 
     function showWatchPartyOsdBanner(text) {
@@ -406,8 +544,8 @@
                 removeWatchPartyAutoplayUnlockPill();
                 var v = osdState && osdState.video;
                 if (v && watchPartyState.activeGroup) {
-                    suppressLocalWatchPartyEvents(1500);
-                    seekEffectiveVideoToSec(v, getAuthoritativeRoomPositionSec());
+                    suppressLocalWatchPartyEvents(4000);
+                    seekEffectiveVideoToSec(v, getAuthoritativeRoomPositionSec(), true);
                     if (watchPartyState.activeGroup.isPlaying) {
                         var pr = v.play();
                         if (pr && typeof pr.catch === 'function') {
@@ -427,6 +565,23 @@
         }
     }
 
+    function bindWatchPartyVisibilityWatcher() {
+        if (wpSync.visibilityBound || typeof document === 'undefined') {
+            return;
+        }
+        wpSync.visibilityBound = true;
+        document.addEventListener('visibilitychange', function () {
+            if (!document.hidden && watchPartyState.activeGroup && isWatchTogetherEnabled()) {
+                suppressLocalWatchPartyEvents(2500);
+                setTimeout(function () {
+                    if (!document.hidden && watchPartyState.activeGroup) {
+                        reconcilePlayerWithRoom(false);
+                    }
+                }, 900);
+            }
+        });
+    }
+
     function reconcilePlayerWithRoom(forceHardSeek) {
         var room = watchPartyState.activeGroup;
         if (!room || !isWatchTogetherEnabled()) {
@@ -435,18 +590,25 @@
             return;
         }
 
-        // 1. If the room has an active movie/episode and this viewer isn't playing it yet, transition automatically!
+        // Never manipulate playback or auto-launch from a backgrounded mobile WebView / native ExoPlayer overlay
+        if (document.hidden) {
+            return;
+        }
+
+        // 1. One-shot auto-launch per (roomId + itemId) so slow HLS startup, native ExoPlayer, or pressing Back NEVER loops!
         var roomItemNorm = room.itemId ? normalizeGuid(room.itemId) : '';
         if (roomItemNorm && !isGateOpen()) {
             var curOsdNorm = (osdState && osdState.info && osdState.info.Id) ? normalizeGuid(osdState.info.Id) : '';
-            var nowMs = Date.now();
             var inPlayer = isVideoPlayerActive();
+            var launchKey = room.roomId + ':' + roomItemNorm;
 
-            if (!inPlayer || (curOsdNorm && curOsdNorm !== roomItemNorm)) {
-                var sameRecentLaunch = wpSync.lastAutoLaunchItemId === roomItemNorm && (nowMs - wpSync.lastAutoLaunchAtMs < 6500);
-                if (!sameRecentLaunch) {
+            if (inPlayer && curOsdNorm && curOsdNorm === roomItemNorm) {
+                wpSync.autoLaunchedRoomItemKey = launchKey;
+            } else if (!inPlayer || (curOsdNorm && curOsdNorm !== roomItemNorm)) {
+                if (wpSync.autoLaunchedRoomItemKey !== launchKey) {
+                    wpSync.autoLaunchedRoomItemKey = launchKey;
                     wpSync.lastAutoLaunchItemId = roomItemNorm;
-                    wpSync.lastAutoLaunchAtMs = nowMs;
+                    wpSync.lastAutoLaunchAtMs = Date.now();
                     wpSync.followingItemId = roomItemNorm;
                     var startTicks = Math.max(0, Math.round(getAuthoritativeRoomPositionSec(room) * 10000000));
                     playItemImmediately(room.itemId, null, null, startTicks, { fromWatchPartyFollow: true });
@@ -455,7 +617,7 @@
             }
         }
 
-        // 2. Align <video> play/pause state & timeline position smoothly
+        // 2. Align <video> play/pause state & timeline calmly withoutplaybackRate jitter or buffering loops
         var v = osdState && osdState.video;
         if (!v || !isVideoPlayerActive() || v.readyState < 1) {
             return;
@@ -464,39 +626,36 @@
             return;
         }
 
+        resetVideoPlaybackRate(v);
+
+        var nowMs = Date.now();
+        var isTranscode = isTranscodedOrHlsStream(v);
+        var sinceAttachMs = nowMs - (wpSync.videoAttachedAtMs || 0);
+        var sinceProgSeekMs = nowMs - (wpSync.lastProgrammaticSeekAtMs || 0);
         var expectedSec = getAuthoritativeRoomPositionSec(room);
         var actualSec = getEffectiveVideoPositionSec(v);
-        var drift = actualSec - expectedSec; // positive = local is ahead; negative = local is behind
-        var absDrift = Math.abs(drift);
+        var absDrift = Math.abs(actualSec - expectedSec);
 
+        // Room is PAUSED
         if (!room.isPlaying) {
             removeWatchPartyAutoplayUnlockPill();
-            resetVideoPlaybackRate(v);
             if (!v.paused && !v.ended) {
-                suppressLocalWatchPartyEvents(1200);
+                suppressLocalWatchPartyEvents(3000);
                 try { v.pause(); } catch (ePause) {}
             }
-            if ((forceHardSeek && absDrift > 0.6) || absDrift > 1.35) {
-                seekEffectiveVideoToSec(v, expectedSec);
+            if (!v.seeking && !wpSync.isBuffering && sinceAttachMs > 2000 && sinceProgSeekMs > 4000) {
+                if (forceHardSeek && absDrift > (isTranscode ? 3.5 : 1.5)) {
+                    seekEffectiveVideoToSec(v, expectedSec, absDrift > 6.0);
+                } else if (!forceHardSeek && !isTranscode && absDrift > 3.5) {
+                    seekEffectiveVideoToSec(v, expectedSec, false);
+                }
             }
             return;
         }
 
-        // Room IS playing
-        if (forceHardSeek ? (absDrift > 1.2) : (absDrift > 4.2)) {
-            resetVideoPlaybackRate(v);
-            seekEffectiveVideoToSec(v, expectedSec);
-        } else if (absDrift > 1.45 && isDirectFullTimelineVideo(v)) {
-            var desiredRate = drift < 0 ? 1.04 : 0.96;
-            if (Math.abs((v.playbackRate || 1) - desiredRate) > 0.005) {
-                try { v.playbackRate = desiredRate; } catch (eRate) {}
-            }
-        } else if (absDrift < 0.35 && v.playbackRate !== 1) {
-            resetVideoPlaybackRate(v);
-        }
-
-        if (v.paused && !v.ended && !wpSync.autoplayBlocked) {
-            suppressLocalWatchPartyEvents(1400);
+        // Room is PLAYING — start playback if paused (and not currently mid-seek)
+        if (v.paused && !v.ended && !wpSync.autoplayBlocked && !v.seeking && sinceAttachMs > 900) {
+            suppressLocalWatchPartyEvents(3200);
             try {
                 var playPromise = v.play();
                 if (playPromise && typeof playPromise.catch === 'function') {
@@ -508,18 +667,67 @@
                 showWatchPartyAutoplayUnlockPill();
             }
         }
+
+        // Never interrupt a video element that is actively buffering or seeking!
+        if (wpSync.isBuffering || v.seeking || v.readyState < 3) {
+            if (forceHardSeek && !wpSync.hardSeekSettleTimer) {
+                wpSync.hardSeekSettleTimer = setTimeout(function () {
+                    wpSync.hardSeekSettleTimer = null;
+                    if (watchPartyState.activeGroup && isVideoPlayerActive()) {
+                        reconcilePlayerWithRoom(true);
+                    }
+                }, 1800);
+            }
+            return;
+        }
+
+        if (forceHardSeek) {
+            if (sinceAttachMs < 2500) {
+                if (!wpSync.hardSeekSettleTimer) {
+                    wpSync.hardSeekSettleTimer = setTimeout(function () {
+                        wpSync.hardSeekSettleTimer = null;
+                        reconcilePlayerWithRoom(true);
+                    }, 2200);
+                }
+                return;
+            }
+            if (sinceProgSeekMs < 2500 && Math.abs(expectedSec - wpSync.lastProgrammaticSeekTargetSec) < 3.0) {
+                return;
+            }
+            if (absDrift > (isTranscode ? 4.0 : 1.8)) {
+                seekEffectiveVideoToSec(v, expectedSec, true);
+            }
+            return;
+        }
+
+        // Periodic calm drift check: give mobile/transcode streams ample settle time and never restart FFmpeg for minor HLS latency
+        var attachGraceMs = isTranscode ? 22000 : 12000;
+        var seekGraceMs = isTranscode ? 20000 : 12000;
+        if (sinceAttachMs < attachGraceMs || sinceProgSeekMs < seekGraceMs) {
+            return;
+        }
+
+        var maxAllowedDriftSec = isTranscode ? 16.0 : 7.5;
+        if (absDrift > maxAllowedDriftSec) {
+            seekEffectiveVideoToSec(v, expectedSec, absDrift > 26.0);
+        }
     }
 
-    function applyIncomingRoomSnapshot(rawRoom, rttMs) {
+    function applyIncomingRoomSnapshot(rawRoom, rttMs, opts) {
         var room = normalizeWatchPartyRoomSnapshot(rawRoom);
         if (!room || !room.roomId) {
             return null;
         }
+        opts = opts || {};
+        var prevVersion = wpSync.lastVersion || 0;
+        var nextVersion = Number(room.version || 0);
+        var versionChanged = !prevVersion || nextVersion !== prevVersion || Boolean(opts.forceReconcile);
+
         watchPartyState.activeGroup = room;
         setJoinedWatchPartyGroupId(room.roomId);
-        wpSync.lastHalfRttSec = Math.min(1.25, Math.max(0, (Number(rttMs) || 0) / 2000));
+        wpSync.lastHalfRttSec = Math.min(1.0, Math.max(0, (Number(rttMs) || 0) / 2000));
         wpSync.snapshotPerfMs = performance.now();
-        wpSync.lastVersion = Number(room.version || 0);
+        wpSync.lastVersion = nextVersion;
 
         if (room.itemId && wpSync.followingItemId && normalizeGuid(room.itemId) === wpSync.followingItemId && isVideoPlayerActive()) {
             wpSync.followingItemId = '';
@@ -537,17 +745,19 @@
             }
         }
 
+        bindWatchPartyVisibilityWatcher();
         syncWatchPartyIndicators();
         ensureWatchPartyDriftTimer();
         ensureWatchPartyLongPollLoop();
 
-        var isOwnEcho = Boolean(room.lastActionId && room.lastActionId === wpSync.lastSentActionId);
-        if (!isOwnEcho) {
-            reconcilePlayerWithRoom(room.lastActionKind === 'seek' || room.lastActionKind === 'set_media');
-        }
-
-        if (typeof watchPartyState.onModalRoomUpdated === 'function') {
-            try { watchPartyState.onModalRoomUpdated(room); } catch (eModal) {}
+        if (versionChanged) {
+            var isOwnEcho = Boolean(room.lastActionId && room.lastActionId === wpSync.lastSentActionId);
+            if (!isOwnEcho) {
+                reconcilePlayerWithRoom(room.lastActionKind === 'seek' || room.lastActionKind === 'set_media');
+            }
+            if (typeof watchPartyState.onModalRoomUpdated === 'function') {
+                try { watchPartyState.onModalRoomUpdated(room); } catch (eModal) {}
+            }
         }
         return room;
     }
@@ -570,9 +780,18 @@
             clearTimeout(wpSync.seekDebounceTimer);
             wpSync.seekDebounceTimer = null;
         }
+        if (wpSync.hardSeekSettleTimer) {
+            clearTimeout(wpSync.hardSeekSettleTimer);
+            wpSync.hardSeekSettleTimer = null;
+        }
+        if (wpSync.startupAlignTimer) {
+            clearTimeout(wpSync.startupAlignTimer);
+            wpSync.startupAlignTimer = null;
+        }
         wpSync.lastVersion = 0;
         wpSync.lastActionShownKey = '';
         wpSync.followingItemId = '';
+        wpSync.autoLaunchedRoomItemKey = '';
         wpSync.lastAutoLaunchItemId = '';
         resetVideoPlaybackRate();
         removeWatchPartyAutoplayUnlockPill();
@@ -594,10 +813,38 @@
                 stopWatchPartySyncEngine();
                 return;
             }
-            if (isVideoPlayerActive()) {
+            if (!document.hidden && !wpSync.isBuffering && isVideoPlayerActive()) {
                 reconcilePlayerWithRoom(false);
             }
-        }, 1000);
+        }, 4000);
+    }
+
+    function detachEndedWatchPartyCleanly(notifyViewer) {
+        var hadActive = Boolean(watchPartyState.activeGroup);
+        setJoinedWatchPartyGroupId('');
+        watchPartyState.activeGroup = null;
+        stopWatchPartySyncEngine();
+        syncWatchPartyIndicators();
+        if (notifyViewer && hadActive) {
+            if (isVideoPlayerActive()) {
+                showWatchPartyOsdBanner('Watch Party ended.');
+            } else if (typeof showToast === 'function') {
+                showToast('Watch Party ended.', 'info');
+            }
+        }
+        if (typeof watchPartyState.onModalRoomUpdated === 'function') {
+            if (typeof refreshWatchPartyRoomsList === 'function') {
+                refreshWatchPartyRoomsList(true).then(function () {
+                    try {
+                        if (typeof watchPartyState.onModalRoomUpdated === 'function') {
+                            watchPartyState.onModalRoomUpdated(null);
+                        }
+                    } catch (eM) {}
+                });
+            } else {
+                try { watchPartyState.onModalRoomUpdated(null); } catch (eM2) {}
+            }
+        }
     }
 
     function ensureWatchPartyLongPollLoop() {
@@ -611,7 +858,7 @@
                 wpSync.loopRunning = false;
                 return;
             }
-            var waitBefore = backoffMs || 0;
+            var waitBefore = Math.max(0, Number(backoffMs) || 0);
             setTimeout(function () {
                 if (!wpSync.loopRunning || !watchPartyState.joinedGroupId) {
                     wpSync.loopRunning = false;
@@ -623,14 +870,14 @@
                 var pid = getMyWatchPartyParticipantId();
                 var profId = (state.activeProfile && state.activeProfile.id) || '';
                 var sinceVer = wpSync.lastVersion || 0;
-                var waitMs = document.hidden ? 3000 : 10000;
+                var waitMs = document.hidden ? 12000 : 10000;
                 var qs = '?roomId=' + encodeURIComponent(roomId)
                     + '&participantId=' + encodeURIComponent(pid)
                     + '&profileId=' + encodeURIComponent(profId)
                     + '&sinceVersion=' + encodeURIComponent(String(sinceVer))
                     + '&waitMs=' + (sinceVer > 0 ? waitMs : 0);
 
-                if (isVideoPlayerActive() && osdState && osdState.video) {
+                if (!document.hidden && isVideoPlayerActive() && osdState && osdState.video) {
                     qs += '&pos=' + encodeURIComponent(getEffectiveVideoPositionSec(osdState.video).toFixed(2));
                     qs += '&buffering=' + (wpSync.isBuffering ? 'true' : 'false');
                 }
@@ -644,17 +891,11 @@
                         }
                         var incomingRoom = res && (res.room || res.Room);
                         if (!res || res.active === false || res.Active === false || !incomingRoom) {
-                            setJoinedWatchPartyGroupId('');
-                            watchPartyState.activeGroup = null;
-                            stopWatchPartySyncEngine();
-                            syncWatchPartyIndicators();
-                            if (typeof watchPartyState.onModalRoomUpdated === 'function') {
-                                try { watchPartyState.onModalRoomUpdated(null); } catch (eM) {}
-                            }
+                            detachEndedWatchPartyCleanly(true);
                             return;
                         }
                         applyIncomingRoomSnapshot(incomingRoom, rtt);
-                        step(40);
+                        step(document.hidden ? 1500 : 650);
                     })
                     .catch(function (err) {
                         if (!wpSync.loopRunning) {
@@ -664,13 +905,10 @@
                             return;
                         }
                         if (err && (err.status === 403 || err.status === 404)) {
-                            setJoinedWatchPartyGroupId('');
-                            watchPartyState.activeGroup = null;
-                            stopWatchPartySyncEngine();
-                            syncWatchPartyIndicators();
+                            detachEndedWatchPartyCleanly(true);
                             return;
                         }
-                        step(2000);
+                        step(2500);
                     });
             }, waitBefore);
         }
@@ -684,6 +922,16 @@
             return Promise.resolve(null);
         }
         extraPayload = extraPayload || {};
+
+        var nowMs = Date.now();
+        if ((action === 'play' || action === 'pause' || action === 'seek')
+            && wpSync.lastCommandKind === action
+            && (nowMs - wpSync.lastCommandSentAtMs < 450)) {
+            return Promise.resolve(room);
+        }
+        wpSync.lastCommandKind = action;
+        wpSync.lastCommandSentAtMs = nowMs;
+
         var prof = state.activeProfile || {};
         var body = {
             roomId: room.roomId,
@@ -737,12 +985,53 @@
             return null;
         }).catch(function (err) {
             var errRoom = err && err.data && (err.data.room || err.data.Room);
+            if (err && err.status === 404) {
+                detachEndedWatchPartyCleanly(true);
+                return null;
+            }
             if (err && err.status === 403 && errRoom) {
-                applyIncomingRoomSnapshot(errRoom, 0);
+                applyIncomingRoomSnapshot(errRoom, 0, { forceReconcile: true });
                 showWatchPartyOsdBanner(err.message || 'Controls are locked to the host.');
             }
             return null;
         });
+    }
+
+    /* Passive calibration from Jellyfin's own /Sessions/Playing & /Sessions/Playing/Progress reports */
+    function onWatchPartyNativeProgressReport(payload, urlLower) {
+        if (!payload || typeof payload !== 'object') {
+            return;
+        }
+        if (urlLower && urlLower.indexOf('/sessions/playing/stopped') !== -1) {
+            wpSync.streamOffsetSec = null;
+            wpSync.calibratedSrc = '';
+            wpSync.isTranscodingStream = false;
+            return;
+        }
+        wpSync.lastNativeProgressAtMs = Date.now();
+        if (typeof payload.PlayMethod === 'string' && payload.PlayMethod) {
+            wpSync.isTranscodingStream = payload.PlayMethod.toLowerCase() === 'transcode';
+        }
+        var v = osdState && osdState.video;
+        if (!v || !isVideoPlayerActive() || v.seeking || payload.PositionTicks == null) {
+            return;
+        }
+        if (Date.now() - wpSync.lastProgrammaticSeekAtMs < 2200) {
+            return;
+        }
+        if (payload.ItemId && osdState.info && osdState.info.Id && normalizeGuid(payload.ItemId) !== normalizeGuid(osdState.info.Id)) {
+            return;
+        }
+        var repSec = Math.max(0, Number(payload.PositionTicks) / 10000000);
+        var rawCur = Math.max(0, Number(v.currentTime) || 0);
+        if (isFinite(repSec)) {
+            wpSync.streamOffsetSec = Math.abs(repSec - rawCur) < 3.0 ? 0 : Math.max(0, repSec - rawCur);
+            wpSync.calibratedSrc = String(v.currentSrc || v.src || '');
+        }
+    }
+
+    function onWatchPartyUserPlayerGesture() {
+        wpSync.lastUserGestureAtMs = Date.now();
     }
 
     /* Hooks invoked by 08-cinema-hub-and-hero.js and 07-video-player-and-mobile-dock.js */
@@ -751,26 +1040,25 @@
         if (!room || !isWatchTogetherEnabled() || !playableItem || !playableItem.Id) {
             return forcedStartPositionTicks;
         }
+
+        var playNorm = normalizeGuid(playableItem.Id);
+        markWatchPartyRoomItemAutoLaunched(room.roomId, playNorm);
+
         if (playOpts && playOpts.fromWatchPartyFollow) {
             return forcedStartPositionTicks;
         }
 
-        var playNorm = normalizeGuid(playableItem.Id);
         var roomNorm = room.itemId ? normalizeGuid(room.itemId) : '';
         var hasExplicitStart = typeof forcedStartPositionTicks === 'number' && isFinite(forcedStartPositionTicks) && forcedStartPositionTicks >= 0;
 
         if (roomNorm && playNorm === roomNorm && !hasExplicitStart) {
             wpSync.followingItemId = roomNorm;
-            wpSync.lastAutoLaunchItemId = roomNorm;
-            wpSync.lastAutoLaunchAtMs = Date.now();
             return Math.max(0, Math.round(getAuthoritativeRoomPositionSec(room) * 10000000));
         }
 
         if (canControlWatchPartyRoom(room)) {
             var chosenTicks = hasExplicitStart ? Math.floor(forcedStartPositionTicks) : 0;
             wpSync.followingItemId = playNorm;
-            wpSync.lastAutoLaunchItemId = playNorm;
-            wpSync.lastAutoLaunchAtMs = Date.now();
             sendWatchPartyCommand('set_media', {
                 item: playableItem,
                 positionSeconds: chosenTicks / 10000000,
@@ -792,11 +1080,14 @@
 
         if (roomNorm && itemNorm === roomNorm) {
             wpSync.followingItemId = '';
-            reconcilePlayerWithRoom(true);
+            markWatchPartyRoomItemAutoLaunched(room.roomId, itemNorm);
+            // Gentle check only — never force a transcode restart right as OSD metadata loads!
+            reconcilePlayerWithRoom(false);
             return;
         }
 
         if (!roomNorm && canControlWatchPartyRoom(room)) {
+            markWatchPartyRoomItemAutoLaunched(room.roomId, itemNorm);
             var v = osdState && osdState.video;
             sendWatchPartyCommand('set_media', {
                 item: item,
@@ -810,7 +1101,8 @@
             if (wpSync.followingItemId === roomNorm) {
                 return;
             }
-            if (canControlWatchPartyRoom(room) && (Date.now() - wpSync.joinedAtMs > 3500)) {
+            if (canControlWatchPartyRoom(room) && (Date.now() - wpSync.joinedAtMs > 4500)) {
+                markWatchPartyRoomItemAutoLaunched(room.roomId, itemNorm);
                 var vNow = osdState && osdState.video;
                 sendWatchPartyCommand('set_media', {
                     item: item,
@@ -818,7 +1110,7 @@
                     isPlaying: true
                 });
             } else {
-                reconcilePlayerWithRoom(true);
+                reconcilePlayerWithRoom(false);
             }
         }
     }
@@ -828,6 +1120,7 @@
         if (!room || !isWatchTogetherEnabled() || isLocalWatchPartySuppressed()) {
             return;
         }
+        wpSync.lastUserGestureAtMs = Date.now();
         var v = osdState && osdState.video;
         var totalSec = getKnownTotalDurationSec(v);
         var pct = slider ? parseFloat(slider.value) : NaN;
@@ -845,11 +1138,12 @@
         }
         wpSync.seekDebounceTimer = setTimeout(function () {
             wpSync.seekDebounceTimer = null;
+            suppressLocalWatchPartyEvents(4500);
             sendWatchPartyCommand('seek', {
                 positionSeconds: targetSec,
                 isPlaying: v ? !v.paused : room.isPlaying
             });
-        }, 160);
+        }, 320);
     }
 
     function onWatchPartyVideoEvent(evName, v) {
@@ -867,21 +1161,37 @@
             removeWatchPartyAutoplayUnlockPill();
             return;
         }
-        if (evName === 'attached' || evName === 'loadedmetadata' || evName === 'canplay') {
+        if (evName === 'attached' || evName === 'loadstart') {
+            wpSync.videoAttachedAtMs = Date.now();
             wpSync.isBuffering = false;
-            var curInfoNorm = (osdState && osdState.info && osdState.info.Id) ? normalizeGuid(osdState.info.Id) : '';
-            if (!room.itemId || !curInfoNorm || curInfoNorm === normalizeGuid(room.itemId)) {
-                reconcilePlayerWithRoom(true);
-            }
-            return;
-        }
-        if (evName === 'loadstart') {
-            suppressLocalWatchPartyEvents(900);
+            wpSync.streamOffsetSec = null;
+            wpSync.calibratedSrc = '';
+            suppressLocalWatchPartyEvents(4500);
             resetVideoPlaybackRate(v);
             return;
         }
+        if (evName === 'loadedmetadata') {
+            resetVideoPlaybackRate(v);
+            return;
+        }
+        if (evName === 'canplay') {
+            wpSync.isBuffering = false;
+            if (wpSync.startupAlignTimer) {
+                clearTimeout(wpSync.startupAlignTimer);
+            }
+            wpSync.startupAlignTimer = setTimeout(function () {
+                wpSync.startupAlignTimer = null;
+                if (!watchPartyState.activeGroup || !isVideoPlayerActive() || wpSync.isBuffering) {
+                    return;
+                }
+                if (!watchPartyState.activeGroup.isPlaying) {
+                    reconcilePlayerWithRoom(false);
+                }
+            }, 1800);
+            return;
+        }
 
-        if (isLocalWatchPartySuppressed()) {
+        if (document.hidden || isLocalWatchPartySuppressed()) {
             return;
         }
 
@@ -892,19 +1202,27 @@
                 wpSync.pauseVerifyTimer = null;
             }
             if (!canControlWatchPartyRoom(room) && !room.isPlaying) {
-                reconcilePlayerWithRoom(true);
+                reconcilePlayerWithRoom(false);
                 showWatchPartyOsdBanner('Controls are locked to ' + (room.hostName || 'the host') + '.');
                 return;
             }
-            var posPlay = getEffectiveVideoPositionSec(v);
-            if (!room.isPlaying || Math.abs(posPlay - getAuthoritativeRoomPositionSec(room)) > 2.2) {
-                sendWatchPartyCommand('play', { positionSeconds: posPlay, isPlaying: true });
+            // Only broadcast 'play' when the room was actually paused!
+            // Never broadcast 'play' when room.isPlaying is already true (otherwise buffering recovery yanks the room backward).
+            if (!room.isPlaying) {
+                sendWatchPartyCommand('play', {
+                    positionSeconds: getEffectiveVideoPositionSec(v),
+                    isPlaying: true
+                });
             }
             return;
         }
 
         if (evName === 'pause') {
-            if (v.ended || v.seeking || wpSync.autoplayBlocked) {
+            if (v.ended || v.seeking || wpSync.isBuffering || wpSync.autoplayBlocked) {
+                return;
+            }
+            var nowPauseMs = Date.now();
+            if (nowPauseMs - wpSync.videoAttachedAtMs < 4000 || nowPauseMs - wpSync.lastProgrammaticSeekAtMs < 5500) {
                 return;
             }
             if (wpSync.pauseVerifyTimer) {
@@ -912,10 +1230,10 @@
             }
             wpSync.pauseVerifyTimer = setTimeout(function () {
                 wpSync.pauseVerifyTimer = null;
-                if (!watchPartyState.activeGroup || !isVideoPlayerActive() || osdState.video !== v) {
+                if (document.hidden || !watchPartyState.activeGroup || !isVideoPlayerActive() || osdState.video !== v) {
                     return;
                 }
-                if (!v.paused || v.ended || v.seeking || wpSync.isBuffering || wpSync.autoplayBlocked || isLocalWatchPartySuppressed()) {
+                if (!v.paused || v.ended || v.seeking || wpSync.isBuffering || v.readyState < 2 || wpSync.autoplayBlocked || isLocalWatchPartySuppressed()) {
                     return;
                 }
                 if (!canControlWatchPartyRoom(watchPartyState.activeGroup)) {
@@ -925,11 +1243,13 @@
                     }
                     return;
                 }
-                sendWatchPartyCommand('pause', {
-                    positionSeconds: getEffectiveVideoPositionSec(v),
-                    isPlaying: false
-                });
-            }, 240);
+                if (watchPartyState.activeGroup.isPlaying) {
+                    sendWatchPartyCommand('pause', {
+                        positionSeconds: getEffectiveVideoPositionSec(v),
+                        isPlaying: false
+                    });
+                }
+            }, 450);
             return;
         }
 
@@ -938,8 +1258,23 @@
                 clearTimeout(wpSync.pauseVerifyTimer);
                 wpSync.pauseVerifyTimer = null;
             }
+            var nowSeekMs = Date.now();
             var seekPos = getEffectiveVideoPositionSec(v);
-            if (Math.abs(seekPos - getAuthoritativeRoomPositionSec(room)) < 1.25) {
+
+            // Ignore delayed HLS/mobile keyframe-snap 'seeked' events following startup or programmatic seeks
+            if (nowSeekMs - wpSync.videoAttachedAtMs < 6000) {
+                return;
+            }
+            if (nowSeekMs - wpSync.lastProgrammaticSeekAtMs < 12000
+                && wpSync.lastProgrammaticSeekTargetSec >= 0
+                && Math.abs(seekPos - wpSync.lastProgrammaticSeekTargetSec) < 7.0) {
+                return;
+            }
+            // Require a recent human interaction in the player so automatic decoder/HLS buffer seeks never ping-pong
+            if (nowSeekMs - wpSync.lastUserGestureAtMs > 4500) {
+                return;
+            }
+            if (Math.abs(seekPos - getAuthoritativeRoomPositionSec(room)) < 3.0) {
                 return;
             }
             if (!canControlWatchPartyRoom(room)) {
@@ -956,11 +1291,23 @@
                     positionSeconds: getEffectiveVideoPositionSec(v),
                     isPlaying: !v.paused
                 });
-            }, 180);
+            }, 320);
         }
     }
 
     function onWatchPartyOsdTeardown() {
+        wpSync.isBuffering = false;
+        wpSync.streamOffsetSec = null;
+        wpSync.calibratedSrc = '';
+        wpSync.isTranscodingStream = false;
+        if (wpSync.pauseVerifyTimer) {
+            clearTimeout(wpSync.pauseVerifyTimer);
+            wpSync.pauseVerifyTimer = null;
+        }
+        if (wpSync.startupAlignTimer) {
+            clearTimeout(wpSync.startupAlignTimer);
+            wpSync.startupAlignTimer = null;
+        }
         removeWatchPartyAutoplayUnlockPill();
         var banner = document.getElementById('bfx-wp-osd-banner');
         if (banner && banner.parentNode) {

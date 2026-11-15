@@ -15,12 +15,12 @@ permissions:
   contents: write
 
 env:
-  PLUGIN_VERSION: "0.9.1.2"
+  PLUGIN_VERSION: "0.9.1.3"
   PLUGIN_GUID: "7cc1a505-91f6-4661-b4f9-7eee8be33b19"
   PLUGIN_NAME: "StreamFlix"
   PLUGIN_OVERVIEW: "Netflix-style UI, Household Profiles, Guest Passes & Seerr Requests for Jellyfin"
   PLUGIN_DESCRIPTION: "Transforms Jellyfin Web into StreamFlix: a Netflix-style cinema UI with flexible Google/OIDC/Jellyfin sign-in, dedicated Kids profiles, real-time synced Watch Together, toggleable QR Guest Passes, optional Seerr/Jellyseerr search requests, and 'Who's watching?' profiles mapped to real Jellyfin users."
-  PLUGIN_CHANGELOG: "- Restore Account Pill Menu Quick Connect: restore the working 6-character Quick Connect TV/device authorization tile and modal in the Account Pill Menu while keeping the broken Settings subpage Quick Connect tab removed\n- Watch Together Room Serialization Fix & Elevated Cinema Lounge UI: explicit camelCase JSON property attributes on server Watch Party DTOs/snapshots plus client-side normalization, segmented Playback Controls & Start Position switches, full-width inputs, and live room deck\n- Settings Anti-Clipping & Phone Client Settings: fix Profile & Password (#userProfilePage) avatar layout collision, wrap Settings section pills without clipping, and surface Client Settings directly in the phone Account Sheet and Settings overview"
+  PLUGIN_CHANGELOG: "- Watch Together Mobile & Transcode Sync Stability Fix: prevent infinite HLS/transcode re-seek buffering loops when OSD controls auto-hide by calibrating stream offsets from Jellyfin playback progress reports, enforce one-shot per-media auto-launch so mobile native players (ExoPlayer/AVPlayer) and slow connections never stack sessions or crash, remove playbackRate micro-mutation, and suppress buffering/keyframe-snap command ping-pong\n- Explicit Delete Watch Party Controls: add server-side WatchParty/Delete endpoint and one-tap Delete Party / Delete buttons inside active Watch Party rooms and in the Active Household Parties list with clean detachment for connected viewers"
 
 jobs:
   build-and-publish:

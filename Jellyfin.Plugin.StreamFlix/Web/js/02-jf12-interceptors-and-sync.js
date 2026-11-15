@@ -105,7 +105,7 @@
             return origSetRequestHeader.call(this, name, value);
         };
 
-        XMLHttpRequest.prototype.send = function () {
+        XMLHttpRequest.prototype.send = function (bodyArg) {
             try {
                 if (this.__streamflixSameOrigin) {
                     var token = getActiveToken();
@@ -120,6 +120,12 @@
                         }
                         if (!hdrs['x-emby-token']) {
                             origSetRequestHeader.call(this, 'X-Emby-Token', token);
+                        }
+                    }
+                    if (this.__streamflixMethod === 'POST' && typeof bodyArg === 'string' && typeof onWatchPartyNativeProgressReport === 'function') {
+                        var xUrlLow = String(this.__streamflixUrl || '').toLowerCase();
+                        if (xUrlLow.indexOf('/sessions/playing') !== -1 && bodyArg.charAt(0) === '{') {
+                            onWatchPartyNativeProgressReport(JSON.parse(bodyArg), xUrlLow);
                         }
                     }
                 }
@@ -144,6 +150,15 @@
             var isSameOrigin = isSafeSameOriginUrl(urlStr);
 
             var method = ((init && init.method) || (input && input.method) || 'GET').toUpperCase();
+
+            if (isSameOrigin && method === 'POST' && init && typeof init.body === 'string' && typeof onWatchPartyNativeProgressReport === 'function') {
+                try {
+                    var fUrlLow = String(urlStr || '').toLowerCase();
+                    if (fUrlLow.indexOf('/sessions/playing') !== -1 && init.body.charAt(0) === '{') {
+                        onWatchPartyNativeProgressReport(JSON.parse(init.body), fUrlLow);
+                    }
+                } catch (eProg) {}
+            }
 
             if (isSameOrigin && method === 'GET' && typeof input === 'string') {
                 urlStr = rewriteJellyfinItemsQueryUrl(urlStr);

@@ -232,10 +232,9 @@
             var normRoom = normalizeWatchPartyRoomSnapshot(rawRoom);
             if (normRoom && normRoom.roomId) {
                 if (createOpts.suppressImmediateAutoFollow && normRoom.itemId) {
-                    wpSync.lastAutoLaunchItemId = normalizeGuid(normRoom.itemId);
-                    wpSync.lastAutoLaunchAtMs = Date.now();
+                    markWatchPartyRoomItemAutoLaunched(normRoom.roomId, normRoom.itemId);
                 }
-                var applied = applyIncomingRoomSnapshot(normRoom, rtt);
+                var applied = applyIncomingRoomSnapshot(normRoom, rtt, { forceReconcile: true });
                 if (applied && applied.roomId) {
                     return applied;
                 }
@@ -265,13 +264,14 @@
         }).then(function (res) {
             var rtt = Date.now() - t0;
             wpSync.joinedAtMs = Date.now();
+            wpSync.autoLaunchedRoomItemKey = '';
             wpSync.lastAutoLaunchItemId = '';
             var rawRooms = res && (Array.isArray(res.rooms) ? res.rooms : (Array.isArray(res.Rooms) ? res.Rooms : null));
             if (rawRooms) {
                 watchPartyState.groups = normalizeWatchPartyRoomsArray(rawRooms);
             }
             var rawRoom = res && (res.room || res.Room);
-            var applied = applyIncomingRoomSnapshot(rawRoom, rtt);
+            var applied = applyIncomingRoomSnapshot(rawRoom, rtt, { forceReconcile: true });
             if (applied && applied.roomId) {
                 return applied;
             }
@@ -306,6 +306,44 @@
                 watchPartyState.groups = normalizeWatchPartyRoomsArray(rawRooms);
             }
         }).catch(function () {});
+    }
+
+    function deleteWatchPartyRoom(rawRoomCode) {
+        var code = extractWatchPartyCodeFromInput(rawRoomCode || watchPartyState.joinedGroupId || (watchPartyState.activeGroup && watchPartyState.activeGroup.roomId) || '');
+        if (!code) {
+            return Promise.reject(new Error('Invalid Watch Party room code.'));
+        }
+        var prof = state.activeProfile || {};
+        var wasMyActiveRoom = (watchPartyState.joinedGroupId && watchPartyState.joinedGroupId.toUpperCase() === code)
+            || (watchPartyState.activeGroup && watchPartyState.activeGroup.roomId === code);
+
+        if (wasMyActiveRoom) {
+            setJoinedWatchPartyGroupId('');
+            watchPartyState.activeGroup = null;
+            watchPartyState.targetItem = null;
+            stopWatchPartySyncEngine();
+            syncWatchPartyIndicators();
+        }
+
+        return apiFetch('/StreamFlix/WatchParty/Delete', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                roomId: code,
+                participantId: getMyWatchPartyParticipantId(),
+                profileId: prof.id || ''
+            })
+        }).then(function (res) {
+            var rawRooms = res && (Array.isArray(res.rooms) ? res.rooms : (Array.isArray(res.Rooms) ? res.Rooms : null));
+            if (rawRooms) {
+                watchPartyState.groups = normalizeWatchPartyRoomsArray(rawRooms);
+            } else {
+                watchPartyState.groups = (watchPartyState.groups || []).filter(function (g) {
+                    return g && g.roomId !== code;
+                });
+            }
+            return res;
+        });
     }
 
     function buildWatchPartyInviteUrl(roomId) {

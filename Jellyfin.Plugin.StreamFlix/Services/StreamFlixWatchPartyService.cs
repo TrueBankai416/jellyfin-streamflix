@@ -127,6 +127,12 @@ public static class StreamFlixWatchPartyService
         [JsonPropertyName("hostParticipantId")]
         public string HostParticipantId { get; init; } = string.Empty;
 
+        [JsonPropertyName("hostProfileId")]
+        public string HostProfileId { get; init; } = string.Empty;
+
+        [JsonPropertyName("creatorProfileId")]
+        public string CreatorProfileId { get; init; } = string.Empty;
+
         [JsonPropertyName("hostName")]
         public string HostName { get; init; } = string.Empty;
 
@@ -259,6 +265,12 @@ public static class StreamFlixWatchPartyService
         public DateTimeOffset? EmptySinceUtc { get; set; }
 
         public string HostParticipantId { get; set; } = string.Empty;
+
+        public string HostProfileId { get; set; } = string.Empty;
+
+        public string CreatorParticipantId { get; set; } = string.Empty;
+
+        public string CreatorProfileId { get; set; } = string.Empty;
 
         public string HostName { get; set; } = string.Empty;
 
@@ -397,6 +409,7 @@ public static class StreamFlixWatchPartyService
             var startPos = ClampSeconds(input.StartPositionSeconds ?? 0, input.RunTimeTicks);
             var startPlaying = !string.IsNullOrEmpty(cleanItemId) && (input.IsPlaying ?? false);
 
+            var cleanCreatorProfileId = CleanShortText(creator.ProfileId, 48);
             var room = new WatchPartyRoom
             {
                 RoomId = roomId,
@@ -405,6 +418,9 @@ public static class StreamFlixWatchPartyService
                 LastActivityUtc = now,
                 EmptySinceUtc = null,
                 HostParticipantId = creator.ParticipantId,
+                HostProfileId = cleanCreatorProfileId,
+                CreatorParticipantId = creator.ParticipantId,
+                CreatorProfileId = cleanCreatorProfileId,
                 HostName = CleanShortText(creator.DisplayName, 32),
                 HostControlOnly = input.HostControlOnly,
                 Version = 1,
@@ -469,6 +485,7 @@ public static class StreamFlixWatchPartyService
             if (string.IsNullOrEmpty(room.HostParticipantId) || !room.Participants.ContainsKey(room.HostParticipantId))
             {
                 room.HostParticipantId = participant.ParticipantId;
+                room.HostProfileId = CleanShortText(participant.ProfileId, 48);
                 room.HostName = CleanShortText(participant.DisplayName, 32);
             }
 
@@ -486,7 +503,12 @@ public static class StreamFlixWatchPartyService
         }
     }
 
-    public static bool LeaveRoom(string? rawRoomId, string participantId, bool closeRoomIfHost = false)
+    public static bool LeaveRoom(
+        string? rawRoomId,
+        string participantId,
+        bool closeRoomIfHost = false,
+        string? profileId = null,
+        bool isHouseholdAdmin = false)
     {
         var now = DateTimeOffset.UtcNow;
         if (string.IsNullOrWhiteSpace(rawRoomId))
@@ -501,17 +523,28 @@ public static class StreamFlixWatchPartyService
             return false;
         }
 
+        var cleanProfile = CleanShortText(profileId, 48);
+
         lock (room.SyncRoot)
         {
+            var isCallerHostOrAdmin = isHouseholdAdmin
+                || string.Equals(room.HostParticipantId, participantId, StringComparison.Ordinal)
+                || string.Equals(room.CreatorParticipantId, participantId, StringComparison.Ordinal)
+                || (!string.IsNullOrEmpty(cleanProfile) && (
+                    string.Equals(room.HostProfileId, cleanProfile, StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(room.CreatorProfileId, cleanProfile, StringComparison.OrdinalIgnoreCase)));
+
             var removed = room.Participants.Remove(participantId, out var leavingMember);
             PruneStaleParticipantsNoLock(room, now);
 
-            var shouldCloseRoom = (closeRoomIfHost && string.Equals(room.HostParticipantId, participantId, StringComparison.Ordinal))
+            var shouldCloseRoom = (closeRoomIfHost && isCallerHostOrAdmin)
                 || room.Participants.Count == 0;
 
             if (shouldCloseRoom)
             {
                 Rooms.TryRemove(room.RoomId, out _);
+                room.LastActionKind = "deleted";
+                room.Participants.Clear();
                 BumpVersionAndSignalNoLock(room);
                 return true;
             }
@@ -533,6 +566,68 @@ public static class StreamFlixWatchPartyService
         return true;
     }
 
+    public static (bool Deleted, int StatusCode, string? ErrorMessage) DeleteRoom(
+        string? rawRoomId,
+        ParticipantUpdateInput caller,
+        bool isHouseholdAdmin,
+        bool isGuestSession)
+    {
+        var code = SanitizeRoomCode(rawRoomId);
+        if (string.IsNullOrEmpty(code))
+        {
+            return (false, 400, "Invalid Watch Party room code.");
+        }
+
+        var now = DateTimeOffset.UtcNow;
+        PruneRooms(now);
+
+        if (!Rooms.TryGetValue(code, out var room))
+        {
+            return (true, 200, null);
+        }
+
+        var cleanProfile = CleanShortText(caller.ProfileId, 48);
+
+        lock (room.SyncRoot)
+        {
+            PruneStaleParticipantsNoLock(room, now);
+
+            var allowed = isHouseholdAdmin
+                || string.Equals(room.HostParticipantId, caller.ParticipantId, StringComparison.Ordinal)
+                || string.Equals(room.CreatorParticipantId, caller.ParticipantId, StringComparison.Ordinal)
+                || room.Participants.Count == 0;
+
+            if (!allowed && !isGuestSession)
+            {
+                if (!string.IsNullOrEmpty(cleanProfile) && (
+                    string.Equals(room.HostProfileId, cleanProfile, StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(room.CreatorProfileId, cleanProfile, StringComparison.OrdinalIgnoreCase)))
+                {
+                    allowed = true;
+                }
+                else if (!room.HostControlOnly)
+                {
+                    allowed = true;
+                }
+            }
+
+            if (!allowed)
+            {
+                return (false, 403, "Only the room host or a household admin can delete this Watch Party.");
+            }
+
+            Rooms.TryRemove(room.RoomId, out _);
+            room.LastActionKind = "deleted";
+            room.LastActorParticipantId = caller.ParticipantId;
+            room.LastActionBy = CleanShortText(caller.DisplayName, 32);
+            room.LastActionText = $"{room.LastActionBy} ended the Watch Party";
+            room.LastActionAtUtc = now;
+            room.Participants.Clear();
+            BumpVersionAndSignalNoLock(room);
+            return (true, 200, null);
+        }
+    }
+
     public static (RoomSnapshot? Room, int StatusCode, string? ErrorMessage) ApplyCommand(
         string rawRoomId,
         ParticipantUpdateInput actor,
@@ -548,6 +643,7 @@ public static class StreamFlixWatchPartyService
         var now = DateTimeOffset.UtcNow;
         var action = (command.Action ?? string.Empty).Trim().ToLowerInvariant();
         var actionId = CleanShortText(command.ActionId, 48);
+        var cleanActorProfile = CleanShortText(actor.ProfileId, 48);
 
         lock (room.SyncRoot)
         {
@@ -559,10 +655,12 @@ public static class StreamFlixWatchPartyService
             if (string.IsNullOrEmpty(room.HostParticipantId) || !room.Participants.ContainsKey(room.HostParticipantId))
             {
                 room.HostParticipantId = actor.ParticipantId;
+                room.HostProfileId = cleanActorProfile;
                 room.HostName = CleanShortText(actor.DisplayName, 32);
             }
 
-            var isHost = string.Equals(room.HostParticipantId, actor.ParticipantId, StringComparison.Ordinal);
+            var isHost = string.Equals(room.HostParticipantId, actor.ParticipantId, StringComparison.Ordinal)
+                || (!string.IsNullOrEmpty(cleanActorProfile) && string.Equals(room.HostProfileId, cleanActorProfile, StringComparison.OrdinalIgnoreCase));
 
             if (action == "heartbeat")
             {
@@ -635,25 +733,29 @@ public static class StreamFlixWatchPartyService
                 {
                     var currentExpected = ComputeExpectedPositionNoLock(room, now);
                     var targetPos = ClampSeconds(command.PositionSeconds ?? currentExpected, room.RunTimeTicks);
-                    var alreadyAligned = room.IsPlaying
-                        && Math.Abs(currentExpected - targetPos) < 1.25
-                        && (now - room.StateUpdatedAtUtc).TotalMilliseconds < 700;
 
-                    if (!alreadyAligned)
+                    // Prevent lagging/recovering phones from overwriting an already-playing room timeline
+                    if (room.IsPlaying)
                     {
-                        room.BasePositionSeconds = targetPos;
-                        room.IsPlaying = true;
-                        room.StateUpdatedAtUtc = now;
-                        RecordActionMetadataNoLock(
-                            room,
-                            actor,
-                            actionId,
-                            "play",
-                            $"{actor.DisplayName} resumed at {FormatClock(targetPos)}",
-                            now);
-                        BumpVersionAndSignalNoLock(room);
+                        var isLargeIntentionalJump = Math.Abs(currentExpected - targetPos) > 8.0
+                            && (now - room.StateUpdatedAtUtc).TotalMilliseconds > 2500;
+                        if (!isLargeIntentionalJump)
+                        {
+                            break;
+                        }
                     }
 
+                    room.BasePositionSeconds = targetPos;
+                    room.IsPlaying = true;
+                    room.StateUpdatedAtUtc = now;
+                    RecordActionMetadataNoLock(
+                        room,
+                        actor,
+                        actionId,
+                        "play",
+                        $"{actor.DisplayName} resumed at {FormatClock(targetPos)}",
+                        now);
+                    BumpVersionAndSignalNoLock(room);
                     break;
                 }
 
@@ -661,7 +763,7 @@ public static class StreamFlixWatchPartyService
                 {
                     var currentExpected = ComputeExpectedPositionNoLock(room, now);
                     var targetPos = ClampSeconds(command.PositionSeconds ?? currentExpected, room.RunTimeTicks);
-                    var changed = room.IsPlaying || Math.Abs(room.BasePositionSeconds - targetPos) > 0.75;
+                    var changed = room.IsPlaying || Math.Abs(room.BasePositionSeconds - targetPos) > 1.25;
                     if (changed)
                     {
                         room.BasePositionSeconds = targetPos;
@@ -682,7 +784,20 @@ public static class StreamFlixWatchPartyService
 
                 case "seek":
                 {
-                    var targetPos = ClampSeconds(command.PositionSeconds ?? ComputeExpectedPositionNoLock(room, now), room.RunTimeTicks);
+                    var currentExpected = ComputeExpectedPositionNoLock(room, now);
+                    var targetPos = ClampSeconds(command.PositionSeconds ?? currentExpected, room.RunTimeTicks);
+
+                    // Coalesce keyframe-snap echoes from secondary participants right after a room state update
+                    var isSecondaryEcho = !string.IsNullOrEmpty(room.LastActorParticipantId)
+                        && !string.Equals(room.LastActorParticipantId, actor.ParticipantId, StringComparison.Ordinal)
+                        && (now - room.StateUpdatedAtUtc).TotalMilliseconds < 1500
+                        && Math.Abs(currentExpected - targetPos) < 6.0;
+
+                    if (isSecondaryEcho)
+                    {
+                        break;
+                    }
+
                     room.BasePositionSeconds = targetPos;
                     if (command.IsPlaying.HasValue)
                     {
@@ -727,7 +842,7 @@ public static class StreamFlixWatchPartyService
 
         lock (room.SyncRoot)
         {
-            var pruned = PruneStaleParticipantsNoLock(room, now);
+            var membershipChanged = PruneStaleParticipantsNoLock(room, now);
             if (callerParticipant != null && !string.IsNullOrEmpty(callerParticipant.ParticipantId))
             {
                 if (room.Participants.TryGetValue(callerParticipant.ParticipantId, out var existing))
@@ -738,23 +853,23 @@ public static class StreamFlixWatchPartyService
                         existing.PositionSeconds = Math.Max(0, callerParticipant.PositionSeconds.Value);
                     }
 
-                    if (callerParticipant.IsBuffering.HasValue && existing.IsBuffering != callerParticipant.IsBuffering.Value)
+                    if (callerParticipant.IsBuffering.HasValue)
                     {
+                        // Update telemetry quietly without bumping room.Version or waking all long-pollers
                         existing.IsBuffering = callerParticipant.IsBuffering.Value;
-                        pruned = true;
                     }
                 }
                 else if (room.Participants.Count < MaxParticipantsPerRoom)
                 {
                     UpsertParticipantNoLock(room, callerParticipant, now);
-                    pruned = true;
+                    membershipChanged = true;
                 }
 
                 room.EmptySinceUtc = null;
                 room.LastActivityUtc = now;
             }
 
-            if (pruned)
+            if (membershipChanged)
             {
                 BumpVersionAndSignalNoLock(room);
             }
@@ -913,6 +1028,11 @@ public static class StreamFlixWatchPartyService
         if (!string.IsNullOrEmpty(room.HostParticipantId) && room.Participants.TryGetValue(room.HostParticipantId, out var currentHost))
         {
             room.HostName = currentHost.DisplayName;
+            if (!string.IsNullOrEmpty(currentHost.ProfileId))
+            {
+                room.HostProfileId = currentHost.ProfileId;
+            }
+
             return;
         }
 
@@ -923,6 +1043,7 @@ public static class StreamFlixWatchPartyService
         if (nextHost != null)
         {
             room.HostParticipantId = nextHost.ParticipantId;
+            room.HostProfileId = nextHost.ProfileId ?? string.Empty;
             room.HostName = nextHost.DisplayName;
         }
     }
@@ -1023,6 +1144,8 @@ public static class StreamFlixWatchPartyService
             Version = room.Version,
             ServerNowUtcMs = now.ToUnixTimeMilliseconds(),
             HostParticipantId = room.HostParticipantId,
+            HostProfileId = room.HostProfileId,
+            CreatorProfileId = room.CreatorProfileId,
             HostName = room.HostName,
             HostControlOnly = room.HostControlOnly,
             ItemId = room.ItemId,
