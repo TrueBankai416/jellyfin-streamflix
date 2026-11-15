@@ -9,6 +9,30 @@
     "imageUrl": "https://raw.githubusercontent.com/streamflix-dev/jellyfin-streamflix/main/Jellyfin.Plugin.StreamFlix/thumb.png",
     "versions": [
       {
+        "version": "0.7.8.1",
+        "changelog": "Build for Jellyfin 12.x (.NET 10).\n\n- Liquid-Glass Mobile Dock Polish & Zero Doubled Avatar: remove the inline-forced top-right profile pill whenever the mobile floating dock is active, add a spring-animated gliding glass highlight, ambient bottom scrim, bespoke dock icons, and smart title-case formatting for uppercase brand names (e.g. My Benflix)\n- Clean Mobile Category Pills: remove stray active-pill bottom accent underlines and keep mobile subnav focused on clean individual category pills (Shows, Movies, Collections, My List)\n- Modular Codebase Organization: split monolithic Web JS, Web CSS, and API Controller files into focused, readable modules under Web/js/, Web/css/, and Controllers/ while preserving single-request in-memory bundle assembly and ETag caching",
+        "targetAbi": "12.0.0.0",
+        "sourceUrl": "https://raw.githubusercontent.com/streamflix-dev/jellyfin-streamflix/main/dist/Jellyfin.Plugin.StreamFlix_0.7.8.1_12.0.0.zip",
+        "checksum": "11745334fce6ba19688fdfda8dbddd80",
+        "timestamp": "2026-11-15T00:55:07Z"
+      },
+      {
+        "version": "0.7.8.1",
+        "changelog": "Build for Jellyfin 10.11.x (.NET 9).\n\n- Liquid-Glass Mobile Dock Polish & Zero Doubled Avatar: remove the inline-forced top-right profile pill whenever the mobile floating dock is active, add a spring-animated gliding glass highlight, ambient bottom scrim, bespoke dock icons, and smart title-case formatting for uppercase brand names (e.g. My Benflix)\n- Clean Mobile Category Pills: remove stray active-pill bottom accent underlines and keep mobile subnav focused on clean individual category pills (Shows, Movies, Collections, My List)\n- Modular Codebase Organization: split monolithic Web JS, Web CSS, and API Controller files into focused, readable modules under Web/js/, Web/css/, and Controllers/ while preserving single-request in-memory bundle assembly and ETag caching",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://raw.githubusercontent.com/streamflix-dev/jellyfin-streamflix/main/dist/Jellyfin.Plugin.StreamFlix_0.7.8.1_10.11.0.zip",
+        "checksum": "9b5eef92dd1d6f5604d72e7cafbf37b4",
+        "timestamp": "2026-11-15T00:55:07Z"
+      },
+      {
+        "version": "0.7.8.1",
+        "changelog": "Build for Jellyfin 10.9 - 10.10 (.NET 8).\n\n- Liquid-Glass Mobile Dock Polish & Zero Doubled Avatar: remove the inline-forced top-right profile pill whenever the mobile floating dock is active, add a spring-animated gliding glass highlight, ambient bottom scrim, bespoke dock icons, and smart title-case formatting for uppercase brand names (e.g. My Benflix)\n- Clean Mobile Category Pills: remove stray active-pill bottom accent underlines and keep mobile subnav focused on clean individual category pills (Shows, Movies, Collections, My List)\n- Modular Codebase Organization: split monolithic Web JS, Web CSS, and API Controller files into focused, readable modules under Web/js/, Web/css/, and Controllers/ while preserving single-request in-memory bundle assembly and ETag caching",
+        "targetAbi": "10.9.0.0",
+        "sourceUrl": "https://raw.githubusercontent.com/streamflix-dev/jellyfin-streamflix/main/dist/Jellyfin.Plugin.StreamFlix_0.7.8.1_10.9.0.zip",
+        "checksum": "935d17fdaa01baf93e2dcd79848efeb4",
+        "timestamp": "2026-11-15T00:55:07Z"
+      },
+      {
         "version": "0.7.8.0",
         "changelog": "Build for Jellyfin 12.x (.NET 10).\n\n- Mobile-Only Floating Capsule Dock: add a frosted-glass bottom pill dock on mobile phones (Home, New & Hot, Search, and My <Brand> with the active profile avatar) while leaving desktop, tablet, and Smart TV layouts untouched\n- Uncluttered Mobile Chrome & Bottom-Anchored Account Sheet: replace boxed mobile subnav controls with clean individual category pills (Shows, Movies, Collections, My List), remove duplicate top-right profile chrome on phones, and anchor the account switcher sheet directly above the dock with 2-column quick tiles (My List, Surprise Me, Cast, Quick Connect)\n- Redesigned User Settings, Active Devices Tab & Phone Guest Pass Share: cohesive dark-glass user settings, dedicated plugin Active Devices tab, and reliable phone-only native invite sharing",
         "targetAbi": "12.0.0.0",
