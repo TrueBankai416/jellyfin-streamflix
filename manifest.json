@@ -9,6 +9,30 @@
     "imageUrl": "https://raw.githubusercontent.com/streamflix-dev/jellyfin-streamflix/main/Jellyfin.Plugin.StreamFlix/thumb.png",
     "versions": [
       {
+        "version": "0.7.8.0",
+        "changelog": "Build for Jellyfin 12.x (.NET 10).\n\n- Mobile-Only Floating Capsule Dock: add a frosted-glass bottom pill dock on mobile phones (Home, New & Hot, Search, and My <Brand> with the active profile avatar) while leaving desktop, tablet, and Smart TV layouts untouched\n- Uncluttered Mobile Chrome & Bottom-Anchored Account Sheet: replace boxed mobile subnav controls with clean individual category pills (Shows, Movies, Collections, My List), remove duplicate top-right profile chrome on phones, and anchor the account switcher sheet directly above the dock with 2-column quick tiles (My List, Surprise Me, Cast, Quick Connect)\n- Redesigned User Settings, Active Devices Tab & Phone Guest Pass Share: cohesive dark-glass user settings, dedicated plugin Active Devices tab, and reliable phone-only native invite sharing",
+        "targetAbi": "12.0.0.0",
+        "sourceUrl": "https://raw.githubusercontent.com/streamflix-dev/jellyfin-streamflix/main/dist/Jellyfin.Plugin.StreamFlix_0.7.8.0_12.0.0.zip",
+        "checksum": "7e23bb9ee964e3d6f907c292375bccc2",
+        "timestamp": "2026-11-15T00:34:10Z"
+      },
+      {
+        "version": "0.7.8.0",
+        "changelog": "Build for Jellyfin 10.11.x (.NET 9).\n\n- Mobile-Only Floating Capsule Dock: add a frosted-glass bottom pill dock on mobile phones (Home, New & Hot, Search, and My <Brand> with the active profile avatar) while leaving desktop, tablet, and Smart TV layouts untouched\n- Uncluttered Mobile Chrome & Bottom-Anchored Account Sheet: replace boxed mobile subnav controls with clean individual category pills (Shows, Movies, Collections, My List), remove duplicate top-right profile chrome on phones, and anchor the account switcher sheet directly above the dock with 2-column quick tiles (My List, Surprise Me, Cast, Quick Connect)\n- Redesigned User Settings, Active Devices Tab & Phone Guest Pass Share: cohesive dark-glass user settings, dedicated plugin Active Devices tab, and reliable phone-only native invite sharing",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://raw.githubusercontent.com/streamflix-dev/jellyfin-streamflix/main/dist/Jellyfin.Plugin.StreamFlix_0.7.8.0_10.11.0.zip",
+        "checksum": "1acb181635c5a37b23861994be8a7f9a",
+        "timestamp": "2026-11-15T00:34:10Z"
+      },
+      {
+        "version": "0.7.8.0",
+        "changelog": "Build for Jellyfin 10.9 - 10.10 (.NET 8).\n\n- Mobile-Only Floating Capsule Dock: add a frosted-glass bottom pill dock on mobile phones (Home, New & Hot, Search, and My <Brand> with the active profile avatar) while leaving desktop, tablet, and Smart TV layouts untouched\n- Uncluttered Mobile Chrome & Bottom-Anchored Account Sheet: replace boxed mobile subnav controls with clean individual category pills (Shows, Movies, Collections, My List), remove duplicate top-right profile chrome on phones, and anchor the account switcher sheet directly above the dock with 2-column quick tiles (My List, Surprise Me, Cast, Quick Connect)\n- Redesigned User Settings, Active Devices Tab & Phone Guest Pass Share: cohesive dark-glass user settings, dedicated plugin Active Devices tab, and reliable phone-only native invite sharing",
+        "targetAbi": "10.9.0.0",
+        "sourceUrl": "https://raw.githubusercontent.com/streamflix-dev/jellyfin-streamflix/main/dist/Jellyfin.Plugin.StreamFlix_0.7.8.0_10.9.0.zip",
+        "checksum": "d5b8723969fccbc598ea47a2826732f9",
+        "timestamp": "2026-11-15T00:34:10Z"
+      },
+      {
         "version": "0.7.7.0",
         "changelog": "Build for Jellyfin 12.x (.NET 10).\n\n- Redesigned User Settings & Preferences: transform Jellyfin user settings (#/mypreferences* and #/userprofile) with a Profile Hero Card, subpage pill navigation, glass section cards, non-overlapping form controls, top-left brand navigation, and the per-device StreamFlix Home experience toggle\n- Streamlined Account Menu & Dedicated Active Devices Tab: declutter the main hub profile dropdown and add a tabbed Dashboard plugin navigation bar with a dedicated Active Devices & Sessions tab (All / Online Now / Guest Passes filters and per-device sign-out)\n- Reliable Phone-Only Guest Pass Native Share: add one-tap phone-only native Share directly on active Guest Pass rows and QR spotlight cards with reverse-proxy HTTPS origin resolution and clipboard fallback",
         "targetAbi": "12.0.0.0",
