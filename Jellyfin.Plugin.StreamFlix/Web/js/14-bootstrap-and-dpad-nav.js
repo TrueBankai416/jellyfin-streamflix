@@ -135,6 +135,7 @@
                 state.activeProfile.color = sp.color || state.activeProfile.color;
                 state.activeProfile.icon = sp.icon || state.activeProfile.icon;
                 state.activeProfile.isKids = Boolean(sp.isKids);
+                state.activeProfile.kidsExitPinRequired = sp.kidsExitPinRequired !== false;
                 state.activeProfile.isAdmin = Boolean(sp.isAdmin);
                 state.activeProfile.jellyfinUsername = sp.jellyfinUsername || state.activeProfile.jellyfinUsername;
                 if (sp.jellyfinUserId
@@ -180,6 +181,9 @@
             enhanceUserPreferencesPages();
             if (isOnHomeRoute()) {
                 ensureCinemaHubMounted();
+            }
+            if (typeof processPendingWatchPartyIfReady === 'function') {
+                processPendingWatchPartyIfReady();
             }
         } else {
             clearUserPreferencesEnhancements();
@@ -233,7 +237,7 @@
     }
 
     var OWN_UI_SELECTOR = '#streamflix-overlay-root, #streamflix-overlay-root-closing, #streamflix-cinema-hub, #streamflix-account-dropdown, '
-        + '#streamflix-header-profile-btn, #streamflix-mobile-dock, #streamflix-toast-host, .streamflix-modal-backdrop, #streamflix-library-page-fallback, #bfx-hover-preview, '
+        + '#streamflix-header-profile-btn, #bfx-exit-kids-btn, #bfx-kids-brand-pill, #streamflix-mobile-dock, #streamflix-toast-host, .streamflix-modal-backdrop, #streamflix-library-page-fallback, #bfx-hover-preview, '
         + '#streamflix-osd-episodes, #streamflix-osd-tracks, #streamflix-osd-upnext, #streamflix-osd-paused, #streamflix-osd-flash';
 
     function isOwnNode(node) {
@@ -1042,8 +1046,23 @@
         });
     };
     window.__STREAMFLIX_OPEN_PROFILE_PICKER__ = function (manage) {
-        state.manageMode = Boolean(manage);
         closeAccountDropdown();
+        if (!isAdminConfigRoute() && typeof isKidsExitLockRequired === 'function' && isKidsExitLockRequired()) {
+            return requestExitKidsVerification(null).then(function (res) {
+                if (!res || !res.verified) {
+                    return null;
+                }
+                state.manageMode = Boolean(manage);
+                return fetchPublicConfig().then(function () {
+                    if (hasHouseholdAccess()) {
+                        renderProfilePickerGate();
+                    } else {
+                        renderGoogleAuthGate();
+                    }
+                });
+            });
+        }
+        state.manageMode = Boolean(manage);
         return fetchPublicConfig().then(function () {
             if (hasHouseholdAccess()) {
                 renderProfilePickerGate();
@@ -1080,6 +1099,9 @@
         fixBrokenJellyfinRoutes();
         installLifecycleWatchers();
 
+        if (typeof capturePendingWatchPartyFromUrl === 'function') {
+            capturePendingWatchPartyFromUrl();
+        }
         var guestCb = extractGuestCallbackFromUrl();
         var oidcCb = guestCb ? null : extractOidcCallbackFromUrl();
         var oauth = (guestCb || oidcCb) ? null : extractGoogleOAuthResultFromUrl();

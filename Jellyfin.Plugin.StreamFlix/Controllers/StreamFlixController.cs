@@ -275,6 +275,7 @@ public partial class StreamFlixController : ControllerBase
 
             var wasGuestPassesEnabled = config.EnableGuestPasses;
             config.EnableGuestPasses = request.EnableGuestPasses;
+            config.EnableWatchTogether = request.EnableWatchTogether;
 
             Plugin.Instance?.SaveConfiguration();
             if (StreamFlixOidcService.IsConfigured(config))
@@ -588,6 +589,8 @@ public partial class StreamFlixController : ControllerBase
             hasAccess,
             isAdmin = caller.IsAdmin,
             enableGuestPasses = config.EnableGuestPasses,
+            enableWatchTogether = config.EnableWatchTogether,
+            hasAnyAdultPin = hasAccess && !isGuestPass && (config.Profiles ?? new List<StreamFlixProfileConfig>()).Any(p => !p.IsKids && !string.IsNullOrWhiteSpace(p.PinCode)),
             isGuestPass,
             guestPassLabel = activeGuestPass?.Label,
             guestPassExpiresAt = activeGuestPass?.ExpiresAtUtc ?? caller.Session?.ExpiresAt.ToString("O"),
@@ -662,6 +665,7 @@ public partial class StreamFlixController : ControllerBase
             oidcRequireAllowlist = config.OidcRequireAllowlist,
             approvedOidcUsers = (config.ApprovedOidcUsers ?? new List<string>()).ToList(),
             enableGuestPasses = config.EnableGuestPasses,
+            enableWatchTogether = config.EnableWatchTogether,
             enableSeerr = config.EnableSeerr,
             seerrUrl = config.SeerrUrl ?? string.Empty,
             hasSeerrApiKey = !string.IsNullOrWhiteSpace(config.SeerrApiKey),

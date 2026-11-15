@@ -490,6 +490,26 @@
                 buttons.appendChild(trBtn);
             }
         }
+        if (!buttons.querySelector('.streamflix-osd-watchparty-btn')) {
+            var wpBtn = document.createElement('button');
+            wpBtn.type = 'button';
+            wpBtn.className = 'streamflix-osd-custom-btn streamflix-osd-watchparty-btn hide';
+            wpBtn.title = 'Watch Together';
+            wpBtn.setAttribute('aria-label', 'Watch Together');
+            wpBtn.innerHTML = icon('party');
+            wpBtn.addEventListener('click', function (ev) {
+                ev.preventDefault();
+                ev.stopPropagation();
+                if (typeof openWatchTogetherModal === 'function') {
+                    openWatchTogetherModal({ item: osdState.info || null });
+                }
+            });
+            if (anchor && anchor.parentNode === buttons) {
+                buttons.insertBefore(wpBtn, anchor);
+            } else {
+                buttons.appendChild(wpBtn);
+            }
+        }
         // Intercept native .btnSubtitles / .btnAudio clicks when streams are known so users always get the sleek two-column popover
         ['btnSubtitles', 'btnAudio'].forEach(function (cls) {
             var nb = buttons.querySelector('.' + cls);
@@ -531,6 +551,9 @@
             trBtn.classList.toggle('is-active', Boolean(osdState.tracksOpen));
         }
         document.body.classList.toggle('bfx-unified-tracks', showTracks);
+        if (typeof syncWatchPartyIndicators === 'function') {
+            syncWatchPartyIndicators();
+        }
     }
 
     function fetchOsdSeriesEpisodes(seriesId) {
@@ -1163,6 +1186,9 @@
                 staleBtn.style.setProperty('display', 'none', 'important');
             }
             ensureMobileDock(true, inVideo);
+            if (typeof syncKidsModeChrome === 'function') {
+                syncKidsModeChrome();
+            }
             return;
         }
 
@@ -1202,6 +1228,12 @@
                 + '<span class="streamflix-header-caret">' + icon('chevronDown') + '</span>';
         }
         syncHeaderCastIndicator(btn);
+        if (typeof syncKidsModeChrome === 'function') {
+            syncKidsModeChrome();
+        }
+        if (typeof syncWatchPartyIndicators === 'function') {
+            syncWatchPartyIndicators();
+        }
     }
 
     function isMobileDockViewportActive() {
@@ -1231,12 +1263,15 @@
     }
 
     function getMobileDockProfileLabel() {
+        var activeName = state.activeProfile && state.activeProfile.name ? String(state.activeProfile.name).trim() : '';
+        if (typeof isKidsProfileActive === 'function' && isKidsProfileActive()) {
+            return (activeName && activeName.length <= 10) ? activeName : 'Kids';
+        }
         var brand = formatDockBrandWord(getBrandName());
         var candidate = 'My ' + brand;
         if (candidate.length <= 15) {
             return candidate;
         }
-        var activeName = state.activeProfile && state.activeProfile.name ? String(state.activeProfile.name).trim() : '';
         return (activeName && activeName.length <= 12) ? activeName : 'Account';
     }
 

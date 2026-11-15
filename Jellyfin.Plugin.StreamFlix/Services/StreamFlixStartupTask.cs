@@ -766,6 +766,11 @@ public class StreamFlixStartupTask : IScheduledTask
                         {
                             needsUpdate = true;
                         }
+
+                        if (EnsureUserSyncPlayAccess(user, allowCreateAndJoin: !profile.IsKids))
+                        {
+                            needsUpdate = true;
+                        }
                     }
 
                     if (needsUpdate)
@@ -947,6 +952,36 @@ public class StreamFlixStartupTask : IScheduledTask
         }
 
         return changed;
+    }
+
+    public static bool EnsureUserSyncPlayAccess(object targetUser, bool allowCreateAndJoin)
+    {
+        try
+        {
+            var prop = targetUser.GetType().GetProperty("SyncPlayAccess", BindingFlags.Public | BindingFlags.Instance);
+            if (prop == null || !prop.CanWrite || !prop.PropertyType.IsEnum)
+            {
+                return false;
+            }
+
+            var desiredName = allowCreateAndJoin ? "CreateAndJoinGroups" : "None";
+            if (!Enum.TryParse(prop.PropertyType, desiredName, ignoreCase: true, out var desiredVal) || desiredVal == null)
+            {
+                return false;
+            }
+
+            var currentVal = prop.GetValue(targetUser);
+            if (!Equals(currentVal, desiredVal))
+            {
+                prop.SetValue(targetUser, desiredVal);
+                return true;
+            }
+        }
+        catch
+        {
+        }
+
+        return false;
     }
 
     private static bool HasUserPermissionCompat(object user, PropertyInfo? permsProp, string permissionName)

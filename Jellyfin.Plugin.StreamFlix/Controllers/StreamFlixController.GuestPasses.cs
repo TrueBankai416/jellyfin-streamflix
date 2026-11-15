@@ -304,11 +304,13 @@ public partial class StreamFlixController
 
     [HttpGet("Guest/{code}")]
     [AllowAnonymous]
-    public ActionResult StartGuestPassHandoff([FromRoute] string code)
+    public ActionResult StartGuestPassHandoff([FromRoute] string code, [FromQuery] string? watchparty = null, [FromQuery] string? wpitem = null)
     {
         SetNoStoreSecurityHeaders();
         var config = Config;
         var safeWebBase = ResolveSafeRelativeWebPath(null);
+        Guid? validWpGroup = Guid.TryParse((watchparty ?? string.Empty).Trim(), out var parsedWp) ? parsedWp : null;
+        Guid? validWpItem = Guid.TryParse((wpitem ?? string.Empty).Trim(), out var parsedItem) ? parsedItem : null;
 
         if (!config.EnableGuestPasses)
         {
@@ -357,7 +359,7 @@ public partial class StreamFlixController
             signedCookie,
             BuildGuestCookieOptions(TimeSpan.FromSeconds(90)));
 
-        return Redirect(BuildGuestReturnUrl(safeWebBase, errorMessage: null));
+        return Redirect(BuildGuestReturnUrl(safeWebBase, errorMessage: null, validWpGroup, validWpItem));
     }
 
     [HttpPost("Guest/Complete")]
@@ -574,11 +576,13 @@ public partial class StreamFlixController
         return $"{BuildAbsolutePublicBaseUrl()}/StreamFlix/Guest/{Uri.EscapeDataString(code)}";
     }
 
-    private static string BuildGuestReturnUrl(string safeRelativeWebPath, string? errorMessage)
+    private static string BuildGuestReturnUrl(string safeRelativeWebPath, string? errorMessage, Guid? watchPartyGroupId = null, Guid? watchPartyItemId = null)
     {
         if (string.IsNullOrWhiteSpace(errorMessage))
         {
-            return $"{safeRelativeWebPath}?sf_guest=1#/home";
+            var wpParams = (watchPartyGroupId.HasValue ? $"&watchparty={watchPartyGroupId.Value:D}" : string.Empty)
+                + (watchPartyItemId.HasValue ? $"&wpitem={watchPartyItemId.Value:D}" : string.Empty);
+            return $"{safeRelativeWebPath}?sf_guest=1{wpParams}#/home";
         }
 
         return $"{safeRelativeWebPath}?sf_guest_error={Uri.EscapeDataString(errorMessage.Trim())}#/home";
@@ -800,6 +804,11 @@ public partial class StreamFlixController
         }
 
         if (StreamFlixStartupTask.EnsureUserLibraryAccessAndPermissions(user, primaryAdmin))
+        {
+            needsUpdate = true;
+        }
+
+        if (StreamFlixStartupTask.EnsureUserSyncPlayAccess(user, allowCreateAndJoin: !profile.IsKids))
         {
             needsUpdate = true;
         }

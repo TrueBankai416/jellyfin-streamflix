@@ -975,6 +975,9 @@
     }
 
     function getTop10RowTitle() {
+        if (typeof isKidsProfileActive === 'function' && isKidsProfileActive()) {
+            return 'Top 10 Kids Favorites Today';
+        }
         var mode = String((state.config && state.config.top10SelectionMode) || 'most_played').toLowerCase();
         if (mode === 'community_rating') {
             return 'Top 10 Highest Rated';
@@ -1137,16 +1140,17 @@
             if (state.hubLoadSeq !== reqSeq || normalizeGuid(getJellyfinAuthContext().userId) !== normalizeGuid(auth.userId)) {
                 return null;
             }
-            state.hubData.rawHeroItems = (results[0] && results[0].Items) || [];
-            state.hubData.resumeItems = (results[1] && results[1].Items) || [];
-            state.hubData.nextUpItems = (results[2] && results[2].Items) || [];
-            state.hubData.rawTop10Items = (results[3] && results[3].Items) || [];
-            state.hubData.favoriteItems = (results[4] && results[4].Items) || [];
-            state.hubData.allMovies = (results[5] && results[5].Items) || [];
-            state.hubData.allSeries = (results[6] && results[6].Items) || [];
+            var kFilter = typeof filterItemsForKidsMode === 'function' ? filterItemsForKidsMode : function (arr) { return arr || []; };
+            state.hubData.rawHeroItems = kFilter((results[0] && results[0].Items) || []);
+            state.hubData.resumeItems = kFilter((results[1] && results[1].Items) || []);
+            state.hubData.nextUpItems = kFilter((results[2] && results[2].Items) || []);
+            state.hubData.rawTop10Items = kFilter((results[3] && results[3].Items) || []);
+            state.hubData.favoriteItems = kFilter((results[4] && results[4].Items) || []);
+            state.hubData.allMovies = kFilter((results[5] && results[5].Items) || []);
+            state.hubData.allSeries = kFilter((results[6] && results[6].Items) || []);
             state.hubData.recentMovies = state.hubData.allMovies.slice(0, 18);
             state.hubData.recentSeries = state.hubData.allSeries.slice(0, 18);
-            state.hubData.collectionsItems = (results[7] && results[7].Items) || [];
+            state.hubData.collectionsItems = kFilter((results[7] && results[7].Items) || []);
             state.hubData.views = (results[8] && results[8].Items) || [];
             state.hubData.popularScores = (results[9] && results[9].scores) || {};
             state.hubData.filteredHeroPool = [];
@@ -1165,7 +1169,7 @@
                         libResults.forEach(function (lr) {
                             combinedHeroPool = combinedHeroPool.concat((lr && lr.Items) || []);
                         });
-                        state.hubData.filteredHeroPool = dedupeMediaItems(combinedHeroPool);
+                        state.hubData.filteredHeroPool = kFilter(dedupeMediaItems(combinedHeroPool));
                     })
                 );
             }
@@ -1287,7 +1291,8 @@
                 if (state.searchSeq !== seq) {
                     return;
                 }
-                state.searchResults = (res && res.Items) || [];
+                var rawHits = (res && res.Items) || [];
+                state.searchResults = typeof filterItemsForKidsMode === 'function' ? filterItemsForKidsMode(rawHits) : rawHits;
                 renderCinemaHubContents();
             })
             .catch(function () {

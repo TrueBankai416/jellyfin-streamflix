@@ -1,0 +1,688 @@
+/* StreamFlix Styles (09/09) — Dedicated Kids Profile Mode & Clean Watch Together */
+
+/* ==========================================================================
+   1. Dedicated Kids Profile Mode (body.bfx-kids-mode)
+   ========================================================================== */
+
+/* Vibrant KIDS badge next to the upper-left brand wordmark */
+.bfx-kids-brand-pill {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    height: 20px !important;
+    padding: 0 8px !important;
+    border-radius: 999px !important;
+    background: linear-gradient(135deg, #38bdf8 0%, #6366f1 52%, #a855f7 100%) !important;
+    -webkit-background-clip: border-box !important;
+    background-clip: border-box !important;
+    -webkit-text-fill-color: #ffffff !important;
+    color: #ffffff !important;
+    font-size: 10.5px !important;
+    font-weight: 900 !important;
+    letter-spacing: 0.09em !important;
+    line-height: 1 !important;
+    text-transform: uppercase !important;
+    box-shadow: 0 2px 10px rgba(99, 102, 241, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.35) !important;
+    user-select: none;
+    vertical-align: middle;
+}
+.bfx-kids-brand-pill.is-inline {
+    margin-left: 8px !important;
+    flex-shrink: 0;
+}
+.bfx-kids-brand-pill.is-fixed {
+    position: fixed !important;
+    z-index: 10002 !important;
+    pointer-events: none !important;
+}
+
+/* Prominent yet sleek Top-Right "Exit Kids" button on Desktop, Tablet & TV */
+#bfx-exit-kids-btn {
+    position: fixed;
+    top: 7px;
+    right: 148px;
+    height: 40px;
+    z-index: 10002;
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 0 13px;
+    border-radius: 12px;
+    background: rgba(20, 22, 34, 0.68);
+    backdrop-filter: blur(18px) saturate(150%);
+    -webkit-backdrop-filter: blur(18px) saturate(150%);
+    border: 1px solid rgba(129, 140, 248, 0.36);
+    color: #f8fafc;
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.01em;
+    cursor: pointer;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.32);
+    transition: background 0.18s ease, border-color 0.18s ease, transform 0.18s ease;
+}
+#bfx-exit-kids-btn svg {
+    width: 15px;
+    height: 15px;
+    color: #a5b4fc;
+    flex-shrink: 0;
+}
+#bfx-exit-kids-btn:hover {
+    background: rgba(99, 102, 241, 0.28);
+    border-color: rgba(165, 180, 252, 0.65);
+    transform: translateY(-1px);
+}
+#bfx-exit-kids-btn:focus-visible {
+    outline: 2px solid #ffffff !important;
+    outline-offset: 2px !important;
+}
+
+/* Playful cosmic-indigo ambient glow & friendlier rounded poster geometry in Kids Mode */
+body.bfx-kids-mode {
+    background-image: radial-gradient(ellipse 90% 420px at 50% 0%, rgba(99, 102, 241, 0.14) 0%, rgba(56, 189, 248, 0.05) 42%, rgba(20, 20, 20, 0) 76%);
+    background-attachment: fixed;
+}
+body.bfx-kids-mode .streamflix-poster-img-wrap {
+    border-radius: 14px !important;
+}
+body.bfx-kids-mode .streamflix-wide-img-wrap {
+    border-radius: 14px !important;
+}
+body.bfx-kids-mode .streamflix-FilterPills .streamflix-pill.active {
+    background: linear-gradient(135deg, #38bdf8 0%, #6366f1 100%) !important;
+    border-color: rgba(255, 255, 255, 0.32) !important;
+    color: #ffffff !important;
+}
+
+/* Kids World Filter Bubbles Strip */
+.bfx-kids-worlds {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    overflow-x: auto;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+    padding: 4px var(--bfx-gutter, 36px) 16px var(--bfx-gutter, 36px);
+    margin: 0;
+}
+.bfx-kids-worlds::-webkit-scrollbar {
+    display: none;
+}
+.bfx-kids-world-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    flex: 0 0 auto;
+    height: 40px;
+    padding: 0 16px;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    background: rgba(26, 28, 42, 0.72);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    color: #f1f5f9;
+    font-family: inherit;
+    font-size: 13.5px;
+    font-weight: 700;
+    cursor: pointer;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.24);
+    transition: transform 0.18s ease, background 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
+}
+.bfx-kids-world-chip:hover {
+    transform: translateY(-2px);
+    background: rgba(51, 56, 84, 0.85);
+    border-color: rgba(165, 180, 252, 0.45);
+}
+.bfx-kids-world-chip.is-active {
+    background: linear-gradient(135deg, #38bdf8 0%, #6366f1 55%, #a855f7 100%);
+    border-color: rgba(255, 255, 255, 0.42);
+    color: #ffffff;
+    box-shadow: 0 8px 22px rgba(99, 102, 241, 0.38);
+}
+.bfx-kids-world-chip:focus-visible {
+    outline: 2px solid #ffffff !important;
+    outline-offset: 2px !important;
+}
+.bfx-kids-world-emoji {
+    font-size: 16px;
+    line-height: 1;
+}
+
+/* Kids Account Menu / Mobile Sheet Pill & Exit Action */
+.streamflix-dd-kids-pill {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 7px;
+    border-radius: 999px;
+    background: linear-gradient(135deg, #38bdf8 0%, #6366f1 60%, #a855f7 100%);
+    color: #ffffff;
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+.bfx-dd-kids-exit-wrap {
+    padding: 4px 12px 8px 12px;
+}
+.bfx-dd-exit-kids-btn {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    height: 40px;
+    border-radius: 11px;
+    border: 1px solid rgba(129, 140, 248, 0.4);
+    background: linear-gradient(135deg, rgba(56, 189, 248, 0.18) 0%, rgba(99, 102, 241, 0.24) 100%);
+    color: #ffffff;
+    font-family: inherit;
+    font-size: 13.5px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background 0.16s ease, border-color 0.16s ease, transform 0.15s ease;
+}
+.bfx-dd-exit-kids-btn svg {
+    width: 16px;
+    height: 16px;
+    color: #bae6fd;
+}
+.bfx-dd-exit-kids-btn:hover {
+    background: linear-gradient(135deg, rgba(56, 189, 248, 0.28) 0%, rgba(99, 102, 241, 0.36) 100%);
+    border-color: rgba(186, 230, 253, 0.65);
+}
+
+/* Profile Editor Kids Exit Lock Option + Parental Exit Modals */
+.streamflix-kids-lock-opt {
+    margin: -4px 0 12px 0;
+    padding: 10px 12px;
+    border-radius: 10px;
+    background: rgba(99, 102, 241, 0.09);
+    border: 1px solid rgba(129, 140, 248, 0.24);
+}
+.streamflix-kids-lock-opt.is-hidden {
+    display: none !important;
+}
+.bfx-kids-lock-head {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    margin-bottom: 14px;
+}
+.bfx-kids-lock-badge {
+    width: 48px;
+    height: 48px;
+    border-radius: 14px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 10px;
+    background: linear-gradient(135deg, rgba(56, 189, 248, 0.2) 0%, rgba(99, 102, 241, 0.28) 100%);
+    border: 1px solid rgba(129, 140, 248, 0.4);
+    color: #bae6fd;
+}
+.bfx-kids-lock-badge svg {
+    width: 22px;
+    height: 22px;
+}
+.bfx-kids-pin-field {
+    margin: 8px 0 4px 0;
+}
+.bfx-adult-pin-input {
+    text-align: center !important;
+    font-size: 20px !important;
+    font-weight: 800 !important;
+    letter-spacing: 0.28em !important;
+    height: 48px !important;
+}
+.bfx-grownup-words {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin: 6px 0 16px 0;
+    padding: 10px 14px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+.bfx-grownup-word {
+    font-size: 15px;
+    font-weight: 800;
+    color: #e0f2fe;
+    letter-spacing: 0.02em;
+}
+.bfx-grownup-dot {
+    color: rgba(255, 255, 255, 0.35);
+    font-weight: 700;
+}
+
+/* ==========================================================================
+   2. Clean Watch Together (SyncPlay) — Zero Idle Header Clutter
+   ========================================================================== */
+
+/* Keep Jellyfin's stock SyncPlay header icon permanently hidden so the top bar stays clean */
+.skinHeader .headerSyncButton,
+.skinHeader .syncButton,
+header.MuiAppBar-root button[aria-controls="app-sync-play-menu"],
+button.headerSyncButton {
+    display: none !important;
+}
+
+/* Subtle live Watch Party indicator inside the profile pill ONLY while in an active room */
+.streamflix-header-watchparty {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    height: 22px;
+    padding: 0 7px;
+    margin-left: 2px;
+    border-radius: 999px;
+    background: rgba(16, 185, 129, 0.2);
+    border: 1px solid rgba(52, 211, 153, 0.45);
+    color: #a7f3d0;
+    font-size: 11px;
+    font-weight: 800;
+    line-height: 1;
+}
+.bfx-wp-pulse-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #34d399;
+    box-shadow: 0 0 0 0 rgba(52, 211, 153, 0.7);
+    animation: bfxWpPulse 2s infinite;
+    flex-shrink: 0;
+}
+@keyframes bfxWpPulse {
+    0% { box-shadow: 0 0 0 0 rgba(52, 211, 153, 0.65); }
+    70% { box-shadow: 0 0 0 6px rgba(52, 211, 153, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(52, 211, 153, 0); }
+}
+
+/* Mobile dock live dot on profile avatar ONLY while in an active room */
+#bfx-dock-profile-btn .bfx-dock-avatar {
+    position: relative;
+}
+.bfx-dock-wp-dot {
+    position: absolute;
+    top: -2px;
+    right: -2px;
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: #34d399;
+    border: 1.5px solid #121216;
+    box-shadow: 0 0 8px rgba(52, 211, 153, 0.8);
+}
+
+/* Account Menu Quick Tile & Media Detail Modal Button */
+.bfx-dd-tile.is-watchparty.is-live {
+    background: rgba(16, 185, 129, 0.16) !important;
+    border-color: rgba(52, 211, 153, 0.42) !important;
+    color: #d1fae5 !important;
+}
+.bfx-dd-tile.is-watchparty.is-live .bfx-dd-tile-ico {
+    color: #34d399 !important;
+}
+#streamflix-modal-watchparty-btn.is-live {
+    background: rgba(16, 185, 129, 0.24) !important;
+    border-color: rgba(52, 211, 153, 0.6) !important;
+    color: #6ee7b7 !important;
+}
+
+/* Video Player OSD Watch Together Button */
+.streamflix-osd-watchparty-btn {
+    position: relative;
+}
+.streamflix-osd-watchparty-btn.is-live {
+    color: #34d399 !important;
+}
+.bfx-osd-wp-badge {
+    position: absolute;
+    top: 3px;
+    right: 3px;
+    min-width: 15px;
+    height: 15px;
+    padding: 0 4px;
+    border-radius: 999px;
+    background: #10b981;
+    color: #052e16;
+    font-size: 10px;
+    font-weight: 900;
+    line-height: 15px;
+    text-align: center;
+    box-sizing: border-box;
+}
+
+/* Watch Together Modal */
+.bfx-wp-modal {
+    max-width: 560px !important;
+    width: calc(100vw - 28px) !important;
+}
+.bfx-wp-loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    padding: 36px 16px;
+    color: #cbd5e1;
+    font-size: 14px;
+}
+.bfx-wp-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 18px;
+}
+.bfx-wp-title-wrap {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+.bfx-wp-hero-ico {
+    width: 42px;
+    height: 42px;
+    border-radius: 12px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, rgba(229, 9, 20, 0.22) 0%, rgba(244, 63, 94, 0.12) 100%);
+    border: 1px solid rgba(229, 9, 20, 0.38);
+    color: #ff4d57;
+    flex-shrink: 0;
+}
+.bfx-wp-hero-ico svg {
+    width: 21px;
+    height: 21px;
+}
+.bfx-wp-header-actions {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+.bfx-wp-icon-btn {
+    width: 36px !important;
+    height: 36px !important;
+    padding: 0 !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    border-radius: 10px !important;
+}
+.bfx-wp-section-label {
+    display: block;
+    font-size: 11.5px;
+    font-weight: 800;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    color: #94a3b8;
+    margin-bottom: 8px;
+}
+.bfx-wp-target-banner {
+    display: flex;
+    align-items: center;
+    gap: 11px;
+    padding: 10px 13px;
+    margin-bottom: 14px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+.bfx-wp-target-ico {
+    width: 32px;
+    height: 32px;
+    border-radius: 9px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(229, 9, 20, 0.2);
+    color: #ff4d57;
+    flex-shrink: 0;
+}
+.bfx-wp-target-ico svg {
+    width: 15px;
+    height: 15px;
+}
+.bfx-wp-target-copy {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+.bfx-wp-target-kicker {
+    font-size: 11px;
+    font-weight: 700;
+    color: #94a3b8;
+}
+.bfx-wp-target-copy strong {
+    font-size: 14px;
+    color: #f8fafc;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.bfx-wp-create-card,
+.bfx-wp-active-card {
+    padding: 16px;
+    border-radius: 15px;
+    background: rgba(255, 255, 255, 0.035);
+    border: 1px solid rgba(255, 255, 255, 0.09);
+    margin-bottom: 16px;
+}
+.bfx-wp-active-card {
+    background: linear-gradient(180deg, rgba(16, 185, 129, 0.08) 0%, rgba(255, 255, 255, 0.03) 100%);
+    border-color: rgba(52, 211, 153, 0.26);
+}
+.bfx-wp-create-row,
+.bfx-wp-invite-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.bfx-wp-create-row .streamflix-input,
+.bfx-wp-invite-row .streamflix-input {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+.bfx-wp-link-input {
+    font-size: 12.5px !important;
+    color: #cbd5e1 !important;
+}
+.bfx-wp-active-top {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 14px;
+}
+.bfx-wp-live-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    color: #6ee7b7;
+    margin-bottom: 4px;
+}
+.bfx-wp-room-name {
+    margin: 0;
+    font-size: 19px;
+    font-weight: 800;
+    color: #ffffff;
+}
+.bfx-wp-members-wrap {
+    margin-bottom: 14px;
+}
+.bfx-wp-members {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 7px;
+}
+.bfx-wp-member-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 4px 10px 4px 5px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.07);
+    border: 1px solid rgba(255, 255, 255, 0.11);
+    font-size: 12.5px;
+    font-weight: 600;
+    color: #f1f5f9;
+}
+.bfx-wp-member-av {
+    width: 21px;
+    height: 21px;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: #10b981;
+    color: #042f2e;
+    font-size: 11px;
+    font-weight: 900;
+}
+.bfx-wp-play-cta {
+    width: 100%;
+    justify-content: center;
+    height: 44px;
+    margin-bottom: 14px;
+    font-size: 14.5px !important;
+}
+.bfx-wp-invite-box {
+    padding-top: 12px;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+/* Optional 6h Guest Pass + Watch Party Combo Card */
+.bfx-wp-guest-card {
+    margin-top: 12px;
+    padding: 12px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px dashed rgba(255, 255, 255, 0.16);
+}
+.bfx-wp-guest-card.is-ready {
+    border-style: solid;
+    border-color: rgba(56, 189, 248, 0.35);
+    background: rgba(56, 189, 248, 0.07);
+}
+.bfx-wp-guest-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+.bfx-wp-guest-title,
+.bfx-wp-kicker {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    font-weight: 700;
+    color: #f1f5f9;
+}
+.bfx-wp-guest-title svg,
+.bfx-wp-kicker svg {
+    width: 15px;
+    height: 15px;
+    color: #38bdf8;
+}
+.bfx-wp-guest-controls {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+.bfx-wp-guest-select {
+    height: 36px !important;
+    padding: 0 28px 0 10px !important;
+    font-size: 12.5px !important;
+}
+
+/* Active Rooms List */
+.bfx-wp-rooms-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+.bfx-wp-room-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 11px 13px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+}
+.bfx-wp-room-meta {
+    min-width: 0;
+}
+.bfx-wp-room-row-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
+    font-weight: 700;
+    color: #f8fafc;
+}
+.bfx-wp-room-row-sub {
+    font-size: 12px;
+    color: #94a3b8;
+    margin-top: 2px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.bfx-wp-empty {
+    padding: 18px 14px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.025);
+    border: 1px dashed rgba(255, 255, 255, 0.1);
+    text-align: center;
+    font-size: 13px;
+    color: #94a3b8;
+}
+
+/* Responsive Phone & TV Adjustments */
+@media (max-width: 640px) {
+    html:not(.layout-tv) body.bfx-phone-mode #bfx-exit-kids-btn {
+        display: none !important;
+    }
+    .bfx-kids-worlds {
+        padding: 2px 14px 12px 14px;
+        gap: 8px;
+    }
+    .bfx-kids-world-chip {
+        height: 36px;
+        padding: 0 13px;
+        font-size: 12.5px;
+    }
+    .bfx-wp-create-row,
+    .bfx-wp-invite-row,
+    .bfx-wp-active-top {
+        flex-wrap: wrap;
+    }
+    .bfx-wp-create-row > button,
+    .bfx-wp-invite-row > button {
+        flex: 1 1 auto;
+        justify-content: center;
+    }
+}
+
+body.bfx-tv-mode #bfx-exit-kids-btn {
+    height: 48px;
+    padding: 0 18px;
+    font-size: 15px;
+}
+body.bfx-tv-mode .bfx-kids-world-chip {
+    height: 48px;
+    padding: 0 22px;
+    font-size: 16px;
+}

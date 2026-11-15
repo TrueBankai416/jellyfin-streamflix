@@ -327,7 +327,17 @@
 
         var addTile = root.querySelector('#streamflix-add-profile-tile');
         if (addTile) {
-            var openAdd = function () { openProfileEditorModal(null); };
+            var openAdd = function () {
+                if (typeof isKidsExitLockRequired === 'function' && isKidsExitLockRequired()) {
+                    requestExitKidsVerification(null).then(function (res) {
+                        if (res && res.verified) {
+                            openProfileEditorModal(null);
+                        }
+                    });
+                    return;
+                }
+                openProfileEditorModal(null);
+            };
             addTile.addEventListener('click', openAdd);
             addTile.addEventListener('keydown', function (ev) {
                 if (ev.key === 'Enter' || ev.key === ' ') {
@@ -340,6 +350,15 @@
         var manageBtn = root.querySelector('#streamflix-toggle-manage-btn');
         if (manageBtn) {
             manageBtn.addEventListener('click', function () {
+                if (!state.manageMode && typeof isKidsExitLockRequired === 'function' && isKidsExitLockRequired()) {
+                    requestExitKidsVerification(null).then(function (res) {
+                        if (res && res.verified) {
+                            state.manageMode = true;
+                            renderProfilePickerGate();
+                        }
+                    });
+                    return;
+                }
                 state.manageMode = !state.manageMode;
                 renderProfilePickerGate();
             });
@@ -355,6 +374,16 @@
         var cfgBtn = root.querySelector('#streamflix-open-plugin-cfg-btn');
         if (cfgBtn) {
             cfgBtn.addEventListener('click', function () {
+                if (typeof isKidsExitLockRequired === 'function' && isKidsExitLockRequired()) {
+                    requestExitKidsVerification(null).then(function (res) {
+                        if (res && res.verified) {
+                            state.manageMode = false;
+                            closeOverlayGate();
+                            window.location.hash = '#/configurationpage?name=StreamFlix';
+                        }
+                    });
+                    return;
+                }
                 state.manageMode = false;
                 closeOverlayGate();
                 window.location.hash = '#/configurationpage?name=StreamFlix';
@@ -565,8 +594,29 @@
             openGoogleLockPrompt(profile);
             return;
         }
+        var leavingKids = typeof isKidsProfileActive === 'function' && isKidsProfileActive() && !profile.isKids;
         if (profile.hasPin) {
-            openPinUnlockModal(profile);
+            openPinUnlockModal(profile, '', leavingKids ? {
+                exitingKidsProfileId: state.activeProfile.id,
+                usePinAsAdultExit: true
+            } : null);
+            return;
+        }
+        if (leavingKids && typeof requestExitKidsVerification === 'function') {
+            var kidsSourceId = state.activeProfile && state.activeProfile.id;
+            requestExitKidsVerification(profile).then(function (exitRes) {
+                if (!exitRes || !exitRes.verified) {
+                    return;
+                }
+                markTileSelecting(profile.id, true);
+                activateServerProfile(profile, '', {
+                    exitingKidsProfileId: kidsSourceId,
+                    adultExitPin: exitRes.adultPin || ''
+                }).catch(function (err) {
+                    markTileSelecting(profile.id, false);
+                    handleActivationError(profile, err);
+                });
+            });
             return;
         }
         markTileSelecting(profile.id, true);
@@ -578,6 +628,28 @@
 
     function handleActivationError(profile, err) {
         var code = err && err.code;
+        if (code === 'kids_exit_pin_required' || code === 'kids_exit_pin_invalid') {
+            if (typeof clearKidsExitSession === 'function') {
+                clearKidsExitSession();
+            }
+            if (typeof requestExitKidsVerification === 'function') {
+                var kidsSourceId = state.activeProfile && state.activeProfile.id;
+                requestExitKidsVerification(profile, code === 'kids_exit_pin_invalid' ? err.message : '').then(function (exitRes) {
+                    if (!exitRes || !exitRes.verified) {
+                        return;
+                    }
+                    markTileSelecting(profile.id, true);
+                    activateServerProfile(profile, '', {
+                        exitingKidsProfileId: kidsSourceId,
+                        adultExitPin: exitRes.adultPin || ''
+                    }).catch(function (err2) {
+                        markTileSelecting(profile.id, false);
+                        handleActivationError(profile, err2);
+                    });
+                });
+                return;
+            }
+        }
         if (code === 'pin_required' || code === 'pin_invalid') {
             openPinUnlockModal(profile, code === 'pin_invalid' ? err.message : '');
             return;
@@ -603,7 +675,7 @@
         }
     }
 
-    function openPinUnlockModal(profile, initialError) {
+    function openPinUnlockModal(profile, initialError, extraOpts) {
         openPinPad({
             profile: profile,
             title: 'Profile Lock',
@@ -611,7 +683,7 @@
             initialError: initialError || '',
             submit: function (pin) {
                 markTileSelecting(profile.id, true);
-                return activateServerProfile(profile, pin).catch(function (err) {
+                return activateServerProfile(profile, pin, extraOpts).catch(function (err) {
                     markTileSelecting(profile.id, false);
                     throw err;
                 });
@@ -769,6 +841,7 @@
             color: AVATAR_COLORS[profileCount % AVATAR_COLORS.length],
             icon: AVATAR_ICONS[profileCount % AVATAR_ICONS.length],
             isKids: false,
+            kidsExitPinRequired: true,
             maxParentalRating: MATURITY_LEVELS[0].value,
             hasPin: false,
             googleLocked: false,
@@ -973,6 +1046,13 @@
             + '    <span>Kids profile</span>'
             + '  </label>'
             + '</div>'
+            + '<div class="streamflix-kids-lock-opt' + (draft.isKids ? '' : ' is-hidden') + '" id="streamflix-prof-kids-exit-wrap">'
+            + '  <label class="streamflix-check">'
+            + '    <input type="checkbox" id="streamflix-prof-kids-exit-pin" ' + (draft.kidsExitPinRequired !== false ? 'checked' : '') + ' />'
+            + '    <span>Require parental check to exit Kids mode</span>'
+            + '  </label>'
+            + '  <div class="streamflix-field-hint" style="margin-top:3px;">Prompts for any adult profile PIN (or a 4-word grown-up check if no adult PINs exist) when leaving Kids mode.</div>'
+            + '</div>'
             + '<div class="streamflix-editor-section">Security</div>'
             + '<div class="streamflix-field">'
             + '  <label for="streamflix-prof-google">' + escapeHtml(lockFieldLabel) + '</label>'
@@ -1082,9 +1162,14 @@
         }
 
         var kidsCheck = modal.querySelector('#streamflix-prof-kids');
+        var kidsExitWrap = modal.querySelector('#streamflix-prof-kids-exit-wrap');
+        var kidsExitCheck = modal.querySelector('#streamflix-prof-kids-exit-pin');
         var maturitySelect = modal.querySelector('#streamflix-prof-maturity');
         if (kidsCheck && maturitySelect) {
             kidsCheck.addEventListener('change', function () {
+                if (kidsExitWrap) {
+                    kidsExitWrap.classList.toggle('is-hidden', !kidsCheck.checked);
+                }
                 if (kidsCheck.checked && maturitySelect.value === MATURITY_LEVELS[0].value) {
                     maturitySelect.value = MATURITY_LEVELS[2].value;
                 } else if (!kidsCheck.checked && (maturitySelect.value === MATURITY_LEVELS[2].value || maturitySelect.value === MATURITY_LEVELS[3].value)) {
@@ -1183,6 +1268,7 @@
                 avatarEmoji: selectedIcon,
                 avatarColorHex: selectedColor,
                 isKids: kidsCheck.checked,
+                kidsExitPinRequired: kidsExitCheck ? kidsExitCheck.checked : true,
                 maturityRating: maturitySelect.value,
                 pin: clearPinRequested ? '__CLEAR__' : (rawPin || null),
                 jellyfinUserId: resolvedJfUserId,
@@ -1208,6 +1294,7 @@
                         state.activeProfile.color = updatedMatch.color;
                         state.activeProfile.icon = updatedMatch.icon;
                         state.activeProfile.isKids = updatedMatch.isKids;
+                        state.activeProfile.kidsExitPinRequired = updatedMatch.kidsExitPinRequired !== false;
                         saveJson(PROFILE_KEY, state.activeProfile);
                         ensureHeaderWidgets();
                     }

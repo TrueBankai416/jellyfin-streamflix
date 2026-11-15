@@ -76,6 +76,10 @@ public class ActivateProfileRequest
 
     public string? PinCode { get; set; }
 
+    public string? ExitingKidsProfileId { get; set; }
+
+    public string? AdultExitPin { get; set; }
+
     public string? DeviceId { get; set; }
 
     public string? DeviceName { get; set; }
@@ -89,6 +93,11 @@ public class VerifyPinRequest
 {
     public string ProfileId { get; set; } = string.Empty;
 
+    public string? Pin { get; set; }
+}
+
+public class VerifyAdultPinRequest
+{
     public string? Pin { get; set; }
 }
 
@@ -107,6 +116,8 @@ public class SaveProfileRequest
     public string? AvatarColorHex { get; set; }
 
     public bool IsKids { get; set; }
+
+    public bool? KidsExitPinRequired { get; set; }
 
     public string? MaturityRating { get; set; }
 
@@ -211,6 +222,8 @@ public class SaveAdminConfigRequest
     public List<string>? ApprovedOidcUsers { get; set; }
 
     public bool EnableGuestPasses { get; set; } = true;
+
+    public bool EnableWatchTogether { get; set; } = true;
 
     public bool EnableSeerr { get; set; }
 

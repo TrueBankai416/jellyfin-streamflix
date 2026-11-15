@@ -110,6 +110,9 @@
                 : '')
             + '          <button type="button" class="streamflix-hero-icon-btn' + (isFav ? ' active' : '') + '" id="streamflix-modal-fav-btn" title="' + (isFav ? 'Remove from My List' : 'Add to My List') + '" aria-label="My List">' + icon(isFav ? 'check' : 'plus') + '</button>'
             + '          <button type="button" class="streamflix-hero-icon-btn' + (isPlayed ? ' active' : '') + '" id="streamflix-modal-watched-btn" title="' + (isPlayed ? 'Mark unwatched' : 'Mark watched') + '" aria-label="Watched">' + icon('eye') + '</button>'
+            + ((typeof isWatchTogetherEnabled === 'function' && isWatchTogetherEnabled())
+                ? '          <button type="button" class="streamflix-hero-icon-btn' + ((typeof watchPartyState !== 'undefined' && watchPartyState.activeGroup) ? ' active is-live' : '') + '" id="streamflix-modal-watchparty-btn" title="Watch Together" aria-label="Watch Together">' + icon('party') + '</button>'
+                : '')
             + '        </div>'
             + '      </div>'
             + '    </div>'
@@ -235,6 +238,18 @@
                 watchedBtn.classList.toggle('active', nextPlayed);
                 watchedBtn.title = nextPlayed ? 'Mark unwatched' : 'Mark watched';
                 togglePlayedItem(item, null);
+            });
+        }
+
+        var watchPartyBtn = qModal('#streamflix-modal-watchparty-btn');
+        if (watchPartyBtn) {
+            watchPartyBtn.addEventListener('click', function () {
+                if (typeof openWatchTogetherModal === 'function') {
+                    openWatchTogetherModal({
+                        item: resolvedItem || item,
+                        playableTarget: firstPlayableTarget || resolvedItem || item
+                    });
+                }
             });
         }
 

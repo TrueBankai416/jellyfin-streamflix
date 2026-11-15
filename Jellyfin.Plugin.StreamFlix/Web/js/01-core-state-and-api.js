@@ -1,6 +1,6 @@
 /* ==========================================================================
    STREAMFLIX — Netflix-style UI for Jellyfin: server-verified Google & OIDC SSO,
-   "Who's watching?" profiles, Guest Passes & Seerr (v0.7.8.1)
+   "Who's watching?" profiles, Guest Passes & Seerr (v0.7.9.0)
    ========================================================================== */
 (function () {
     'use strict';
@@ -10,7 +10,7 @@
     }
     window.__STREAMFLIX_BOOTSTRAPPED__ = true;
 
-    var VERSION = '0.7.8.1';
+    var VERSION = '0.7.9.0';
     // Household session issued by the server ({ token, authKind, providerName, email, username, userId, name, picture, isAdmin, guestPassId, lockedProfileId, expiresAt })
     var GOOGLE_KEY = 'streamflix_session_v7';
     var OAUTH_STATE_KEY = 'streamflix_oauth_state';
@@ -79,6 +79,8 @@
         hasAccess: false,
         isAdmin: false,
         enableGuestPasses: true,
+        enableWatchTogether: true,
+        hasAnyAdultPin: false,
         isGuestPass: false,
         guestPassLabel: '',
         guestPassExpiresAt: '',
@@ -123,6 +125,7 @@
         accountDropdownOpen: false,
         cinemaHubEnabled: loadJson(CINEMA_HUB_PREF_KEY, true) !== false,
         activeCategory: 'all',
+        kidsWorld: 'all',
         mobileSearchOpen: false,
         searchQuery: '',
         searchDebounce: null,

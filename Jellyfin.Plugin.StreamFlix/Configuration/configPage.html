@@ -250,6 +250,14 @@
                             <div class="fieldDescription">Leave blank to display <strong>STREAMFLIX</strong>.</div>
                         </div>
 
+                        <div class="checkboxContainer checkboxContainer-withDescription" style="margin-top:10px;">
+                            <label class="emby-checkbox-label">
+                                <input id="EnableWatchTogether" name="EnableWatchTogether" type="checkbox" is="emby-checkbox" />
+                                <span>Enable Watch Together (synced watch parties)</span>
+                            </label>
+                            <div class="fieldDescription checkboxFieldDescription">Adds a clean Watch Together modal, title/player action, and 1-click invite links powered by Jellyfin SyncPlay while keeping Jellyfin's stock header icon hidden. Automatically hidden in Kids mode.</div>
+                        </div>
+
                         <div id="StreamFlixGateMethodsWrap">
                             <div class="bfx-subbox-title" style="margin:14px 0 4px;">Sign-In Methods</div>
                             <div class="bfx-method-stack">
@@ -1554,7 +1562,7 @@
                         var badges = ''
                             + (p.isOwner ? '<span class="bfx-badge red">OWNER</span>' : '')
                             + (p.isAdmin ? '<span class="bfx-badge amber">ADMIN</span>' : '')
-                            + (p.isKids ? '<span class="bfx-badge green">KIDS</span>' : '')
+                            + (p.isKids ? ('<span class="bfx-badge green">' + (p.kidsExitPinRequired !== false ? 'KIDS · EXIT LOCK' : 'KIDS') + '</span>') : '')
                             + (p.hasPin ? '<span class="bfx-badge">🔒 PIN</span>' : '')
                             + resolveProfileLockBadge(p)
                             + (!p.jellyfinUserId ? '<span class="bfx-badge red">NOT LINKED</span>' : '');
@@ -2260,6 +2268,7 @@
                     $('#BypassLoginGateOnLan').checked = Boolean(cfg.bypassLoginGateOnLan);
                     $('#AutoProvisionJellyfinUsers').checked = cfg.autoProvisionJellyfinUsers !== false;
                     $('#EnableGuestPasses').checked = cfg.enableGuestPasses !== false;
+                    $('#EnableWatchTogether').checked = cfg.enableWatchTogether !== false;
                     $('#SessionLifetimeDays').value = cfg.sessionLifetimeDays > 0 ? cfg.sessionLifetimeDays : 30;
                     $('#Top10SelectionMode').value = cfg.top10SelectionMode || 'most_played';
                     $('#HeroSelectionMode').value = cfg.heroSelectionMode || 'recent';
@@ -2367,6 +2376,7 @@
                         bypassLoginGateOnLan: $('#BypassLoginGateOnLan').checked,
                         autoProvisionJellyfinUsers: $('#AutoProvisionJellyfinUsers').checked,
                         enableGuestPasses: $('#EnableGuestPasses').checked,
+                        enableWatchTogether: $('#EnableWatchTogether').checked,
                         googleClientId: $('#GoogleClientId').value.trim(),
                         googleClientSecret: googleSecretTyped || '__KEEP__',
                         clearGoogleClientSecret: Boolean(secretState.googleClear && !googleSecretTyped),

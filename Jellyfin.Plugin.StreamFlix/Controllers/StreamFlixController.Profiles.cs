@@ -86,6 +86,20 @@ public partial class StreamFlixController
             {
                 return pinResult;
             }
+
+            if (!profile.IsKids && !string.IsNullOrWhiteSpace(request?.ExitingKidsProfileId))
+            {
+                var exitingKids = FindProfile(config, request!.ExitingKidsProfileId);
+                if (exitingKids is { IsKids: true, KidsExitPinRequired: true } && string.IsNullOrWhiteSpace(profile.PinCode))
+                {
+                    var adultExitPin = !string.IsNullOrWhiteSpace(request.AdultExitPin) ? request.AdultExitPin! : suppliedPin;
+                    var adultPinResult = CheckAdultPin(config, adultExitPin);
+                    if (adultPinResult != null)
+                    {
+                        return adultPinResult;
+                    }
+                }
+            }
         }
 
         var primaryAdmin = StreamFlixStartupTask.GetPrimaryAdminUserCompat(_userManager);
@@ -169,6 +183,11 @@ public partial class StreamFlixController
             }
 
             if (StreamFlixStartupTask.EnsureUserLibraryAccessAndPermissions(user, primaryAdmin))
+            {
+                needsUserUpdate = true;
+            }
+
+            if (StreamFlixStartupTask.EnsureUserSyncPlayAccess(user, allowCreateAndJoin: !profile.IsKids))
             {
                 needsUserUpdate = true;
             }
@@ -268,6 +287,27 @@ public partial class StreamFlixController
         }
 
         return CheckPin(profile, request?.Pin ?? string.Empty) ?? Ok(new { ok = true });
+    }
+
+    [HttpPost("Profiles/VerifyAdultPin")]
+    [AllowAnonymous]
+    [Produces(MediaTypeNames.Application.Json)]
+    public async Task<ActionResult<object>> VerifyAdultPin([FromBody] VerifyAdultPinRequest? request)
+    {
+        SetNoStoreSecurityHeaders();
+        var config = Config;
+        var caller = await GetCallerAsync(config).ConfigureAwait(false);
+        if (!HasHouseholdAccess(config, caller))
+        {
+            return GoogleRequired(config);
+        }
+
+        if (IsGuestSession(caller))
+        {
+            return StatusCode(403, new { code = "guest_pass_restricted", message = "Guest Pass sessions cannot unlock adult profiles." });
+        }
+
+        return CheckAdultPin(config, request?.Pin ?? string.Empty) ?? Ok(new { ok = true });
     }
 
     [HttpPost("Profiles/Save")]
@@ -495,6 +535,10 @@ public partial class StreamFlixController
                 : (request.IsKids ? "🦊" : "🎬");
             existing.AvatarColorHex = SanitizeHexColor(request.AvatarColorHex);
             existing.IsKids = request.IsKids;
+            if (request.KidsExitPinRequired.HasValue)
+            {
+                existing.KidsExitPinRequired = request.KidsExitPinRequired.Value;
+            }
             var trimmedMaturity = request.MaturityRating?.Trim();
             existing.MaturityRating = !string.IsNullOrEmpty(trimmedMaturity)
                 ? (trimmedMaturity.Length > 60 ? trimmedMaturity.Substring(0, 60) : trimmedMaturity)
@@ -1011,6 +1055,53 @@ public partial class StreamFlixController
         return null;
     }
 
+    private ObjectResult? CheckAdultPin(PluginConfiguration config, string suppliedPin)
+    {
+        var adultPinProfiles = (config.Profiles ?? new List<StreamFlixProfileConfig>())
+            .Where(p => !p.IsKids && !string.IsNullOrWhiteSpace(p.PinCode))
+            .ToList();
+        if (adultPinProfiles.Count == 0)
+        {
+            return null;
+        }
+
+        const string targetKey = "__adult_exit__";
+        var lockKey = StreamFlixSessionService.GetRateLimitClientKey(HttpContext) + "|" + targetKey;
+        if (StreamFlixSessionService.IsPinLockedOut(lockKey, out var retryAfter)
+            || StreamFlixSessionService.IsPinTargetLockedOut(targetKey, out retryAfter))
+        {
+            var secs = (int)Math.Ceiling(retryAfter.TotalSeconds);
+            Response.Headers["Retry-After"] = secs.ToString(CultureInfo.InvariantCulture);
+            return StatusCode(429, new { code = "pin_locked", retryAfterSeconds = secs, message = $"Too many wrong PINs. Try again in {Math.Max(1, (secs + 59) / 60)} min." });
+        }
+
+        var cleanPin = (suppliedPin ?? string.Empty).Trim();
+        if (string.IsNullOrEmpty(cleanPin))
+        {
+            return StatusCode(403, new { code = "adult_pin_required", message = "Enter an adult profile PIN to exit Kids mode." });
+        }
+
+        var matched = false;
+        foreach (var ap in adultPinProfiles)
+        {
+            if (StreamFlixSessionService.ConstantTimePinEquals(ap.PinCode ?? string.Empty, cleanPin))
+            {
+                matched = true;
+            }
+        }
+
+        if (!matched)
+        {
+            StreamFlixSessionService.RegisterPinFailure(lockKey);
+            StreamFlixSessionService.RegisterPinTargetFailure(targetKey);
+            return StatusCode(403, new { code = "pin_invalid", message = "Incorrect adult PIN. Please try again." });
+        }
+
+        StreamFlixSessionService.ResetPinFailures(lockKey);
+        StreamFlixSessionService.ResetPinTargetFailures(targetKey);
+        return null;
+    }
+
     private async Task SyncProfilesAsync(PluginConfiguration config, bool force)
     {
         if (!force && DateTime.UtcNow - _lastSyncUtc < TimeSpan.FromSeconds(60))
@@ -1094,6 +1185,7 @@ public partial class StreamFlixController
             avatarEmoji = p.AvatarEmoji,
             avatarColorHex = SanitizeHexColor(p.AvatarColorHex),
             isKids = p.IsKids,
+            kidsExitPinRequired = p.IsKids && p.KidsExitPinRequired,
             isAdmin,
             isOwner = StreamFlixStartupTask.IsOwnerProfile(p),
             maturityRating = p.MaturityRating,

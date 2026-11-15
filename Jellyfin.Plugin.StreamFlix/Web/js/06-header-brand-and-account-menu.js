@@ -487,21 +487,24 @@
 
         var profiles = getProfiles();
         var isGuest = isGuestPassSession();
-        var isAdmin = !isGuest && (isHouseholdAdmin() || Boolean(active.isAdmin));
+        var isKidsActive = Boolean(active.isKids);
+        var isAdmin = !isGuest && !isKidsActive && (isHouseholdAdmin() || Boolean(active.isAdmin));
         var googleEmail = state.googleUser && state.googleUser.email;
         var sessionUsername = state.googleUser && state.googleUser.username;
         var isOidcSession = Boolean(state.googleUser && state.googleUser.authKind === 'oidc');
         var guestRel = isGuest
             ? formatRelativeExpiry((state.config && state.config.guestPassExpiresAt) || (state.googleUser && state.googleUser.expiresAt))
             : '';
-        var accountSubLabel = isGuest
-            ? ('Temporary Guest Pass' + (guestRel ? ' · ' + guestRel : ''))
-            : (isOidcSession
-                ? ((state.googleUser.providerName || getOidcProviderLabel()) + ' · ' + (googleEmail || sessionUsername || active.jellyfinUsername || active.name))
-                : (googleEmail
-                    || (sessionUsername ? ((state.googleUser.authKind === 'jellyfin_admin' ? 'Admin · ' : 'Signed in as ') + sessionUsername) : '')
-                    || (state.config && state.config.bypassLoginGateOnLan && state.config.isLocalLan ? ('Local Network · ' + (active.jellyfinUsername || active.name)) : '')
-                    || ('Jellyfin user: ' + (active.jellyfinUsername || active.name))));
+        var accountSubLabel = isKidsActive
+            ? ('Kids Mode' + (isGuest && guestRel ? (' · ' + guestRel) : ' · Family-friendly titles'))
+            : (isGuest
+                ? ('Temporary Guest Pass' + (guestRel ? ' · ' + guestRel : ''))
+                : (isOidcSession
+                    ? ((state.googleUser.providerName || getOidcProviderLabel()) + ' · ' + (googleEmail || sessionUsername || active.jellyfinUsername || active.name))
+                    : (googleEmail
+                        || (sessionUsername ? ((state.googleUser.authKind === 'jellyfin_admin' ? 'Admin · ' : 'Signed in as ') + sessionUsername) : '')
+                        || (state.config && state.config.bypassLoginGateOnLan && state.config.isLocalLan ? ('Local Network · ' + (active.jellyfinUsername || active.name)) : '')
+                        || ('Jellyfin user: ' + (active.jellyfinUsername || active.name)))));
 
         var otherProfiles = isGuest ? [] : profiles.filter(function (p) { return p.id !== active.id; });
         var quickProfilesHtml = otherProfiles.map(function (p) {
@@ -545,11 +548,19 @@
                 + '<span class="bfx-dd-tile-label">' + escapeHtml(label) + '</span>'
                 + '</button>';
         };
+        var wpEnabled = !isKidsActive && typeof isWatchTogetherEnabled === 'function' && isWatchTogetherEnabled();
+        var wpActiveGroup = wpEnabled && typeof watchPartyState !== 'undefined' ? watchPartyState.activeGroup : null;
+        var wpCount = wpActiveGroup && typeof getActiveWatchPartyParticipantCount === 'function' ? getActiveWatchPartyParticipantCount() : 0;
+
         var tilesHtml = ''
             + (isPhoneSheet && state.cinemaHubEnabled !== false ? ddTile('streamflix-dd-mylist', 'bookmark', 'My List', 'Saved movies & shows', 'is-mylist') : '')
             + (canPhoneSurprise ? ddTile('streamflix-dd-surprise', 'shuffle', 'Surprise Me', 'Pick something great to watch', 'is-surprise') : '')
+            + (wpEnabled ? ddTile('streamflix-dd-watch-party', 'party', wpActiveGroup ? ('In Party (' + wpCount + ')') : 'Watch Together', wpActiveGroup ? ('Watching in "' + (wpActiveGroup.GroupName || 'Watch Party') + '"') : 'Start or join a synced Watch Party', 'is-watchparty' + (wpActiveGroup ? ' is-live' : '')) : '')
             + (castBtnNative ? ddTile('streamflix-dd-cast', 'cast', castInfo.connected ? 'Casting' : 'Cast', castInfo.connected ? ('Connected to ' + (castInfo.deviceName || 'another device')) : 'Play on a TV, Chromecast or another device', 'is-cast' + (castInfo.connected ? ' is-live' : '')) : '')
-            + (!isGuest ? ddTile('streamflix-dd-quick-connect', 'tv', 'Quick Connect', 'Sign in on a TV or another device with a 6-digit code', 'is-qc') : '');
+            + (!isGuest && !isKidsActive ? ddTile('streamflix-dd-quick-connect', 'tv', 'Quick Connect', 'Sign in on a TV or another device with a 6-digit code', 'is-qc') : '');
+
+        var kidsLockNeeded = isKidsActive && typeof isKidsExitLockRequired === 'function' && isKidsExitLockRequired()
+            && !(typeof getValidKidsExitSession === 'function' && getValidKidsExitSession());
 
         var dd = document.createElement('div');
         dd.id = 'streamflix-account-dropdown';
@@ -560,27 +571,39 @@
             + '  <div class="streamflix-dd-active-meta">'
             + '    <div class="streamflix-dd-active-name">'
             + '      <span>' + escapeHtml(active.name) + '</span>'
-            + (isGuest
-                ? '<span class="streamflix-dd-guest-pill">Guest</span>'
-                : (active.isAdmin ? '<span class="streamflix-dd-admin-pill">Admin</span>' : ''))
+            + (isKidsActive
+                ? '<span class="streamflix-dd-kids-pill">KIDS</span>'
+                : (isGuest
+                    ? '<span class="streamflix-dd-guest-pill">Guest</span>'
+                    : (active.isAdmin ? '<span class="streamflix-dd-admin-pill">Admin</span>' : '')))
             + '    </div>'
             + '    <div class="streamflix-dd-active-sub">' + escapeHtml(accountSubLabel) + '</div>'
             + '  </div>'
             + '  <button type="button" class="bfx-dd-close" id="streamflix-dd-close" title="Close" aria-label="Close menu">' + icon('chevronDown') + '</button>'
             + '</div>'
+            + (isKidsActive && !isGuest
+                ? ('<div class="bfx-dd-kids-exit-wrap"><button type="button" class="bfx-dd-exit-kids-btn" id="streamflix-dd-exit-kids">'
+                    + (kidsLockNeeded ? icon('lock') : icon('logout'))
+                    + '<span>Exit Kids Mode</span></button></div>')
+                : '')
             + (isGuest
                 ? ''
-                : ('<div class="bfx-dd-profiles">' + quickProfilesHtml
-                    + '<button type="button" class="bfx-dd-prof bfx-dd-prof-manage" id="streamflix-dd-manage-profiles" title="Manage profiles"><span class="bfx-dd-prof-av">' + icon('edit') + '</span><span class="bfx-dd-prof-name">Manage</span></button>'
-                    + '</div>'))
+                : (isKidsActive
+                    ? (otherProfiles.length ? ('<div class="bfx-dd-profiles">' + quickProfilesHtml + '</div>') : '')
+                    : ('<div class="bfx-dd-profiles">' + quickProfilesHtml
+                        + '<button type="button" class="bfx-dd-prof bfx-dd-prof-manage" id="streamflix-dd-manage-profiles" title="Manage profiles"><span class="bfx-dd-prof-av">' + icon('edit') + '</span><span class="bfx-dd-prof-name">Manage</span></button>'
+                        + '</div>')))
             + (tilesHtml ? ('<div class="bfx-dd-tiles">' + tilesHtml + '</div>') : '')
-            + '<div class="streamflix-dd-divider"></div>'
-            + (!isGuest ? ddItem('streamflix-dd-user-prefs', 'sliders', 'Settings', 'Preferences, subtitles & ' + getBrandName() + ' Home', '', '<span class="bfx-dd-chev">' + icon('chevronRight') + '</span>') : '')
-            + (isCurrentProfileSeerrAllowed() ? ddItem('streamflix-dd-seerr-requests', 'sparkle', 'Media Requests', 'Track requested movies & shows', '', '<span class="bfx-dd-chev">' + icon('chevronRight') + '</span>') : '')
-            + (isAdmin && areGuestPassesEnabled() ? ddItem('streamflix-dd-guest-passes', 'ticket', 'Guest Passes', 'Temporary invite links & QR', '', '<span class="bfx-dd-chev">' + icon('chevronRight') + '</span>') : '')
-            + (isAdmin ? ddItem('streamflix-dd-dashboard', 'gear', 'Dashboard', 'Server & ' + getBrandName() + ' plugin settings', '', '<span class="bfx-dd-chev">' + icon('chevronRight') + '</span>') : '')
-            + '<div class="streamflix-dd-divider"></div>'
-            + ddItem('streamflix-dd-signout', 'logout', isGuest ? 'Exit Guest Pass' : 'Sign out', '', 'danger');
+            + (isKidsActive
+                ? ((isCurrentProfileSeerrAllowed() ? ('<div class="streamflix-dd-divider"></div>' + ddItem('streamflix-dd-seerr-requests', 'sparkle', 'Media Requests', 'Track requested movies & shows', '', '<span class="bfx-dd-chev">' + icon('chevronRight') + '</span>')) : '')
+                    + (isGuest ? ('<div class="streamflix-dd-divider"></div>' + ddItem('streamflix-dd-signout', 'logout', 'Exit Guest Pass', '', 'danger')) : ''))
+                : ('<div class="streamflix-dd-divider"></div>'
+                    + (!isGuest ? ddItem('streamflix-dd-user-prefs', 'sliders', 'Settings', 'Preferences, subtitles & ' + getBrandName() + ' Home', '', '<span class="bfx-dd-chev">' + icon('chevronRight') + '</span>') : '')
+                    + (isCurrentProfileSeerrAllowed() ? ddItem('streamflix-dd-seerr-requests', 'sparkle', 'Media Requests', 'Track requested movies & shows', '', '<span class="bfx-dd-chev">' + icon('chevronRight') + '</span>') : '')
+                    + (isAdmin && areGuestPassesEnabled() ? ddItem('streamflix-dd-guest-passes', 'ticket', 'Guest Passes', 'Temporary invite links & QR', '', '<span class="bfx-dd-chev">' + icon('chevronRight') + '</span>') : '')
+                    + (isAdmin ? ddItem('streamflix-dd-dashboard', 'gear', 'Dashboard', 'Server & ' + getBrandName() + ' plugin settings', '', '<span class="bfx-dd-chev">' + icon('chevronRight') + '</span>') : '')
+                    + '<div class="streamflix-dd-divider"></div>'
+                    + ddItem('streamflix-dd-signout', 'logout', isGuest ? 'Exit Guest Pass' : 'Sign out', '', 'danger')));
 
         document.body.appendChild(dd);
 
@@ -605,6 +628,16 @@
         };
 
         bind('streamflix-dd-close', function () {});
+        bind('streamflix-dd-exit-kids', function () {
+            if (typeof exitKidsModeToPicker === 'function') {
+                exitKidsModeToPicker();
+            }
+        });
+        bind('streamflix-dd-watch-party', function () {
+            if (typeof openWatchTogetherModal === 'function') {
+                openWatchTogetherModal({});
+            }
+        });
         bind('streamflix-dd-mylist', function () {
             cancelPendingSearch();
             state.mobileSearchOpen = false;
@@ -793,6 +826,9 @@
                     }
                 }
                 syncFallbackCornerBrand(false);
+                if (typeof syncKidsModeChrome === 'function') {
+                    syncKidsModeChrome();
+                }
                 return;
             }
 
@@ -849,6 +885,9 @@
                     }
                 }
                 syncFallbackCornerBrand(Boolean(visibleStyledEl));
+                if (typeof syncKidsModeChrome === 'function') {
+                    syncKidsModeChrome();
+                }
                 return;
             }
 
@@ -868,5 +907,8 @@
                 }
             }
             syncFallbackCornerBrand(Boolean(visibleStyledEl));
+            if (typeof syncKidsModeChrome === 'function') {
+                syncKidsModeChrome();
+            }
         } catch (e) {}
     }

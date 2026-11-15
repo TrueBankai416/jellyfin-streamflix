@@ -4,7 +4,7 @@
 
 **A Netflix-style web UI, flexible household sign-in gate (Google OAuth, OIDC, Jellyfin & QR Guest Passes), native Seerr requests, and household profiles backed by real Jellyfin users.**
 
-[![Version](https://img.shields.io/badge/version-0.7.8.1-E50914?style=flat-square)](manifest.json)
+[![Version](https://img.shields.io/badge/version-0.7.9.0-E50914?style=flat-square)](manifest.json)
 [![Jellyfin](https://img.shields.io/badge/Jellyfin-10.9%20%E2%80%93%2012.x-00A4DC?style=flat-square)](manifest.json)
 [![.NET](https://img.shields.io/badge/.NET-8.0%20%7C%209.0%20%7C%2010.0-512BD4?style=flat-square)](Jellyfin.Plugin.StreamFlix/Jellyfin.Plugin.StreamFlix.csproj)
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg?style=flat-square)](LICENSE)
@@ -97,8 +97,10 @@ Runs entirely inside your existing Jellyfin server — no reverse-proxy sidecar,
 - **Multi-auth profile locks & randomized plugin passwords.** Protect any profile with a **4–8 digit PIN** (with target-scoped brute-force lockout) and/or lock it to a **Google email, OIDC email/username, or Jellyfin username** — displaying a matching provider badge on the profile tile. Dedicated Jellyfin users created by StreamFlix receive a cryptographically randomized 256-bit password automatically (while manually created Jellyfin accounts are never modified), secrets stay strictly server-side, and plugin configuration is mirrored atomically to persistent Jellyfin storage.
 - **Admin-only user management, dedicated Active Devices tab & global sign-out.** Only Jellyfin administrators can view server accounts, edit admin-linked profiles, manage Guest Passes, or change which Jellyfin user backs a profile. Administrators can open the dedicated **Active Devices** tab in **Dashboard → Plugins → StreamFlix** (`?tab=devices`, also linked from User Settings) to filter `All Devices`, `Online Now`, and `Guest Passes`, inspect `This Device`, `Online` / `Playing` status, profile badges, and last active time, **sign out individual devices** without disrupting the rest of the household, or trigger **Sign out all devices** server-wide.
 
-### Real Multi-User Profiles & Redesigned Settings
+### Real Multi-User Profiles, Dedicated Kids Mode & Watch Together
 - **Separate history for everyone.** Every *"Who's watching?"* tile maps to its own Jellyfin Server User, keeping **Continue Watching, Next Up, My List, played state, and parental controls** completely independent.
+- **Dedicated Kids Profile Mode & Parental Exit Lock.** Activating a Kids profile launches a child-safe, colorful experience with a vibrant **`KIDS`** header badge, interactive **Kids World filter bubbles** (`Animation`, `Family`, `Adventure`, `Silly & Funny`, `Magic & Fantasy`, `Quick Watch`), defense-in-depth maturity filtering alongside Jellyfin's server-side `MaxParentalAgeRating`, and locked-down settings/admin routes. Leaving Kids mode (or switching into an adult profile) enforces a configurable **Parental Exit Lock** — verifying any adult profile PIN on the server, or presenting a 4-word **Grown-Up Check** so households without PINs never lock themselves out.
+- **Clean Watch Together (SyncPlay) with 1-Click Guest Invites.** Host or join real-time synced watch parties directly from any **Title Details** modal, the **Account Menu**, or the **Video Player OSD** — keeping Jellyfin's stock header icon hidden for zero idle clutter and surfacing a live status indicator *only* while actively in a room. Share 1-click `?watchparty=` household links (with native phone Share sheet support) or generate a **6-hour Guest Pass + Watch Party** combo link for friends without an account.
 - **Redesigned User Settings & Preferences.** Opening **Settings** transforms Jellyfin's preference screens (`Profile`, `Display`, `Home`, `Playback`, `Subtitles`, `Controls`, and `Quick Connect`) into a cohesive dark-glass interface with an active **Profile Hero Card** (*Edit Profile* / *Switch Profile*), horizontal subpage switcher pills, the per-device **StreamFlix Home** experience toggle, and quick administrator links to **Active Devices** and **Plugin Settings**.
 - **Customizable branding, avatars & accents.** Customize the upper-left corner brand wordmark, choose from 64 categorized icons and 14 accent colors (with one-click Shuffle), and reorder profiles freely.
 - **Quick Connect & Cast built in.** Pair Smart TVs and other Jellyfin apps straight from the profile menu via **Quick Connect** — signing that device in as the active profile's Jellyfin user — or launch **Cast** in one click.
@@ -203,8 +205,8 @@ Pushing code changes to `main` triggers [`.github/workflows/build-plugin.yml`](.
     │   ├── StreamFlixStartupFilter.cs   # Request-time index.html script/style injection
     │   └── StreamFlixStartupTask.cs     # Jellyfin user provisioning, password hardening & linking
     └── Web/
-        ├── css/                         # Modular stylesheets (01..08: base, hub, player, TV & mobile dock)
-        └── js/                          # Modular client scripts (01..14: auth, profiles, hub, player & settings)
+        ├── css/                         # Modular stylesheets (01..09: base, hub, player, TV, mobile dock & Kids/Watch Together)
+        └── js/                          # Modular client scripts (01..14: auth, profiles, hub, player, Kids/Watch Together & settings)
 ```
 
 ## Credits

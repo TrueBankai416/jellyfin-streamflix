@@ -23,6 +23,11 @@ public class StreamFlixProfileConfig
 
     public bool IsKids { get; set; }
 
+    /// <summary>
+    /// Gets or sets a value indicating whether exiting this Kids profile requires an adult profile PIN (or grown-up verification check).
+    /// </summary>
+    public bool KidsExitPinRequired { get; set; } = true;
+
     public string MaturityRating { get; set; } = "TV-MA / R (All Maturity Levels)";
 
     public string? PinCode { get; set; }
@@ -126,6 +131,7 @@ public class PluginConfiguration : BasePluginConfiguration
         OidcRequireAllowlist = false;
         ApprovedOidcUsers = new List<string>();
         EnableGuestPasses = true;
+        EnableWatchTogether = true;
         GuestPasses = new List<StreamFlixGuestPass>();
         EnableSeerr = false;
         SeerrUrl = string.Empty;
@@ -284,6 +290,11 @@ public class PluginConfiguration : BasePluginConfiguration
     /// Gets or sets a value indicating whether Temporary Guest Passes (creation, invite links, QR codes, and guest sessions) are enabled.
     /// </summary>
     public bool EnableGuestPasses { get; set; }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether StreamFlix Watch Together (SyncPlay rooms) is enabled for non-Kids profiles.
+    /// </summary>
+    public bool EnableWatchTogether { get; set; }
 
     /// <summary>
     /// Gets or sets temporary, revocable Guest Passes issued by administrators.

@@ -434,6 +434,10 @@
             return d.top10Items.map(function (it, idx) { return buildTop10CardHtml(it, idx + 1); }).join('');
         };
 
+        var kidsWorldStripHtml = (!state.searchQuery && !bf && cat === 'all' && typeof buildKidsWorldStripHtml === 'function')
+            ? buildKidsWorldStripHtml(d.allMovies.concat(d.allSeries))
+            : '';
+
         var rowsHtml = '';
         if (state.searchQuery && (Array.isArray(state.searchResults) || Array.isArray(state.seerrSearchResults) || state.seerrSearchLoading)) {
             rowsHtml += buildSearchRowsHtml();
@@ -503,6 +507,15 @@
                 rowsHtml += buildRowHtml('hot-series', rowTitle('New Episodes & Series'), d.recentSeries.map(buildPosterCardHtml).join(''));
             }
             rowsHtml += smartRowsHtml(['smart-acclaimed', 'smart-gems']);
+        } else if (typeof isKidsProfileActive === 'function' && isKidsProfileActive() && state.kidsWorld && state.kidsWorld !== 'all' && typeof filterItemsByKidsWorld === 'function') {
+            var kwMeta = typeof getKidsWorldMeta === 'function' ? getKidsWorldMeta(state.kidsWorld) : { emoji: '🌟', label: 'Kids' };
+            var kwPool = dedupeMediaItems(d.allMovies.concat(d.allSeries));
+            var kwItems = filterItemsByKidsWorld(kwPool, state.kidsWorld);
+            if (kwItems.length > 0) {
+                rowsHtml += buildGridSectionHtml('kids-world-' + state.kidsWorld, rowTitle(kwMeta.emoji + ' ' + kwMeta.label, kwItems.length), kwItems);
+            } else {
+                rowsHtml += buildEmptyStateHtml('film', 'No titles in ' + kwMeta.label + ' yet', 'Tap another Kids World bubble above to keep exploring.');
+            }
         } else {
             if (d.resumeItems.length > 0) {
                 rowsHtml += buildRowHtml('resume', rowTitle('Continue Watching for ' + profileName), d.resumeItems.map(function (it) { return buildWideCardHtml(it, { removable: true }); }).join(''), { className: 'streamflix-row-wide' });
@@ -546,6 +559,9 @@
                 ? buildEmptyStateHtml('plus', 'Your list is empty', 'Add movies and shows with the + button and they\'ll show up here.')
                 : buildEmptyStateHtml('film', 'Nothing here yet', 'Titles will appear as soon as they are added to your libraries.');
         }
+        if (kidsWorldStripHtml) {
+            rowsHtml = kidsWorldStripHtml + rowsHtml;
+        }
 
         var bindCategoryPills = function (scopeNode) {
             Array.prototype.forEach.call(scopeNode.querySelectorAll('[data-cat-id]'), function (btn) {
@@ -557,6 +573,7 @@
                         pickedCat = 'all';
                     }
                     state.activeCategory = pickedCat;
+                    state.kidsWorld = 'all';
                     state.heroIndex = 0;
                     state.mobileSearchOpen = false;
                     state.searchQuery = '';
@@ -585,6 +602,9 @@
                     state.browseFilter = null;
                     renderCinemaHubContents();
                 });
+            }
+            if (typeof bindKidsWorldStrip === 'function') {
+                bindKidsWorldStrip(rowsScope);
             }
             bindInteractiveCardsInContainer(rowsScope, null, null);
             bindSeerrCardsInContainer(rowsScope);

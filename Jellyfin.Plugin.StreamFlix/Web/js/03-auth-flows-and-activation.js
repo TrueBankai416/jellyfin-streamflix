@@ -39,6 +39,9 @@
         result.stateOk = Boolean(expected) && expected === result.state;
 
         state.justCompletedGoogleOAuth = true;
+        if (typeof capturePendingWatchPartyFromUrl === 'function') {
+            capturePendingWatchPartyFromUrl();
+        }
         // Strip the token from the address bar and history immediately
         try {
             window.history.replaceState(null, document.title, window.location.pathname + '#/home');
@@ -173,6 +176,9 @@
             return null;
         }
         state.justCompletedGoogleOAuth = true;
+        if (typeof capturePendingWatchPartyFromUrl === 'function') {
+            capturePendingWatchPartyFromUrl();
+        }
         try {
             window.history.replaceState(null, document.title, window.location.pathname + '#/home');
         } catch (e) {
@@ -337,6 +343,9 @@
             return null;
         }
         state.justCompletedGoogleOAuth = true;
+        if (typeof capturePendingWatchPartyFromUrl === 'function') {
+            capturePendingWatchPartyFromUrl();
+        }
         try {
             window.history.replaceState(null, document.title, window.location.pathname + '#/home');
         } catch (e) {
@@ -494,6 +503,9 @@
     }
 
     function fixBrokenJellyfinRoutes() {
+        if (typeof enforceKidsRouteGuard === 'function' && enforceKidsRouteGuard()) {
+            return;
+        }
         var onHome = isOnHomeRoute();
         if (document.body) {
             document.body.classList.toggle('streamflix-on-home', onHome);
@@ -582,10 +594,16 @@
         }
     }
 
-    function activateServerProfile(profile, suppliedPin) {
+    function activateServerProfile(profile, suppliedPin, extraOpts) {
+        extraOpts = extraOpts || {};
         var dev = getJellyfinDeviceInfo();
         var prevUserId = (state.activeProfile && state.activeProfile.jellyfinUserId)
             || (window.ApiClient && typeof window.ApiClient.getCurrentUserId === 'function' ? window.ApiClient.getCurrentUserId() : '');
+        var exitingKidsId = extraOpts.exitingKidsProfileId
+            || ((state.activeProfile && state.activeProfile.isKids && !profile.isKids) ? state.activeProfile.id : '');
+        var adultExitPinVal = extraOpts.usePinAsAdultExit
+            ? (suppliedPin || '')
+            : (extraOpts.adultExitPin || '');
         state.activatingProfileId = profile.id;
         return apiFetch('/StreamFlix/Profiles/Activate', {
             method: 'POST',
@@ -594,6 +612,8 @@
                 profileId: profile.id,
                 pin: suppliedPin || '',
                 pinCode: suppliedPin || '',
+                exitingKidsProfileId: exitingKidsId,
+                adultExitPin: adultExitPinVal,
                 deviceId: dev.deviceId,
                 deviceName: dev.deviceName,
                 appName: dev.appName,
@@ -644,6 +664,13 @@
 
             closeOverlayGate();
             closeAccountDropdown();
+            if (typeof clearKidsExitSession === 'function') {
+                clearKidsExitSession();
+            }
+            if (activated.isKids && typeof leaveWatchPartyRoom === 'function' && typeof watchPartyState !== 'undefined' && watchPartyState.activeGroup) {
+                leaveWatchPartyRoom();
+            }
+            state.kidsWorld = 'all';
             ensureHeaderWidgets();
 
             // Reset Cinema Hub, search, browse filter, and per-user item/episode caches for the newly selected profile
