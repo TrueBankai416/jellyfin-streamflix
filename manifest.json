@@ -9,6 +9,30 @@
     "imageUrl": "https://raw.githubusercontent.com/streamflix-dev/jellyfin-streamflix/main/Jellyfin.Plugin.StreamFlix/thumb.png",
     "versions": [
       {
+        "version": "0.9.1.3",
+        "changelog": "Build for Jellyfin 12.x (.NET 10).\n\n- Watch Together Mobile & Transcode Sync Stability Fix: prevent infinite HLS/transcode re-seek buffering loops when OSD controls auto-hide by calibrating stream offsets from Jellyfin playback progress reports, enforce one-shot per-media auto-launch so mobile native players (ExoPlayer/AVPlayer) and slow connections never stack sessions or crash, remove playbackRate micro-mutation, and suppress buffering/keyframe-snap command ping-pong\n- Explicit Delete Watch Party Controls: add server-side WatchParty/Delete endpoint and one-tap Delete Party / Delete buttons inside active Watch Party rooms and in the Active Household Parties list with clean detachment for connected viewers",
+        "targetAbi": "12.0.0.0",
+        "sourceUrl": "https://raw.githubusercontent.com/streamflix-dev/jellyfin-streamflix/main/dist/Jellyfin.Plugin.StreamFlix_0.9.1.3_12.0.0.zip",
+        "checksum": "957235968ba12de1afeb095142581f8d",
+        "timestamp": "2026-11-15T23:49:24Z"
+      },
+      {
+        "version": "0.9.1.3",
+        "changelog": "Build for Jellyfin 10.11.x (.NET 9).\n\n- Watch Together Mobile & Transcode Sync Stability Fix: prevent infinite HLS/transcode re-seek buffering loops when OSD controls auto-hide by calibrating stream offsets from Jellyfin playback progress reports, enforce one-shot per-media auto-launch so mobile native players (ExoPlayer/AVPlayer) and slow connections never stack sessions or crash, remove playbackRate micro-mutation, and suppress buffering/keyframe-snap command ping-pong\n- Explicit Delete Watch Party Controls: add server-side WatchParty/Delete endpoint and one-tap Delete Party / Delete buttons inside active Watch Party rooms and in the Active Household Parties list with clean detachment for connected viewers",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://raw.githubusercontent.com/streamflix-dev/jellyfin-streamflix/main/dist/Jellyfin.Plugin.StreamFlix_0.9.1.3_10.11.0.zip",
+        "checksum": "6bedf39b5f39686a0319700e5a70543b",
+        "timestamp": "2026-11-15T23:49:24Z"
+      },
+      {
+        "version": "0.9.1.3",
+        "changelog": "Build for Jellyfin 10.9 - 10.10 (.NET 8).\n\n- Watch Together Mobile & Transcode Sync Stability Fix: prevent infinite HLS/transcode re-seek buffering loops when OSD controls auto-hide by calibrating stream offsets from Jellyfin playback progress reports, enforce one-shot per-media auto-launch so mobile native players (ExoPlayer/AVPlayer) and slow connections never stack sessions or crash, remove playbackRate micro-mutation, and suppress buffering/keyframe-snap command ping-pong\n- Explicit Delete Watch Party Controls: add server-side WatchParty/Delete endpoint and one-tap Delete Party / Delete buttons inside active Watch Party rooms and in the Active Household Parties list with clean detachment for connected viewers",
+        "targetAbi": "10.9.0.0",
+        "sourceUrl": "https://raw.githubusercontent.com/streamflix-dev/jellyfin-streamflix/main/dist/Jellyfin.Plugin.StreamFlix_0.9.1.3_10.9.0.zip",
+        "checksum": "45277f8ddc0c491a2e65cd93f6d45e06",
+        "timestamp": "2026-11-15T23:49:24Z"
+      },
+      {
         "version": "0.9.1.2",
         "changelog": "Build for Jellyfin 12.x (.NET 10).\n\n- Restore Account Pill Menu Quick Connect: restore the working 6-character Quick Connect TV/device authorization tile and modal in the Account Pill Menu while keeping the broken Settings subpage Quick Connect tab removed\n- Watch Together Room Serialization Fix & Elevated Cinema Lounge UI: explicit camelCase JSON property attributes on server Watch Party DTOs/snapshots plus client-side normalization, segmented Playback Controls & Start Position switches, full-width inputs, and live room deck\n- Settings Anti-Clipping & Phone Client Settings: fix Profile & Password (#userProfilePage) avatar layout collision, wrap Settings section pills without clipping, and surface Client Settings directly in the phone Account Sheet and Settings overview",
         "targetAbi": "12.0.0.0",
