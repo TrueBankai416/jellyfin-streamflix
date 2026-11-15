@@ -17,6 +17,6 @@ imageUrl: "https://raw.githubusercontent.com/streamflix-dev/jellyfin-streamflix/
 artifacts:
   - "Jellyfin.Plugin.StreamFlix.dll"
 changelog: >
-  - Liquid-Glass Mobile Dock Polish & Zero Doubled Avatar: remove the inline-forced top-right profile pill whenever the mobile floating dock is active, add a spring-animated gliding glass highlight, ambient bottom scrim, bespoke dock icons, and smart title-case formatting for uppercase brand names (e.g. My Benflix)
+  - Liquid-Glass Mobile Dock Polish & Zero Doubled Avatar: remove the inline-forced top-right profile pill whenever the mobile floating dock is active, add a spring-animated gliding glass highlight, ambient bottom scrim, bespoke dock icons, and smart title-case formatting for uppercase brand names (e.g. My StreamFlix)
   - Clean Mobile Category Pills: remove stray active-pill bottom accent underlines and keep mobile subnav focused on clean individual category pills (Shows, Movies, Collections, My List)
   - Modular Codebase Organization: split monolithic Web JS, Web CSS, and API Controller files into focused, readable modules under Web/js/, Web/css/, and Controllers/ while preserving single-request in-memory bundle assembly and ETag caching
