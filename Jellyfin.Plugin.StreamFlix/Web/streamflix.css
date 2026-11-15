@@ -9481,3 +9481,223 @@ body.bfx-settings-route button:focus-visible {
         padding: 14px 15px !important;
     }
 }
+
+/* ==========================================================================
+   Mobile-Only Floating Capsule Dock & Uncluttered Phone Chrome
+   (Strictly scoped to phones <= 640px; desktop, tablet & TV are untouched)
+   ========================================================================== */
+#streamflix-mobile-dock {
+    display: none !important;
+}
+
+@media (max-width: 640px) {
+    /* Show floating pill dock ONLY on phones (never on TV mode, gate, video player, or admin routes) */
+    html:not(.layout-tv) body.bfx-phone-mode.bfx-mobile-dock-ready:not(.bfx-tv-mode):not(.streamflix-in-video-player):not(.streamflix-gate-locked):not(.bfx-admin-route) #streamflix-mobile-dock {
+        position: fixed;
+        left: 50%;
+        bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+        transform: translateX(-50%);
+        width: min(calc(100vw - 38px), 358px);
+        height: 60px;
+        padding: 4px;
+        box-sizing: border-box;
+        border-radius: 999px;
+        background: rgba(34, 34, 38, 0.92);
+        backdrop-filter: blur(26px) saturate(170%);
+        -webkit-backdrop-filter: blur(26px) saturate(170%);
+        border: 1px solid rgba(255, 255, 255, 0.11);
+        box-shadow: 0 14px 36px rgba(0, 0, 0, 0.78), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+        z-index: 9985;
+        display: flex !important;
+        align-items: center;
+        justify-content: space-between;
+        gap: 2px;
+        transition: opacity 0.2s ease, transform 0.22s cubic-bezier(0.2, 0.8, 0.2, 1);
+    }
+
+    /* Smoothly tuck dock away while soft keyboard is active in search or a modal sheet is open */
+    html:not(.layout-tv) body.bfx-phone-mode.bfx-mobile-search-focused #streamflix-mobile-dock,
+    html:not(.layout-tv) body.bfx-phone-mode:has(.streamflix-modal-backdrop:not(.streamflix-modal-leave)) #streamflix-mobile-dock {
+        opacity: 0 !important;
+        pointer-events: none !important;
+        transform: translate(-50%, 22px) !important;
+    }
+
+    .bfx-dock-btn {
+        appearance: none;
+        -webkit-appearance: none;
+        flex: 1 1 0%;
+        min-width: 0;
+        height: 100%;
+        padding: 0 4px;
+        border: none;
+        border-radius: 999px;
+        background: transparent;
+        color: rgba(255, 255, 255, 0.68);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 3px;
+        cursor: pointer;
+        user-select: none;
+        -webkit-tap-highlight-color: transparent;
+        transition: background 0.18s ease, color 0.18s ease, transform 0.14s ease;
+    }
+    .bfx-dock-btn:active {
+        transform: scale(0.95);
+    }
+    .bfx-dock-btn.is-active {
+        background: rgba(255, 255, 255, 0.11);
+        color: #ffffff;
+    }
+    .bfx-dock-btn:focus-visible {
+        outline: 2px solid rgba(255, 255, 255, 0.85);
+        outline-offset: -2px;
+    }
+
+    .bfx-dock-ico {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 22px;
+        height: 22px;
+        flex: none;
+    }
+    .bfx-dock-ico .bfx-icon {
+        width: 21px;
+        height: 21px;
+        stroke-width: 1.95;
+    }
+    .bfx-dock-btn.is-active .bfx-dock-ico .bfx-icon {
+        stroke-width: 2.3;
+    }
+
+    .bfx-dock-avatar {
+        width: 22px;
+        height: 22px;
+        min-width: 22px;
+        flex: 0 0 22px;
+        border-radius: 5.5px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 13px;
+        line-height: 1;
+        box-sizing: border-box;
+        border: 1.5px solid rgba(255, 255, 255, 0.14);
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.45);
+        transition: border-color 0.18s ease, box-shadow 0.18s ease;
+    }
+    .bfx-dock-btn.is-active .bfx-dock-avatar {
+        border-color: #ffffff;
+        box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.35), 0 2px 8px rgba(0, 0, 0, 0.55);
+    }
+
+    .bfx-dock-label {
+        font-size: 10.5px;
+        font-weight: 500;
+        letter-spacing: 0.01em;
+        line-height: 1.1;
+        max-width: 100%;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+    .bfx-dock-btn.is-active .bfx-dock-label {
+        font-weight: 700;
+        color: #ffffff;
+    }
+
+    /* De-clutter top-right profile pill when mobile dock's "My <Brand>" tab is present */
+    html:not(.layout-tv) body.bfx-phone-mode.bfx-mobile-dock-ready:not(.bfx-tv-mode):not(.bfx-admin-route) #streamflix-header-profile-btn {
+        display: none !important;
+    }
+
+    /* Anchor Account Sheet cleanly right above the floating dock for thumb reachability */
+    html:not(.layout-tv) body.bfx-phone-mode.bfx-mobile-dock-ready:not(.bfx-tv-mode) #streamflix-account-dropdown {
+        top: auto !important;
+        bottom: calc(78px + env(safe-area-inset-bottom, 0px)) !important;
+        left: 12px !important;
+        right: 12px !important;
+        max-height: calc(100dvh - 96px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px)) !important;
+        border-radius: 22px !important;
+        transform-origin: bottom center !important;
+    }
+    html:not(.layout-tv) body.bfx-phone-mode:not(.bfx-tv-mode) #streamflix-account-dropdown .bfx-dd-tiles {
+        grid-auto-flow: row !important;
+        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+        gap: 8px !important;
+    }
+
+    /* De-clutter Mobile Subnav: clean individual Netflix-style category pills, no redundant Home/Top10/Search/Shuffle icons */
+    html:not(.layout-tv) body.bfx-phone-mode.bfx-mobile-dock-ready:not(.bfx-tv-mode) .streamflix-subnav {
+        padding: 6px var(--bfx-gutter) 8px var(--bfx-gutter) !important;
+        gap: 8px !important;
+    }
+    html:not(.layout-tv) body.bfx-phone-mode.bfx-mobile-dock-ready:not(.bfx-tv-mode) .streamflix-FilterPills {
+        background: transparent !important;
+        border: none !important;
+        box-shadow: none !important;
+        backdrop-filter: none !important;
+        -webkit-backdrop-filter: none !important;
+        padding: 0 !important;
+        gap: 8px !important;
+    }
+    html:not(.layout-tv) body.bfx-phone-mode.bfx-mobile-dock-ready:not(.bfx-tv-mode) .streamflix-FilterPills .streamflix-pill[data-cat-id="all"],
+    html:not(.layout-tv) body.bfx-phone-mode.bfx-mobile-dock-ready:not(.bfx-tv-mode) .streamflix-FilterPills .streamflix-pill[data-cat-id="top10"] {
+        display: none !important;
+    }
+    html:not(.layout-tv) body.bfx-phone-mode.bfx-mobile-dock-ready:not(.bfx-tv-mode) .streamflix-FilterPills .streamflix-pill {
+        padding: 7px 15px !important;
+        border-radius: 999px !important;
+        border: 1px solid rgba(255, 255, 255, 0.28) !important;
+        background: rgba(18, 18, 22, 0.52) !important;
+        backdrop-filter: blur(14px) saturate(140%);
+        -webkit-backdrop-filter: blur(14px) saturate(140%);
+        color: rgba(255, 255, 255, 0.92) !important;
+        font-size: 13px !important;
+        font-weight: 600 !important;
+    }
+    html:not(.layout-tv) body.bfx-phone-mode.bfx-mobile-dock-ready:not(.bfx-tv-mode) .streamflix-FilterPills .streamflix-pill.active {
+        background: #ffffff !important;
+        border-color: #ffffff !important;
+        color: #0b0b0b !important;
+    }
+    html:not(.layout-tv) body.bfx-phone-mode.bfx-mobile-dock-ready:not(.bfx-tv-mode) #streamflix-surprise-btn {
+        display: none !important;
+    }
+    html:not(.layout-tv) body.bfx-phone-mode.bfx-mobile-dock-ready:not(.bfx-tv-mode) .streamflix-subnav:not(.is-search-open) .streamflix-search-box:not(:focus-within):not(.has-value) {
+        display: none !important;
+    }
+
+    /* When Search is opened from the mobile dock, show a clean full-width search bar */
+    html:not(.layout-tv) body.bfx-phone-mode.bfx-mobile-dock-ready:not(.bfx-tv-mode) .streamflix-subnav.is-search-open .streamflix-FilterPills,
+    html:not(.layout-tv) body.bfx-phone-mode.bfx-mobile-dock-ready:not(.bfx-tv-mode) .streamflix-subnav:has(.streamflix-search-box:focus-within) .streamflix-FilterPills,
+    html:not(.layout-tv) body.bfx-phone-mode.bfx-mobile-dock-ready:not(.bfx-tv-mode) .streamflix-subnav:has(.streamflix-search-box.has-value) .streamflix-FilterPills {
+        display: none !important;
+    }
+    html:not(.layout-tv) body.bfx-phone-mode.bfx-mobile-dock-ready:not(.bfx-tv-mode) .streamflix-subnav.is-search-open + #streamflix-hero-billboard {
+        padding-top: calc(max(var(--bfx-bleed, 0px), var(--bfx-header-h)) + 66px) !important;
+    }
+
+    /* Bottom clearance so the floating dock never overlaps content rows, settings cards, or toasts */
+    html:not(.layout-tv) body.bfx-phone-mode.bfx-mobile-dock-ready:not(.bfx-tv-mode) .streamflix-rows,
+    html:not(.layout-tv) body.bfx-phone-mode.bfx-mobile-dock-ready:not(.bfx-tv-mode) #streamflix-library-page-fallback {
+        padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px)) !important;
+    }
+    html:not(.layout-tv) body.bfx-phone-mode.bfx-mobile-dock-ready.bfx-settings-route:not(.bfx-tv-mode) #myPreferencesMenuPage:not(.hide),
+    html:not(.layout-tv) body.bfx-phone-mode.bfx-mobile-dock-ready.bfx-settings-route:not(.bfx-tv-mode) #userProfilePage:not(.hide),
+    html:not(.layout-tv) body.bfx-phone-mode.bfx-mobile-dock-ready.bfx-settings-route:not(.bfx-tv-mode) #displayPreferencesPage:not(.hide),
+    html:not(.layout-tv) body.bfx-phone-mode.bfx-mobile-dock-ready.bfx-settings-route:not(.bfx-tv-mode) #homePreferencesPage:not(.hide),
+    html:not(.layout-tv) body.bfx-phone-mode.bfx-mobile-dock-ready.bfx-settings-route:not(.bfx-tv-mode) #languagePreferencesPage:not(.hide),
+    html:not(.layout-tv) body.bfx-phone-mode.bfx-mobile-dock-ready.bfx-settings-route:not(.bfx-tv-mode) #playbackPreferencesPage:not(.hide),
+    html:not(.layout-tv) body.bfx-phone-mode.bfx-mobile-dock-ready.bfx-settings-route:not(.bfx-tv-mode) #subtitlePreferencesPage:not(.hide),
+    html:not(.layout-tv) body.bfx-phone-mode.bfx-mobile-dock-ready.bfx-settings-route:not(.bfx-tv-mode) #controlsPreferencesPage:not(.hide),
+    html:not(.layout-tv) body.bfx-phone-mode.bfx-mobile-dock-ready.bfx-settings-route:not(.bfx-tv-mode) #myPreferencesQuickConnectPage:not(.hide) {
+        padding-bottom: calc(104px + env(safe-area-inset-bottom, 0px)) !important;
+    }
+    html:not(.layout-tv) body.bfx-phone-mode.bfx-mobile-dock-ready:not(.bfx-tv-mode) #streamflix-toast-host {
+        bottom: calc(82px + env(safe-area-inset-bottom, 0px)) !important;
+    }
+}

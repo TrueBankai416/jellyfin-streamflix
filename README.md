@@ -4,7 +4,7 @@
 
 **A Netflix-style web UI, flexible household sign-in gate (Google OAuth, OIDC, Jellyfin & QR Guest Passes), native Seerr requests, and household profiles backed by real Jellyfin users.**
 
-[![Version](https://img.shields.io/badge/version-0.7.7-E50914?style=flat-square)](manifest.json)
+[![Version](https://img.shields.io/badge/version-0.7.8-E50914?style=flat-square)](manifest.json)
 [![Jellyfin](https://img.shields.io/badge/Jellyfin-10.9%20%E2%80%93%2012.x-00A4DC?style=flat-square)](manifest.json)
 [![.NET](https://img.shields.io/badge/.NET-8.0%20%7C%209.0%20%7C%2010.0-512BD4?style=flat-square)](Jellyfin.Plugin.StreamFlix/Jellyfin.Plugin.StreamFlix.csproj)
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg?style=flat-square)](LICENSE)
@@ -115,7 +115,7 @@ Runs entirely inside your existing Jellyfin server — no reverse-proxy sidecar,
 - **Seamless binge watching.** End-of-episode **Next Episode** countdown card (*Play Next* / *Watch Credits*) so multi-episode sessions keep flowing automatically.
 
 ### Desktop, Phone & Smart TV Ready
-- **Mobile-tuned.** Clean distraction-free header chrome, phone-only native invite sharing, single-row category bar with tap-to-expand search, touch-swipe hero billboard, 3-up snap-scrolling poster rows, safe-area-aware modals, and a collision-free landscape player.
+- **Mobile-tuned with floating capsule dock.** Frosted-glass bottom navigation dock exclusively on phones (`Home`, `New & Hot`, `Search`, and `My <Brand>` with a bottom-anchored account sheet), uncluttered outlined category pills, phone-only native invite sharing, touch-swipe hero billboard, 3-up snap-scrolling poster rows, safe-area-aware modals, and a collision-free landscape player.
 - **10-foot Smart TV mode.** Automatically activates on `.layout-tv`, TV browsers, or `?tv=1` with overscan-safe margins, oversized poster/profile tiles, crisp focus halos, and full 2D spatial D-pad / remote navigation.
 
 ---

@@ -1,6 +1,6 @@
 /* ==========================================================================
    STREAMFLIX — Netflix-style UI for Jellyfin: server-verified Google & OIDC SSO,
-   "Who's watching?" profiles, Guest Passes & Seerr (v0.7.7)
+   "Who's watching?" profiles, Guest Passes & Seerr (v0.7.8)
    ========================================================================== */
 (function () {
     'use strict';
@@ -10,7 +10,7 @@
     }
     window.__STREAMFLIX_BOOTSTRAPPED__ = true;
 
-    var VERSION = '0.7.7.0';
+    var VERSION = '0.7.8.0';
     // Household session issued by the server ({ token, authKind, providerName, email, username, userId, name, picture, isAdmin, guestPassId, lockedProfileId, expiresAt })
     var GOOGLE_KEY = 'streamflix_session_v7';
     var OAUTH_STATE_KEY = 'streamflix_oauth_state';
@@ -123,6 +123,7 @@
         accountDropdownOpen: false,
         cinemaHubEnabled: loadJson(CINEMA_HUB_PREF_KEY, true) !== false,
         activeCategory: 'all',
+        mobileSearchOpen: false,
         searchQuery: '',
         searchDebounce: null,
         searchSeq: 0,
@@ -633,7 +634,9 @@
         smartphone: '<rect x="6" y="2.5" width="12" height="19" rx="2.4"/><path d="M11 18.2h2"/>',
         laptop: '<rect x="3.5" y="4.5" width="17" height="11.5" rx="1.8"/><path d="M2 19h20"/>',
         refresh: '<path d="M20 11a8 8 0 1 0 2 5.3"/><path d="M20 4v7h-7"/>',
-        download: '<path d="M12 3v12m0 0l-4.5-4.5M12 15l4.5-4.5"/><path d="M4 19.5h16"/>'
+        download: '<path d="M12 3v12m0 0l-4.5-4.5M12 15l4.5-4.5"/><path d="M4 19.5h16"/>',
+        dockHome: '<path d="M4.5 10.6L11.1 4.8a1.4 1.4 0 0 1 1.8 0l6.6 5.8c.32.28.5.68.5 1.1V18a2.2 2.2 0 0 1-2.2 2.2H6.2A2.2 2.2 0 0 1 4 18v-6.3c0-.42.18-.82.5-1.1z"/><path d="M9.4 16.8h5.2"/>',
+        bookmark: '<path d="M6.2 4.2h11.6a1.3 1.3 0 0 1 1.3 1.3v14.8L12 16l-7.1 4.3V5.5a1.3 1.3 0 0 1 1.3-1.3z"/>'
     };
 
     function icon(name, extraClass) {
@@ -5446,6 +5449,7 @@
         if (btn) {
             btn.classList.remove('open');
         }
+        syncMobileDockState();
     }
 
     function toggleAccountDropdown() {
@@ -5516,6 +5520,11 @@
 
         var castBtnNative = findNativeHeaderButton('cast');
         var castInfo = getNativeCastState();
+        var isPhoneSheet = Boolean(document.body && document.body.classList.contains('bfx-phone-mode'));
+        var canPhoneSurprise = isPhoneSheet
+            && state.cinemaHubEnabled !== false
+            && state.hubData
+            && ((state.hubData.allMovies ? state.hubData.allMovies.length : 0) + (state.hubData.allSeries ? state.hubData.allSeries.length : 0)) >= 2;
 
         var ddTile = function (id, iconName, label, hint, extraClass) {
             return '<button type="button" role="menuitem" class="bfx-dd-tile' + (extraClass ? ' ' + extraClass : '') + '" id="' + id + '" title="' + escapeHtml(hint) + '">'
@@ -5524,6 +5533,8 @@
                 + '</button>';
         };
         var tilesHtml = ''
+            + (isPhoneSheet && state.cinemaHubEnabled !== false ? ddTile('streamflix-dd-mylist', 'bookmark', 'My List', 'Saved movies & shows', 'is-mylist') : '')
+            + (canPhoneSurprise ? ddTile('streamflix-dd-surprise', 'shuffle', 'Surprise Me', 'Pick something great to watch', 'is-surprise') : '')
             + (castBtnNative ? ddTile('streamflix-dd-cast', 'cast', castInfo.connected ? 'Casting' : 'Cast', castInfo.connected ? ('Connected to ' + (castInfo.deviceName || 'another device')) : 'Play on a TV, Chromecast or another device', 'is-cast' + (castInfo.connected ? ' is-live' : '')) : '')
             + (!isGuest ? ddTile('streamflix-dd-quick-connect', 'tv', 'Quick Connect', 'Sign in on a TV or another device with a 6-digit code', 'is-qc') : '');
 
@@ -5581,6 +5592,33 @@
         };
 
         bind('streamflix-dd-close', function () {});
+        bind('streamflix-dd-mylist', function () {
+            cancelPendingSearch();
+            state.mobileSearchOpen = false;
+            state.searchQuery = '';
+            state.searchResults = null;
+            state.seerrSearchResults = null;
+            state.browseFilter = null;
+            state.activeCategory = 'mylist';
+            state.heroIndex = 0;
+            if (!isOnHomeRoute()) {
+                window.location.hash = '#/home';
+                setTimeout(function () {
+                    ensureCinemaHubMounted();
+                    renderCinemaHubContents();
+                    syncMobileDockState();
+                    try { window.scrollTo({ top: 0, behavior: 'auto' }); } catch (e) {}
+                }, 40);
+            } else {
+                ensureCinemaHubMounted();
+                renderCinemaHubContents();
+                syncMobileDockState();
+                try { window.scrollTo({ top: 0, behavior: prefersReducedMotion() ? 'auto' : 'smooth' }); } catch (e) {}
+            }
+        });
+        bind('streamflix-dd-surprise', function () {
+            triggerSurpriseMe();
+        });
         // Cast reuses Jellyfin's own picker (Chromecast, AirPlay, other sessions)
         bind('streamflix-dd-cast', function () {
             openNativeHeaderMenu('cast');
@@ -5619,6 +5657,7 @@
                 }
             });
         });
+        syncMobileDockState();
     }
 
     // Close dropdown when clicking outside
@@ -5628,7 +5667,8 @@
         }
         var dd = document.getElementById('streamflix-account-dropdown');
         var btn = document.getElementById('streamflix-header-profile-btn');
-        if (dd && !dd.contains(ev.target) && (!btn || !btn.contains(ev.target))) {
+        var dock = document.getElementById('streamflix-mobile-dock');
+        if (dd && !dd.contains(ev.target) && (!btn || !btn.contains(ev.target)) && (!dock || !dock.contains(ev.target))) {
             closeAccountDropdown();
         }
     });
@@ -6981,6 +7021,7 @@
             if (staleBtn) {
                 staleBtn.style.setProperty('display', 'none', 'important');
             }
+            ensureMobileDock(true, inVideo);
             return;
         }
 
@@ -7018,6 +7059,238 @@
                 + '<span class="streamflix-header-caret">' + icon('chevronDown') + '</span>';
         }
         syncHeaderCastIndicator(btn);
+        ensureMobileDock(overlayOpen, inVideo);
+    }
+
+    function getMobileDockProfileLabel() {
+        var brand = getBrandName();
+        var candidate = 'My ' + brand;
+        if (candidate.length <= 15) {
+            return candidate;
+        }
+        var activeName = state.activeProfile && state.activeProfile.name ? String(state.activeProfile.name).trim() : '';
+        return (activeName && activeName.length <= 12) ? activeName : 'Account';
+    }
+
+    function syncMobileDockState() {
+        var dock = document.getElementById('streamflix-mobile-dock');
+        if (!dock) {
+            return;
+        }
+        var onHome = isOnHomeRoute();
+        var searchOpen = Boolean(state.mobileSearchOpen || state.searchQuery);
+        var hashLower = (window.location.hash || '').toLowerCase();
+        var cat = state.activeCategory || 'all';
+        var activeTab = 'home';
+
+        if (state.accountDropdownOpen
+            || isUserPreferencesRoute()
+            || (onHome && !searchOpen && cat === 'mylist')) {
+            activeTab = 'profile';
+        } else if ((onHome && searchOpen) || hashLower.indexOf('search') !== -1) {
+            activeTab = 'search';
+        } else if (onHome && (cat === 'hot' || cat === 'top10')) {
+            activeTab = 'hot';
+        }
+
+        Array.prototype.forEach.call(dock.querySelectorAll('[data-dock-tab]'), function (tabBtn) {
+            var key = tabBtn.getAttribute('data-dock-tab');
+            var isAct = key === activeTab;
+            tabBtn.classList.toggle('is-active', isAct);
+            if (key === 'profile') {
+                tabBtn.setAttribute('aria-expanded', state.accountDropdownOpen ? 'true' : 'false');
+            } else if (isAct) {
+                tabBtn.setAttribute('aria-current', 'page');
+            } else {
+                tabBtn.removeAttribute('aria-current');
+            }
+        });
+    }
+
+    function ensureMobileDock(overlayOpen, inVideo) {
+        if (!document.body) {
+            return;
+        }
+        var active = state.activeProfile;
+        var hideDock = !active
+            || Boolean(overlayOpen)
+            || Boolean(inVideo)
+            || isAdminConfigRoute();
+
+        document.body.classList.toggle('bfx-mobile-dock-ready', !hideDock);
+
+        var dock = document.getElementById('streamflix-mobile-dock');
+        if (hideDock) {
+            if (dock && dock.parentNode) {
+                dock.parentNode.removeChild(dock);
+            }
+            return;
+        }
+
+        if (!dock) {
+            dock = document.createElement('nav');
+            dock.id = 'streamflix-mobile-dock';
+            dock.className = 'bfx-mobile-dock';
+            dock.setAttribute('aria-label', 'Primary mobile navigation');
+            document.body.appendChild(dock);
+        }
+
+        var profLabel = getMobileDockProfileLabel();
+        var dockSig = (active.id || '') + ':' + (active.icon || '') + ':' + (active.color || '') + ':' + profLabel;
+        if (dock.getAttribute('data-sig') !== dockSig) {
+            dock.setAttribute('data-sig', dockSig);
+            dock.innerHTML = ''
+                + '<button type="button" class="bfx-dock-btn" data-dock-tab="home" aria-label="Home">'
+                + '  <span class="bfx-dock-ico">' + icon('dockHome') + '</span>'
+                + '  <span class="bfx-dock-label">Home</span>'
+                + '</button>'
+                + '<button type="button" class="bfx-dock-btn" data-dock-tab="hot" aria-label="New and Hot">'
+                + '  <span class="bfx-dock-ico">' + icon('episodes') + '</span>'
+                + '  <span class="bfx-dock-label">New &amp; Hot</span>'
+                + '</button>'
+                + '<button type="button" class="bfx-dock-btn" data-dock-tab="search" aria-label="Search">'
+                + '  <span class="bfx-dock-ico">' + icon('search') + '</span>'
+                + '  <span class="bfx-dock-label">Search</span>'
+                + '</button>'
+                + '<button type="button" class="bfx-dock-btn" data-dock-tab="profile" id="bfx-dock-profile-btn" aria-haspopup="menu" aria-label="' + escapeHtml(profLabel) + '">'
+                + '  <span class="bfx-dock-avatar" style="background:' + escapeHtml(active.color || '#E50914') + ';">' + escapeHtml(active.icon || '🎬') + '</span>'
+                + '  <span class="bfx-dock-label">' + escapeHtml(profLabel) + '</span>'
+                + '</button>';
+
+            Array.prototype.forEach.call(dock.querySelectorAll('[data-dock-tab]'), function (tabBtn) {
+                tabBtn.addEventListener('click', function (ev) {
+                    ev.stopPropagation();
+                    var tab = tabBtn.getAttribute('data-dock-tab');
+                    if (tab === 'profile') {
+                        toggleAccountDropdown();
+                        return;
+                    }
+                    closeAccountDropdown();
+
+                    if (tab === 'home') {
+                        cancelPendingSearch();
+                        state.mobileSearchOpen = false;
+                        state.searchQuery = '';
+                        state.searchResults = null;
+                        state.seerrSearchResults = null;
+                        state.browseFilter = null;
+                        state.activeCategory = 'all';
+                        state.heroIndex = 0;
+                        if (!isOnHomeRoute()) {
+                            window.location.hash = '#/home';
+                            setTimeout(function () {
+                                if (state.cinemaHubEnabled !== false) {
+                                    ensureCinemaHubMounted();
+                                    renderCinemaHubContents();
+                                }
+                                syncMobileDockState();
+                                try { window.scrollTo({ top: 0, behavior: 'auto' }); } catch (e) {}
+                            }, 35);
+                        } else {
+                            if (state.cinemaHubEnabled !== false) {
+                                ensureCinemaHubMounted();
+                                renderCinemaHubContents();
+                            }
+                            syncMobileDockState();
+                            try {
+                                window.scrollTo({ top: 0, behavior: prefersReducedMotion() ? 'auto' : 'smooth' });
+                            } catch (e2) {
+                                window.scrollTo(0, 0);
+                            }
+                        }
+                        return;
+                    }
+
+                    if (tab === 'hot') {
+                        cancelPendingSearch();
+                        state.mobileSearchOpen = false;
+                        state.searchQuery = '';
+                        state.searchResults = null;
+                        state.seerrSearchResults = null;
+                        state.browseFilter = null;
+                        if (state.cinemaHubEnabled === false) {
+                            window.location.hash = '#/movies.html';
+                            syncMobileDockState();
+                            return;
+                        }
+                        state.activeCategory = 'hot';
+                        state.heroIndex = 0;
+                        if (!isOnHomeRoute()) {
+                            window.location.hash = '#/home';
+                            setTimeout(function () {
+                                ensureCinemaHubMounted();
+                                renderCinemaHubContents();
+                                syncMobileDockState();
+                                try { window.scrollTo({ top: 0, behavior: 'auto' }); } catch (e) {}
+                            }, 35);
+                        } else {
+                            ensureCinemaHubMounted();
+                            renderCinemaHubContents();
+                            syncMobileDockState();
+                            try {
+                                window.scrollTo({ top: 0, behavior: prefersReducedMotion() ? 'auto' : 'smooth' });
+                            } catch (e3) {
+                                window.scrollTo(0, 0);
+                            }
+                        }
+                        return;
+                    }
+
+                    if (tab === 'search') {
+                        if (state.cinemaHubEnabled === false) {
+                            window.location.hash = '#/search.html';
+                            syncMobileDockState();
+                            return;
+                        }
+                        if (isOnHomeRoute()) {
+                            var hubEl = document.getElementById('streamflix-cinema-hub');
+                            var liveInput = document.getElementById('streamflix-live-search-input');
+                            if (state.mobileSearchOpen && !state.searchQuery && liveInput && document.activeElement === liveInput) {
+                                state.mobileSearchOpen = false;
+                                try { liveInput.blur(); } catch (eBlur) {}
+                                renderCinemaHubContents();
+                                syncMobileDockState();
+                                return;
+                            }
+                            state.mobileSearchOpen = true;
+                            if (hubEl) {
+                                var subEl = hubEl.querySelector('.streamflix-subnav');
+                                if (subEl) {
+                                    subEl.classList.add('is-search-open');
+                                }
+                            }
+                            syncMobileDockState();
+                            try { window.scrollTo({ top: 0, behavior: 'auto' }); } catch (eScr) { window.scrollTo(0, 0); }
+                            if (liveInput) {
+                                try { liveInput.focus(); } catch (eFoc) {}
+                            } else {
+                                ensureCinemaHubMounted();
+                                renderCinemaHubContents();
+                                var liveInput2 = document.getElementById('streamflix-live-search-input');
+                                if (liveInput2) {
+                                    try { liveInput2.focus(); } catch (eFoc2) {}
+                                }
+                            }
+                        } else {
+                            state.mobileSearchOpen = true;
+                            window.location.hash = '#/home';
+                            setTimeout(function () {
+                                ensureCinemaHubMounted();
+                                renderCinemaHubContents();
+                                syncMobileDockState();
+                                try { window.scrollTo(0, 0); } catch (eScr2) {}
+                                var liveInput3 = document.getElementById('streamflix-live-search-input');
+                                if (liveInput3) {
+                                    try { liveInput3.focus(); } catch (eFoc3) {}
+                                }
+                            }, 45);
+                        }
+                    }
+                });
+            });
+        }
+
+        syncMobileDockState();
     }
 
     /* ----------------------------------------------------------------------
@@ -8915,7 +9188,7 @@
         if (cat === 'series') {
             return (d.recentSeries && d.recentSeries.length) ? d.recentSeries.slice(0, limit) : (d.heroItems || []).slice(0, limit);
         }
-        if (cat === 'collections' || cat === 'mylist' || cat === 'top10') {
+        if (cat === 'collections' || cat === 'mylist' || cat === 'top10' || cat === 'hot') {
             return [];
         }
         if (d.heroItems && d.heroItems.length) {
@@ -9086,8 +9359,9 @@
 
         var canSurprise = (d.allMovies.length + d.allSeries.length) >= 2;
         var searchPlaceholder = isCurrentProfileSeerrAllowed() ? 'Titles, genres, or request…' : 'Titles, genres…';
+        var showClearBtn = Boolean(state.searchQuery || state.mobileSearchOpen);
         var subnavHtml = ''
-            + '<div class="streamflix-subnav">'
+            + '<div class="streamflix-subnav' + ((state.mobileSearchOpen || state.searchQuery) ? ' is-search-open' : '') + '">'
             + '  <nav class="streamflix-FilterPills" aria-label="Browse">' + pillsHtml + '</nav>'
             + '  <div class="streamflix-subnav-right">'
             + (canSurprise
@@ -9096,8 +9370,8 @@
             + '    <div class="streamflix-search-box' + (state.searchQuery ? ' has-value' : '') + '">'
             + '      <span class="streamflix-search-icon">' + icon('search') + '</span>'
             + '      <input type="search" id="streamflix-live-search-input" class="streamflix-search-input" placeholder="' + escapeHtml(searchPlaceholder) + '" autocomplete="off" spellcheck="false" aria-label="Search" value="' + escapeHtml(state.searchQuery) + '" />'
-            + (state.searchQuery
-                ? '      <button type="button" id="streamflix-search-clear-btn" class="streamflix-search-clear" title="Clear search" aria-label="Clear search">' + icon('close') + '</button>'
+            + (showClearBtn
+                ? '      <button type="button" id="streamflix-search-clear-btn" class="streamflix-search-clear" title="Close search" aria-label="Close search">' + icon('close') + '</button>'
                 : '      <kbd class="streamflix-search-kbd" aria-hidden="true">/</kbd>')
             + '    </div>'
             + '  </div>'
@@ -9168,6 +9442,17 @@
                 rowsHtml += buildRowHtml('top10', rowTitle(getTop10RowTitle()), top10Cards(), { className: 'streamflix-row-top10' });
                 rowsHtml += buildGridSectionHtml('top10-grid', rowTitle('Top 10 Lineup', d.top10Items.length), d.top10Items);
             }
+        } else if (cat === 'hot') {
+            if (d.top10Items.length > 0) {
+                rowsHtml += buildRowHtml('top10', rowTitle(getTop10RowTitle()), top10Cards(), { className: 'streamflix-row-top10' });
+            }
+            if (d.recentMovies.length > 0) {
+                rowsHtml += buildRowHtml('hot-movies', rowTitle('New Movies on ' + getBrandName()), d.recentMovies.map(buildPosterCardHtml).join(''));
+            }
+            if (d.recentSeries.length > 0) {
+                rowsHtml += buildRowHtml('hot-series', rowTitle('New Episodes & Series'), d.recentSeries.map(buildPosterCardHtml).join(''));
+            }
+            rowsHtml += smartRowsHtml(['smart-acclaimed', 'smart-gems']);
         } else {
             if (d.resumeItems.length > 0) {
                 rowsHtml += buildRowHtml('resume', rowTitle('Continue Watching for ' + profileName), d.resumeItems.map(function (it) { return buildWideCardHtml(it, { removable: true }); }).join(''), { className: 'streamflix-row-wide' });
@@ -9216,8 +9501,14 @@
             Array.prototype.forEach.call(scopeNode.querySelectorAll('[data-cat-id]'), function (btn) {
                 btn.addEventListener('click', function () {
                     cancelPendingSearch();
-                    state.activeCategory = btn.getAttribute('data-cat-id') || 'all';
+                    var pickedCat = btn.getAttribute('data-cat-id') || 'all';
+                    var isPhoneMode = Boolean(document.body && document.body.classList.contains('bfx-phone-mode'));
+                    if (isPhoneMode && pickedCat !== 'all' && !state.searchQuery && !state.browseFilter && state.activeCategory === pickedCat) {
+                        pickedCat = 'all';
+                    }
+                    state.activeCategory = pickedCat;
                     state.heroIndex = 0;
+                    state.mobileSearchOpen = false;
                     state.searchQuery = '';
                     state.searchResults = null;
                     state.seerrSearchResults = null;
@@ -9255,12 +9546,17 @@
                 clearSearchBtn.__bfxBound = true;
                 clearSearchBtn.addEventListener('click', function () {
                     cancelPendingSearch();
+                    state.mobileSearchOpen = false;
                     state.searchQuery = '';
                     state.searchResults = null;
                     state.seerrSearchResults = null;
+                    if (document.body) {
+                        document.body.classList.remove('bfx-mobile-search-focused');
+                    }
                     var liveIn = document.getElementById('streamflix-live-search-input');
                     if (liveIn) {
                         liveIn.value = '';
+                        try { liveIn.blur(); } catch (e) {}
                     }
                     renderCinemaHubContents();
                 });
@@ -9281,11 +9577,11 @@
                 sBox.classList.toggle('has-value', Boolean(state.searchQuery));
                 var oldClr = sBox.querySelector('#streamflix-search-clear-btn');
                 var oldKbd = sBox.querySelector('.streamflix-search-kbd');
-                if (state.searchQuery && !oldClr) {
+                if (showClearBtn && !oldClr) {
                     if (oldKbd && oldKbd.parentNode) { oldKbd.parentNode.removeChild(oldKbd); }
-                    existingSearchInput.insertAdjacentHTML('afterend', '<button type="button" id="streamflix-search-clear-btn" class="streamflix-search-clear" title="Clear search" aria-label="Clear search">' + icon('close') + '</button>');
+                    existingSearchInput.insertAdjacentHTML('afterend', '<button type="button" id="streamflix-search-clear-btn" class="streamflix-search-clear" title="Close search" aria-label="Close search">' + icon('close') + '</button>');
                     bindClearSearchBtn();
-                } else if (!state.searchQuery && !oldKbd) {
+                } else if (!showClearBtn && !oldKbd) {
                     if (oldClr && oldClr.parentNode) { oldClr.parentNode.removeChild(oldClr); }
                     existingSearchInput.insertAdjacentHTML('afterend', '<kbd class="streamflix-search-kbd" aria-hidden="true">/</kbd>');
                 }
@@ -9311,6 +9607,7 @@
             }
             existingRowsEl.innerHTML = rowsHtml;
             bindRowsInteractive(existingRowsEl);
+            syncMobileDockState();
             return;
         }
 
@@ -9378,11 +9675,19 @@
                 if (subnavEl) {
                     subnavEl.classList.add('is-search-open');
                 }
+                if (document.body) {
+                    document.body.classList.add('bfx-mobile-search-focused');
+                }
+                syncMobileDockState();
             });
             searchInput.addEventListener('blur', function () {
-                if (subnavEl && !searchInput.value) {
+                if (document.body) {
+                    document.body.classList.remove('bfx-mobile-search-focused');
+                }
+                if (subnavEl && !searchInput.value && !state.mobileSearchOpen) {
                     subnavEl.classList.remove('is-search-open');
                 }
+                syncMobileDockState();
             });
         }
         if (searchInput) {
@@ -9396,13 +9701,15 @@
                 }, 240);
             });
             searchInput.addEventListener('keydown', function (ev) {
-                if (ev.key === 'Escape' && state.searchQuery) {
+                if (ev.key === 'Escape' && (state.searchQuery || state.mobileSearchOpen)) {
                     ev.preventDefault();
                     cancelPendingSearch();
+                    state.mobileSearchOpen = false;
                     state.searchQuery = '';
                     state.searchResults = null;
                     state.seerrSearchResults = null;
                     searchInput.value = '';
+                    try { searchInput.blur(); } catch (eEsc) {}
                     renderCinemaHubContents();
                 }
             });
@@ -9417,6 +9724,7 @@
         bindClearSearchBtn();
         var newRowsEl = hub.querySelector('.streamflix-rows') || hub;
         bindRowsInteractive(newRowsEl);
+        syncMobileDockState();
     }
 
     function stepHeroSlide(delta) {
@@ -12971,8 +13279,8 @@
                     }
                 }
 
-                // Ignore other clicks inside #itemDetailPage, user settings pages, video player, StreamFlix modals, Cinema Hub, top bar, side drawer, or dialogs
-                if (isUserPreferencesRoute() || target.closest('#itemDetailPage, #myPreferencesMenuPage, #userProfilePage, #displayPreferencesPage, #homePreferencesPage, #languagePreferencesPage, #playbackPreferencesPage, #subtitlePreferencesPage, #controlsPreferencesPage, #myPreferencesQuickConnectPage, #bfx-prefs-hero, #bfx-prefs-subbar, #videoOsdPage, .videoPlayerContainer, .streamflix-modal-backdrop, #streamflix-cinema-hub, #streamflix-library-page-fallback, #streamflix-overlay-root, #streamflix-account-dropdown, #streamflix-header-profile-btn, .MuiDrawer-root, .skinHeader, .videoOsdBottom, .actionSheet, .dialogContainer')) {
+                // Ignore other clicks inside #itemDetailPage, user settings pages, video player, StreamFlix modals, Cinema Hub, mobile dock, top bar, side drawer, or dialogs
+                if (isUserPreferencesRoute() || target.closest('#itemDetailPage, #myPreferencesMenuPage, #userProfilePage, #displayPreferencesPage, #homePreferencesPage, #languagePreferencesPage, #playbackPreferencesPage, #subtitlePreferencesPage, #controlsPreferencesPage, #myPreferencesQuickConnectPage, #bfx-prefs-hero, #bfx-prefs-subbar, #videoOsdPage, .videoPlayerContainer, .streamflix-modal-backdrop, #streamflix-cinema-hub, #streamflix-library-page-fallback, #streamflix-overlay-root, #streamflix-account-dropdown, #streamflix-header-profile-btn, #streamflix-mobile-dock, .MuiDrawer-root, .skinHeader, .videoOsdBottom, .actionSheet, .dialogContainer')) {
                     return;
                 }
 
@@ -13330,7 +13638,7 @@
     }
 
     var OWN_UI_SELECTOR = '#streamflix-overlay-root, #streamflix-overlay-root-closing, #streamflix-cinema-hub, #streamflix-account-dropdown, '
-        + '#streamflix-header-profile-btn, #streamflix-toast-host, .streamflix-modal-backdrop, #streamflix-library-page-fallback, #bfx-hover-preview, '
+        + '#streamflix-header-profile-btn, #streamflix-mobile-dock, #streamflix-toast-host, .streamflix-modal-backdrop, #streamflix-library-page-fallback, #bfx-hover-preview, '
         + '#streamflix-osd-episodes, #streamflix-osd-tracks, #streamflix-osd-upnext, #streamflix-osd-paused, #streamflix-osd-flash';
 
     function isOwnNode(node) {
@@ -13529,9 +13837,10 @@
                     return;
                 }
                 if (isOnHomeRoute()) {
-                    if (state.searchQuery) {
+                    if (state.searchQuery || state.mobileSearchOpen) {
                         ev.preventDefault();
                         cancelPendingSearch();
+                        state.mobileSearchOpen = false;
                         state.searchQuery = '';
                         state.searchResults = null;
                         state.seerrSearchResults = null;
