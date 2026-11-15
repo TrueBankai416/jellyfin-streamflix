@@ -436,7 +436,7 @@
         return candidates[0] || created || null;
     }
 
-    function tryInPlaceJellyfinShortcutPlay(targetId, itemObj) {
+    function tryInPlaceJellyfinShortcutPlay(targetId, itemObj, forcedStartPositionTicks) {
         try {
             patchJellyfinApiClientMethods();
             var container = findUpgradedItemsContainer();
@@ -449,9 +449,12 @@
             }
             var itemType = (itemObj && itemObj.Type) || 'Movie';
             var isFolder = itemType === 'Series' || itemType === 'Season' || itemType === 'BoxSet' || itemType === 'Folder';
-            var posTicks = (itemObj && itemObj.UserData && itemObj.UserData.PlaybackPositionTicks)
-                ? Number(itemObj.UserData.PlaybackPositionTicks)
-                : 0;
+            var hasForcedPos = typeof forcedStartPositionTicks === 'number' && isFinite(forcedStartPositionTicks) && forcedStartPositionTicks >= 0;
+            var posTicks = hasForcedPos
+                ? Math.floor(forcedStartPositionTicks)
+                : ((itemObj && itemObj.UserData && itemObj.UserData.PlaybackPositionTicks)
+                    ? Number(itemObj.UserData.PlaybackPositionTicks)
+                    : 0);
             var actionName = posTicks > 0 ? 'resume' : 'play';
 
             // IMPORTANT: In Jellyfin Web's shortcuts.js, dom.parentWithAttribute(e.target, 'data-id') stops at the first element with data-id
@@ -496,17 +499,18 @@
         }
     }
 
-    function playItemImmediately(itemOrId, audioStreamIndex, subtitleStreamIndex) {
+    function playItemImmediately(itemOrId, audioStreamIndex, subtitleStreamIndex, forcedStartPositionTicks, playOpts) {
         var itemObj = (itemOrId && typeof itemOrId === 'object') ? itemOrId : null;
         var targetId = typeof itemOrId === 'string' ? itemOrId : (itemObj && itemObj.Id);
         if (!targetId) {
             return;
         }
 
-        // Prevent duplicate concurrent play calls for the same item within 2000ms
+        // Prevent duplicate concurrent play calls for the same item within 2000ms (unless triggered by Watch Party sync transition)
+        var isWpFollow = Boolean(playOpts && playOpts.fromWatchPartyFollow);
         var normTarget = normalizeGuid(targetId);
         var nowTs = Date.now();
-        if (state.lastPlayNormId === normTarget && state.lastPlayTimestamp && (nowTs - state.lastPlayTimestamp < 2000)) {
+        if (!isWpFollow && state.lastPlayNormId === normTarget && state.lastPlayTimestamp && (nowTs - state.lastPlayTimestamp < 2000)) {
             return;
         }
         state.lastPlayNormId = normTarget;
@@ -531,7 +535,7 @@
         }
         document.body.classList.remove('streamflix-modal-open');
         hidePlaybackLoader();
-        showPlaybackLoader('Starting playback…');
+        showPlaybackLoader(isWpFollow ? 'Syncing Watch Party…' : 'Starting playback…');
 
         var hasCustomTracks = (audioStreamIndex !== undefined && audioStreamIndex !== null && audioStreamIndex !== '')
             || (subtitleStreamIndex !== undefined && subtitleStreamIndex !== null && subtitleStreamIndex !== '');
@@ -539,6 +543,19 @@
         resolvePlayableItem(itemObj || targetId).then(function (playableItem) {
             var playableId = (playableItem && playableItem.Id) || targetId;
             var serverId = (playableItem && playableItem.ServerId) || resolveKnownServerId();
+
+            var effectiveForcedTicks = forcedStartPositionTicks;
+            if (typeof onWatchPartyBeforePlayResolved === 'function') {
+                var wpTicks = onWatchPartyBeforePlayResolved(playableItem || { Id: playableId }, effectiveForcedTicks, playOpts || {});
+                if (typeof wpTicks === 'number' && isFinite(wpTicks) && wpTicks >= 0) {
+                    effectiveForcedTicks = wpTicks;
+                }
+            }
+            var hasForcedStart = typeof effectiveForcedTicks === 'number' && isFinite(effectiveForcedTicks) && effectiveForcedTicks >= 0;
+            var forceFromBeginning = hasForcedStart && Math.floor(effectiveForcedTicks) === 0;
+            var detailBtnSelector = forceFromBeginning
+                ? '.btnPlay:not(.hide), .mainDetailButtons button[data-action="play"]:not(.hide), .btnResume:not(.hide), .mainDetailButtons button[data-action="resume"]:not(.hide)'
+                : '.btnResume:not(.hide), .btnPlay:not(.hide), .mainDetailButtons button[data-action="resume"]:not(.hide), .mainDetailButtons button[data-action="play"]:not(.hide)';
 
             function pollUntilVideoPlayerStarts(maxWaitMs) {
                 var pollStarted = Date.now();
@@ -558,7 +575,7 @@
             }
 
             function navigateAndClickDetailPlay() {
-                showPlaybackLoader('Starting playback…');
+                showPlaybackLoader(isWpFollow ? 'Syncing Watch Party…' : 'Starting playback…');
                 state.autoPlayPending = {
                     id: playableId,
                     audioIndex: audioStreamIndex,
@@ -598,7 +615,7 @@
                     var mainBtns = dp.querySelector('.mainDetailButtons:not(.hide)');
                     var nameEl = dp.querySelector('.itemName, h1.itemName, .parentName');
                     var hasLoadedTitle = Boolean(nameEl && (nameEl.textContent || '').trim().length > 0);
-                    var playBtn = dp.querySelector('.btnResume:not(.hide), .btnPlay:not(.hide), .mainDetailButtons button[data-action="resume"]:not(.hide), .mainDetailButtons button[data-action="play"]:not(.hide)');
+                    var playBtn = dp.querySelector(detailBtnSelector);
                     if (playBtn && mainBtns && hasLoadedTitle) {
                         var pending = state.autoPlayPending;
                         if (!pending.clickedOnce) {
@@ -611,7 +628,15 @@
                 }, 90);
             }
 
-            // 2. If #itemDetailPage is already visible and loaded for this exact playable item, click its native Play/Resume button ONCE
+            // 2. Try in-place Jellyfin shortcut playback first whenever default tracks are used (or whenever Watch Party forces an exact start position!).
+            // When tryInPlaceJellyfinShortcutPlay returns true, shortcuts.js has synchronously called playbackManager.play() —
+            // do NOT fire a second navigateAndClickDetailPlay() call that would collide with POST /Items/{id}/PlaybackInfo!
+            if ((!hasCustomTracks || hasForcedStart) && tryInPlaceJellyfinShortcutPlay(playableId, playableItem, effectiveForcedTicks)) {
+                pollUntilVideoPlayerStarts(6500);
+                return;
+            }
+
+            // 3. If #itemDetailPage is already visible and loaded for this exact playable item, click its native Play/Resume button ONCE
             var curHash = window.location.hash || '';
             var curIdMatch = curHash.match(/[?&]id=([a-f0-9-]+)/i);
             var curId = curIdMatch ? curIdMatch[1] : '';
@@ -620,21 +645,13 @@
                 var curMainBtns = detailPage.querySelector('.mainDetailButtons:not(.hide)');
                 var curNameEl = detailPage.querySelector('.itemName, h1.itemName, .parentName');
                 var curLoaded = Boolean(curMainBtns && curNameEl && (curNameEl.textContent || '').trim().length > 0);
-                var directPlayBtn = detailPage.querySelector('.btnResume:not(.hide), .btnPlay:not(.hide), .mainDetailButtons button[data-action="resume"]:not(.hide), .mainDetailButtons button[data-action="play"]:not(.hide)');
+                var directPlayBtn = detailPage.querySelector(detailBtnSelector);
                 if (directPlayBtn && curLoaded) {
                     applyTrackSelectionToDetailDom(detailPage, audioStreamIndex, subtitleStreamIndex);
                     directPlayBtn.click();
                     pollUntilVideoPlayerStarts(6000);
                     return;
                 }
-            }
-
-            // 3. Try in-place Jellyfin shortcut playback first when default tracks are used.
-            // When tryInPlaceJellyfinShortcutPlay returns true, shortcuts.js has synchronously called playbackManager.play() —
-            // do NOT fire a second navigateAndClickDetailPlay() call that would collide with POST /Items/{id}/PlaybackInfo!
-            if (!hasCustomTracks && tryInPlaceJellyfinShortcutPlay(playableId, playableItem)) {
-                pollUntilVideoPlayerStarts(6500);
-                return;
             }
 
             // 4. Otherwise navigate to #/details?id=...&serverId=... while keeping #itemDetailPage hidden behind the loader

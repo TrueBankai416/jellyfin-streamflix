@@ -174,6 +174,9 @@
                 osdState.infoTries = 0;
                 syncOsdActiveTracksFromInfo(item);
                 preloadOsdNextEpisode(item);
+                if (typeof onWatchPartyOsdInfoLoaded === 'function') {
+                    onWatchPartyOsdInfoLoaded(item);
+                }
             } else if (osdState.infoTries < 4) {
                 // The server can lag a moment behind when the next episode starts — try again shortly
                 osdState.infoTries++;
@@ -306,18 +309,47 @@
                 }
                 hideOsdPaused();
                 osdFlash('play');
+                if (typeof onWatchPartyVideoEvent === 'function') {
+                    onWatchPartyVideoEvent('play', v);
+                }
+            },
+            playing: function () {
+                if (typeof onWatchPartyVideoEvent === 'function') {
+                    onWatchPartyVideoEvent('playing', v);
+                }
+            },
+            waiting: function () {
+                if (typeof onWatchPartyVideoEvent === 'function') {
+                    onWatchPartyVideoEvent('waiting', v);
+                }
+            },
+            canplay: function () {
+                if (typeof onWatchPartyVideoEvent === 'function') {
+                    onWatchPartyVideoEvent('canplay', v);
+                }
+            },
+            loadedmetadata: function () {
+                if (typeof onWatchPartyVideoEvent === 'function') {
+                    onWatchPartyVideoEvent('loadedmetadata', v);
+                }
             },
             pause: function () {
                 if (!v.ended && !v.seeking) {
                     osdFlash('pause');
                 }
                 armOsdPaused();
+                if (typeof onWatchPartyVideoEvent === 'function') {
+                    onWatchPartyVideoEvent('pause', v);
+                }
             },
             timeupdate: function () {
                 checkOsdUpNext();
             },
             seeked: function () {
                 checkOsdUpNext();
+                if (typeof onWatchPartyVideoEvent === 'function') {
+                    onWatchPartyVideoEvent('seeked', v);
+                }
             },
             loadstart: function () {
                 // New media in the same element (next episode, track switch): forget the old details
@@ -331,6 +363,9 @@
                 hideOsdPaused();
                 hideOsdUpNextCard();
                 closeOsdOverlays();
+                if (typeof onWatchPartyVideoEvent === 'function') {
+                    onWatchPartyVideoEvent('loadstart', v);
+                }
                 setTimeout(function () { refreshOsdInfo(false); paintOsdTitle(); syncOsdExtraButtons(); }, 1200);
             }
         };
@@ -340,6 +375,9 @@
         osdState.videoHandlers = h;
         if (v.paused && !v.ended && v.readyState > 0) {
             armOsdPaused();
+        }
+        if (typeof onWatchPartyVideoEvent === 'function') {
+            onWatchPartyVideoEvent('attached', v);
         }
     }
 
@@ -509,6 +547,18 @@
             } else {
                 buttons.appendChild(wpBtn);
             }
+        }
+        var posSlider = page.querySelector('.osdPositionSlider');
+        if (posSlider && !posSlider.__bfxWpSliderBound) {
+            posSlider.__bfxWpSliderBound = true;
+            posSlider.addEventListener('change', function (ev) {
+                if (posSlider.__bfxWpProgrammatic) {
+                    return;
+                }
+                if (typeof onWatchPartySliderScrub === 'function') {
+                    onWatchPartySliderScrub(posSlider, ev);
+                }
+            });
         }
         // Intercept native .btnSubtitles / .btnAudio clicks when streams are known so users always get the sleek two-column popover
         ['btnSubtitles', 'btnAudio'].forEach(function (cls) {
@@ -1135,6 +1185,9 @@
         }
         closeOsdOverlays();
         hideOsdUpNextCard();
+        if (typeof onWatchPartyOsdTeardown === 'function') {
+            onWatchPartyOsdTeardown();
+        }
         ['streamflix-osd-flash', 'streamflix-osd-paused', 'streamflix-osd-episodes', 'streamflix-osd-tracks', 'streamflix-osd-upnext'].forEach(function (id) {
             var el = document.getElementById(id);
             if (el && el.parentNode) {

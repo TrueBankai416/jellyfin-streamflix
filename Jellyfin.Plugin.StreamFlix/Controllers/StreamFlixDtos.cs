@@ -291,3 +291,105 @@ public class RevokeDeviceRequest
 
     public string? UserId { get; set; }
 }
+
+public class CreateWatchPartyRoomRequest
+{
+    public string? Name { get; set; }
+
+    public string? ParticipantId { get; set; }
+
+    public string? ProfileId { get; set; }
+
+    public string? DisplayName { get; set; }
+
+    public string? AvatarEmoji { get; set; }
+
+    public string? AvatarColorHex { get; set; }
+
+    public bool HostControlOnly { get; set; }
+
+    public string? ItemId { get; set; }
+
+    public string? ItemName { get; set; }
+
+    public string? SeriesName { get; set; }
+
+    public int? SeasonNumber { get; set; }
+
+    public int? EpisodeNumber { get; set; }
+
+    public string? ItemType { get; set; }
+
+    public long? RunTimeTicks { get; set; }
+
+    public double? StartPositionSeconds { get; set; }
+
+    public bool? IsPlaying { get; set; }
+}
+
+public class JoinWatchPartyRoomRequest
+{
+    public string RoomId { get; set; } = string.Empty;
+
+    public string? ParticipantId { get; set; }
+
+    public string? ProfileId { get; set; }
+
+    public string? DisplayName { get; set; }
+
+    public string? AvatarEmoji { get; set; }
+
+    public string? AvatarColorHex { get; set; }
+}
+
+public class LeaveWatchPartyRoomRequest
+{
+    public string? RoomId { get; set; }
+
+    public string? ParticipantId { get; set; }
+
+    public string? ProfileId { get; set; }
+
+    public bool CloseRoom { get; set; }
+}
+
+public class WatchPartyCommandRequest
+{
+    public string RoomId { get; set; } = string.Empty;
+
+    public string? ParticipantId { get; set; }
+
+    public string? ProfileId { get; set; }
+
+    public string? DisplayName { get; set; }
+
+    public string? AvatarEmoji { get; set; }
+
+    public string? AvatarColorHex { get; set; }
+
+    public string Action { get; set; } = string.Empty;
+
+    public string? ActionId { get; set; }
+
+    public double? PositionSeconds { get; set; }
+
+    public bool? IsPlaying { get; set; }
+
+    public bool? HostControlOnly { get; set; }
+
+    public string? ItemId { get; set; }
+
+    public string? ItemName { get; set; }
+
+    public string? SeriesName { get; set; }
+
+    public int? SeasonNumber { get; set; }
+
+    public int? EpisodeNumber { get; set; }
+
+    public string? ItemType { get; set; }
+
+    public long? RunTimeTicks { get; set; }
+
+    public bool? IsBuffering { get; set; }
+}

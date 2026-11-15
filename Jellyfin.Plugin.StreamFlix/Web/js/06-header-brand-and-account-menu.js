@@ -551,11 +551,16 @@
         var wpEnabled = !isKidsActive && typeof isWatchTogetherEnabled === 'function' && isWatchTogetherEnabled();
         var wpActiveGroup = wpEnabled && typeof watchPartyState !== 'undefined' ? watchPartyState.activeGroup : null;
         var wpCount = wpActiveGroup && typeof getActiveWatchPartyParticipantCount === 'function' ? getActiveWatchPartyParticipantCount() : 0;
+        var wpTrailingHtml = wpActiveGroup
+            ? ('<span class="bfx-dd-wp-live-pill"><span class="bfx-wp-pulse-dot" aria-hidden="true"></span><span>Live · ' + wpCount + '</span></span>')
+            : ('<span class="bfx-dd-chev">' + icon('chevronRight') + '</span>');
+        var wpSubLabel = wpActiveGroup
+            ? ('In "' + (wpActiveGroup.name || wpActiveGroup.groupName || wpActiveGroup.GroupName || 'Watch Party') + '"' + (wpActiveGroup.roomId ? ' · ' + wpActiveGroup.roomId : ''))
+            : 'Synced watch parties & invite links';
 
         var tilesHtml = ''
             + (isPhoneSheet && state.cinemaHubEnabled !== false ? ddTile('streamflix-dd-mylist', 'bookmark', 'My List', 'Saved movies & shows', 'is-mylist') : '')
             + (canPhoneSurprise ? ddTile('streamflix-dd-surprise', 'shuffle', 'Surprise Me', 'Pick something great to watch', 'is-surprise') : '')
-            + (wpEnabled ? ddTile('streamflix-dd-watch-party', 'party', wpActiveGroup ? ('In Party (' + wpCount + ')') : 'Watch Together', wpActiveGroup ? ('Watching in "' + (wpActiveGroup.GroupName || 'Watch Party') + '"') : 'Start or join a synced Watch Party', 'is-watchparty' + (wpActiveGroup ? ' is-live' : '')) : '')
             + (castBtnNative ? ddTile('streamflix-dd-cast', 'cast', castInfo.connected ? 'Casting' : 'Cast', castInfo.connected ? ('Connected to ' + (castInfo.deviceName || 'another device')) : 'Play on a TV, Chromecast or another device', 'is-cast' + (castInfo.connected ? ' is-live' : '')) : '')
             + (!isGuest && !isKidsActive ? ddTile('streamflix-dd-quick-connect', 'tv', 'Quick Connect', 'Sign in on a TV or another device with a 6-digit code', 'is-qc') : '');
 
@@ -598,7 +603,8 @@
                 ? ((isCurrentProfileSeerrAllowed() ? ('<div class="streamflix-dd-divider"></div>' + ddItem('streamflix-dd-seerr-requests', 'sparkle', 'Media Requests', 'Track requested movies & shows', '', '<span class="bfx-dd-chev">' + icon('chevronRight') + '</span>')) : '')
                     + (isGuest ? ('<div class="streamflix-dd-divider"></div>' + ddItem('streamflix-dd-signout', 'logout', 'Exit Guest Pass', '', 'danger')) : ''))
                 : ('<div class="streamflix-dd-divider"></div>'
-                    + (!isGuest ? ddItem('streamflix-dd-user-prefs', 'sliders', 'Settings', 'Preferences, subtitles & ' + getBrandName() + ' Home', '', '<span class="bfx-dd-chev">' + icon('chevronRight') + '</span>') : '')
+                    + (wpEnabled ? ddItem('streamflix-dd-watch-party', 'party', 'Watch Together', wpSubLabel, wpActiveGroup ? 'is-watchparty-live' : '', wpTrailingHtml) : '')
+                    + (!isGuest ? ddItem('streamflix-dd-user-prefs', 'sliders', 'Settings', 'Subtitles, playback & ' + getBrandName() + ' Home', '', '<span class="bfx-dd-chev">' + icon('chevronRight') + '</span>') : '')
                     + (isCurrentProfileSeerrAllowed() ? ddItem('streamflix-dd-seerr-requests', 'sparkle', 'Media Requests', 'Track requested movies & shows', '', '<span class="bfx-dd-chev">' + icon('chevronRight') + '</span>') : '')
                     + (isAdmin && areGuestPassesEnabled() ? ddItem('streamflix-dd-guest-passes', 'ticket', 'Guest Passes', 'Temporary invite links & QR', '', '<span class="bfx-dd-chev">' + icon('chevronRight') + '</span>') : '')
                     + (isAdmin ? ddItem('streamflix-dd-dashboard', 'gear', 'Dashboard', 'Server & ' + getBrandName() + ' plugin settings', '', '<span class="bfx-dd-chev">' + icon('chevronRight') + '</span>') : '')

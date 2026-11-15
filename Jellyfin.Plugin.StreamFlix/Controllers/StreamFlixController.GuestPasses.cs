@@ -309,7 +309,7 @@ public partial class StreamFlixController
         SetNoStoreSecurityHeaders();
         var config = Config;
         var safeWebBase = ResolveSafeRelativeWebPath(null);
-        Guid? validWpGroup = Guid.TryParse((watchparty ?? string.Empty).Trim(), out var parsedWp) ? parsedWp : null;
+        var validWpCode = StreamFlixWatchPartyService.SanitizeRoomCode(watchparty);
         Guid? validWpItem = Guid.TryParse((wpitem ?? string.Empty).Trim(), out var parsedItem) ? parsedItem : null;
 
         if (!config.EnableGuestPasses)
@@ -359,7 +359,7 @@ public partial class StreamFlixController
             signedCookie,
             BuildGuestCookieOptions(TimeSpan.FromSeconds(90)));
 
-        return Redirect(BuildGuestReturnUrl(safeWebBase, errorMessage: null, validWpGroup, validWpItem));
+        return Redirect(BuildGuestReturnUrl(safeWebBase, errorMessage: null, validWpCode, validWpItem));
     }
 
     [HttpPost("Guest/Complete")]
@@ -576,11 +576,11 @@ public partial class StreamFlixController
         return $"{BuildAbsolutePublicBaseUrl()}/StreamFlix/Guest/{Uri.EscapeDataString(code)}";
     }
 
-    private static string BuildGuestReturnUrl(string safeRelativeWebPath, string? errorMessage, Guid? watchPartyGroupId = null, Guid? watchPartyItemId = null)
+    private static string BuildGuestReturnUrl(string safeRelativeWebPath, string? errorMessage, string? watchPartyCode = null, Guid? watchPartyItemId = null)
     {
         if (string.IsNullOrWhiteSpace(errorMessage))
         {
-            var wpParams = (watchPartyGroupId.HasValue ? $"&watchparty={watchPartyGroupId.Value:D}" : string.Empty)
+            var wpParams = (!string.IsNullOrWhiteSpace(watchPartyCode) ? $"&watchparty={Uri.EscapeDataString(watchPartyCode)}" : string.Empty)
                 + (watchPartyItemId.HasValue ? $"&wpitem={watchPartyItemId.Value:D}" : string.Empty);
             return $"{safeRelativeWebPath}?sf_guest=1{wpParams}#/home";
         }

@@ -15,12 +15,12 @@ permissions:
   contents: write
 
 env:
-  PLUGIN_VERSION: "0.7.9.0"
+  PLUGIN_VERSION: "0.7.9.1"
   PLUGIN_GUID: "7cc1a505-91f6-4661-b4f9-7eee8be33b19"
   PLUGIN_NAME: "StreamFlix"
   PLUGIN_OVERVIEW: "Netflix-style UI, Household Profiles, Guest Passes & Seerr Requests for Jellyfin"
-  PLUGIN_DESCRIPTION: "Transforms Jellyfin Web into StreamFlix: a Netflix-style cinema UI with flexible Google/OIDC/Jellyfin sign-in, dedicated Kids profiles, clean Watch Together, toggleable QR Guest Passes, optional Seerr/Jellyseerr search requests, and 'Who's watching?' profiles mapped to real Jellyfin users."
-  PLUGIN_CHANGELOG: "- Dedicated Kids Profile Mode & Parental Exit Lock: launch a playful, child-safe Kids experience with a vibrant KIDS brand pill, interactive Kids World filter bubbles (Animation, Family, Adventure, Silly & Funny, Magic & Fantasy, Quick Watch), locked-down settings/admin routes, defense-in-depth maturity filtering, and a configurable Parental Exit Lock (server-verified adult profile PIN or a 4-word Grown-Up Check when no adult PINs exist)\n- Clean Watch Together (SyncPlay): bring back real-time synced watch parties cleanly via the Title Details modal, Account Menu, and Video Player OSD — keeping Jellyfin's stock header icon hidden with zero idle clutter, a live badge only while in a room, 1-click household invite links (?watchparty=), and optional 6-hour Guest Pass + Watch Party combo links"
+  PLUGIN_DESCRIPTION: "Transforms Jellyfin Web into StreamFlix: a Netflix-style cinema UI with flexible Google/OIDC/Jellyfin sign-in, dedicated Kids profiles, real-time synced Watch Together, toggleable QR Guest Passes, optional Seerr/Jellyseerr search requests, and 'Who's watching?' profiles mapped to real Jellyfin users."
+  PLUGIN_CHANGELOG: "- Complete Watch Together Overhaul (First-Party Server-Authoritative Sync Engine): replace Jellyfin's broken SyncPlay integration with a dedicated StreamFlix Watch Party engine featuring instant-wake long-polling across reverse proxies, server-monotonic RTT-compensated timeline sync, smooth Direct Play + HLS transcode seeking, exact 0:00 Start-from-Beginning vs Resume timestamp alignment across all viewers, 6-character Room Codes, Host-Controls-Only toggle, automatic room-wide media/episode transitions, and 1-tap autoplay-blocked sync recovery\n- Zero-Truncation Account Menu & Modal Polish: move Watch Together out of the horizontal quick-tile bar into a full-width Account Menu row with a live room indicator so Cast, Quick Connect, and Watch Together labels never truncate on any screen"
 
 jobs:
   build-and-publish:
