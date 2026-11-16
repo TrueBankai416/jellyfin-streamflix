@@ -477,6 +477,7 @@
             } catch (e) {}
         }
         clearHouseholdSession();
+        clearAdminAuth();
         state.activeProfile = null;
         state.sessionVerifiedOnce = false;
         state.legacyProfileToMigrate = null;
@@ -837,6 +838,27 @@
         }
 
         var profileCount = getProfiles().length;
+        var serverUsers = (isAdmin && state.config && Array.isArray(state.config.serverUsers)) ? state.config.serverUsers : [];
+        var defaultNewJfUserId = '__CREATE__';
+        if (isNew && isAdmin && !getProfiles().some(function (p) { return p && (p.isAdmin || p.isOwner); })) {
+            var sessAdminUid = state.googleUser && state.googleUser.userId ? normalizeGuid(state.googleUser.userId) : '';
+            var matchedAdminSu = null;
+            for (var suIdx = 0; suIdx < serverUsers.length; suIdx++) {
+                var suCand = serverUsers[suIdx];
+                if (suCand && suCand.isAdmin) {
+                    if (sessAdminUid && normalizeGuid(suCand.id) === sessAdminUid) {
+                        matchedAdminSu = suCand;
+                        break;
+                    }
+                    if (!matchedAdminSu) {
+                        matchedAdminSu = suCand;
+                    }
+                }
+            }
+            if (matchedAdminSu && matchedAdminSu.id) {
+                defaultNewJfUserId = matchedAdminSu.id;
+            }
+        }
         var draft = existingProfile ? JSON.parse(JSON.stringify(existingProfile)) : {
             id: '',
             name: '',
@@ -848,19 +870,18 @@
             hasPin: false,
             googleLocked: false,
             accountLockKind: '',
-            jellyfinUserId: '__CREATE__'
+            jellyfinUserId: defaultNewJfUserId
         };
 
         // Linked Jellyfin account: only administrators can view the server user list or change which account a profile uses.
-        var serverUsers = (isAdmin && state.config && Array.isArray(state.config.serverUsers)) ? state.config.serverUsers : [];
         var userOptionsHtml = '';
         if (isAdmin) {
             userOptionsHtml = serverUsers.map(function (su) {
-                var selected = draft.jellyfinUserId && normalizeGuid(draft.jellyfinUserId) === normalizeGuid(su.id) ? ' selected' : '';
+                var selected = draft.jellyfinUserId && draft.jellyfinUserId !== '__CREATE__' && normalizeGuid(draft.jellyfinUserId) === normalizeGuid(su.id) ? ' selected' : '';
                 var adminAttr = su.isAdmin ? ' data-is-admin="1"' : '';
                 return '<option value="' + escapeHtml(su.id) + '"' + selected + adminAttr + '>🔗 ' + escapeHtml(su.name + (su.isAdmin ? ' (Admin)' : '')) + '</option>';
             }).join('');
-            var createSelected = (isNew || !draft.jellyfinUserId || draft.jellyfinUserId === '__CREATE__') ? ' selected' : '';
+            var createSelected = (!draft.jellyfinUserId || draft.jellyfinUserId === '__CREATE__') ? ' selected' : '';
             userOptionsHtml += '<option value="__CREATE__"' + createSelected + '>➕ Create a new Jellyfin user for this profile</option>';
         }
         var lockedAccountTitle = isNew

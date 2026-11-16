@@ -377,7 +377,7 @@
     border: 1px solid rgba(239, 68, 68, 0.35);
 }
 
-/* ---------- Unified Native Search + Seerr Special Icon Cards & Modal ---------- */
+/* ---------- Unified Native Search + Separate Underneath Seerr Area ---------- */
 .bfx-unified-search-section .bfx-unified-search-header {
     display: flex;
     align-items: center;
@@ -386,6 +386,90 @@
 }
 .bfx-seerr-open-reqs-btn {
     margin-left: auto;
+}
+.bfx-search-lib-note {
+    margin: 4px var(--bfx-gutter, 4%) 0 var(--bfx-gutter, 4%);
+    padding: 10px 14px;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    color: #9ca3af;
+    font-size: 13px;
+}
+.bfx-search-lib-note strong {
+    color: #e5e7eb;
+    font-weight: 700;
+}
+.bfx-seerr-search-area {
+    margin: 28px var(--bfx-gutter, 4%) 20px var(--bfx-gutter, 4%) !important;
+    padding: 20px 22px 24px 22px !important;
+    border-radius: 16px;
+    background: linear-gradient(180deg, rgba(99, 102, 241, 0.055) 0%, rgba(18, 18, 24, 0.55) 100%);
+    border: 1px solid rgba(129, 140, 248, 0.18);
+    box-sizing: border-box;
+}
+.bfx-seerr-search-area .streamflix-grid {
+    padding: 0 !important;
+}
+.bfx-seerr-area-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 10px 14px;
+    margin-bottom: 16px;
+}
+.bfx-seerr-area-heading {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    min-width: 0;
+}
+.bfx-seerr-area-ico {
+    width: 26px;
+    height: 26px;
+    border-radius: 8px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, rgba(99, 102, 241, 0.28) 0%, rgba(139, 92, 246, 0.28) 100%);
+    border: 1px solid rgba(165, 180, 252, 0.35);
+    color: #c7d2fe;
+    flex-shrink: 0;
+}
+.bfx-seerr-area-ico svg {
+    width: 15px;
+    height: 15px;
+}
+.bfx-seerr-area-title {
+    margin: 0;
+    font-size: 17px;
+    font-weight: 800;
+    letter-spacing: -0.2px;
+    color: #f3f4f6;
+}
+.bfx-seerr-area-sub {
+    font-size: 12px;
+    font-weight: 600;
+    color: #8b95a7;
+    margin-left: 2px;
+}
+.bfx-seerr-area-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-left: auto;
+}
+@media (max-width: 640px) {
+    .bfx-seerr-search-area {
+        margin: 20px 3.5% 16px 3.5% !important;
+        padding: 15px 14px 18px 14px !important;
+        border-radius: 13px;
+    }
+    .bfx-seerr-area-sub {
+        display: none;
+    }
 }
 .bfx-seerr-inline-spin {
     display: inline-flex;

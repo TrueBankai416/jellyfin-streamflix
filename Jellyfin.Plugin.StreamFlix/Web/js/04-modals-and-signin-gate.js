@@ -787,6 +787,15 @@
                 localStorage.removeItem(PROFILE_KEY);
 
                 if (res.jellyfinAccessToken && res.userId) {
+                    if (res.isAdmin || adminOnly) {
+                        saveAdminAuth({
+                            userId: res.userId,
+                            userName: res.username || username,
+                            accessToken: res.jellyfinAccessToken,
+                            serverId: res.serverId || (state.config && state.config.serverId),
+                            user: res.user || null
+                        });
+                    }
                     applyJellyfinServerCredentials({
                         serverId: res.serverId || (state.config && state.config.serverId),
                         userId: res.userId,

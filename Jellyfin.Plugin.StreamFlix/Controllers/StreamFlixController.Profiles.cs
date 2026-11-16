@@ -448,6 +448,37 @@ public partial class StreamFlixController
                     return BadRequest(new { code = "invalid_link", message = "That Jellyfin account no longer exists." });
                 }
             }
+            else if (isNewProfile
+                && !request.IsKids
+                && string.IsNullOrEmpty(requestedLink)
+                && !config.Profiles.Any(p => StreamFlixStartupTask.IsOwnerProfile(p) || IsProfileLinkedToAdmin(p)))
+            {
+                JUser? adminCandidate = null;
+                if (caller.Session != null && Guid.TryParse(caller.Session.JellyfinUserId, out var sessAdminGuid))
+                {
+                    var cand = _userManager.GetUserById(sessAdminGuid);
+                    if (cand != null && !StreamFlixStartupTask.IsUserDisabledCompat(cand) && StreamFlixStartupTask.IsUserAdminCompat(cand))
+                    {
+                        adminCandidate = cand;
+                    }
+                }
+
+                if (adminCandidate == null && caller.JellyfinUser != null && !StreamFlixStartupTask.IsUserDisabledCompat(caller.JellyfinUser) && StreamFlixStartupTask.IsUserAdminCompat(caller.JellyfinUser))
+                {
+                    adminCandidate = caller.JellyfinUser;
+                }
+
+                adminCandidate ??= StreamFlixStartupTask.GetPrimaryAdminUserCompat(_userManager);
+                if (adminCandidate != null && StreamFlixStartupTask.IsUserAdminCompat(adminCandidate))
+                {
+                    targetUser = adminCandidate;
+                    wantsCreate = false;
+                }
+                else
+                {
+                    createName = StreamFlixStartupTask.GetAvailableUsername(_userManager, createName);
+                }
+            }
             else if (wantsCreate)
             {
                 createName = StreamFlixStartupTask.GetAvailableUsername(_userManager, createName);

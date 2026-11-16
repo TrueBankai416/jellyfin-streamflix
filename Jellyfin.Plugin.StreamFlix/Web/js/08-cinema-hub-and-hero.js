@@ -1277,6 +1277,12 @@
             if (!silentRefresh) {
                 state.heroIndex = 0;
             }
+            if (state.searchQuery) {
+                var freshLocalHits = matchHubItemsLocally(state.searchQuery);
+                if (freshLocalHits.length > 0) {
+                    state.searchResults = mergeUniqueMediaItems(freshLocalHits, state.searchResults || []);
+                }
+            }
             renderCinemaHubContents();
             enhanceLibraryListPages();
             loadPersonalRows(false);
@@ -1308,19 +1314,61 @@
         state.seerrSearchLoading = false;
     }
 
+    function mergeUniqueMediaItems(primaryList, secondaryList) {
+        var out = [];
+        var seen = {};
+        var pushList = function (arr) {
+            if (!Array.isArray(arr)) {
+                return;
+            }
+            for (var i = 0; i < arr.length; i++) {
+                var it = arr[i];
+                if (!it || !it.Id) {
+                    continue;
+                }
+                var nid = normalizeGuid(it.Id);
+                if (!nid || seen[nid]) {
+                    continue;
+                }
+                seen[nid] = true;
+                out.push(it);
+            }
+        };
+        pushList(primaryList);
+        pushList(secondaryList);
+        return out.slice(0, 60);
+    }
+
     function matchHubItemsLocally(cleanQuery) {
         var q = String(cleanQuery || '').trim().toLowerCase();
         if (!q) {
             return [];
         }
         var d = state.hubData || {};
-        var pool = [].concat(d.allMovies || [], d.allSeries || [], d.collectionsItems || []);
+        var cachedList = [];
+        if (state.itemCache && typeof state.itemCache === 'object') {
+            Object.keys(state.itemCache).forEach(function (k) {
+                var cit = state.itemCache[k];
+                if (cit && cit.Id && (cit.Type === 'Movie' || cit.Type === 'Series' || cit.Type === 'BoxSet' || cit.Type === 'Video')) {
+                    cachedList.push(cit);
+                }
+            });
+        }
+        var pool = [].concat(
+            d.allMovies || [],
+            d.allSeries || [],
+            d.collectionsItems || [],
+            d.rawHeroItems || [],
+            d.rawTop10Items || [],
+            d.favoriteItems || [],
+            cachedList
+        );
         var seen = {};
         var exactStarts = [];
         var contains = [];
         for (var i = 0; i < pool.length; i++) {
             var it = pool[i];
-            if (!it || !it.Id) {
+            if (!it || !it.Id || it.Type === 'Episode' || it.Type === 'Season') {
                 continue;
             }
             var nid = normalizeGuid(it.Id);
@@ -1330,8 +1378,9 @@
             seen[nid] = true;
             var nameLow = String(it.Name || '').toLowerCase();
             var origLow = String(it.OriginalTitle || '').toLowerCase();
+            var sortLow = String(it.SortName || '').toLowerCase();
             var genresLow = Array.isArray(it.Genres) ? it.Genres.join(' ').toLowerCase() : '';
-            if (nameLow.indexOf(q) === 0 || origLow.indexOf(q) === 0) {
+            if (nameLow.indexOf(q) === 0 || origLow.indexOf(q) === 0 || sortLow.indexOf(q) === 0) {
                 exactStarts.push(it);
             } else if (nameLow.indexOf(q) !== -1 || origLow.indexOf(q) !== -1 || (q.length >= 3 && genresLow.indexOf(q) !== -1)) {
                 contains.push(it);
@@ -1339,6 +1388,55 @@
         }
         var combined = exactStarts.concat(contains).slice(0, 48);
         return typeof filterItemsForKidsMode === 'function' ? filterItemsForKidsMode(combined) : combined;
+    }
+
+    function fetchLocalSearchItems(uid, cleanQuery, fields, signal) {
+        var reqOpts = signal ? { signal: signal } : {};
+        var qs = 'SearchTerm=' + encodeURIComponent(cleanQuery)
+            + '&IncludeItemTypes=Movie,Series,BoxSet,Video&Recursive=true&Limit=48&Fields=' + fields;
+
+        return apiFetch('/Users/' + uid + '/Items?' + qs, reqOpts)
+            .then(function (r1) {
+                if (r1 && Array.isArray(r1.Items) && r1.Items.length > 0) {
+                    return r1.Items;
+                }
+                return apiFetch('/Items?userId=' + uid + '&' + qs, reqOpts).then(function (r2) {
+                    if (r2 && Array.isArray(r2.Items) && r2.Items.length > 0) {
+                        return r2.Items;
+                    }
+                    var views = (state.hubData && Array.isArray(state.hubData.views)) ? state.hubData.views : [];
+                    if (!views.length) {
+                        return [];
+                    }
+                    return Promise.all(views.map(function (v) {
+                        if (!v || !v.Id) {
+                            return Promise.resolve({ Items: [] });
+                        }
+                        return apiFetch('/Users/' + uid + '/Items?ParentId=' + encodeURIComponent(v.Id) + '&' + qs, reqOpts)
+                            .catch(function () {
+                                return apiFetch('/Items?userId=' + uid + '&ParentId=' + encodeURIComponent(v.Id) + '&' + qs, reqOpts);
+                            })
+                            .catch(function () { return { Items: [] }; });
+                    })).then(function (viewRes) {
+                        var merged = [];
+                        viewRes.forEach(function (vr) {
+                            if (vr && Array.isArray(vr.Items)) {
+                                merged = merged.concat(vr.Items);
+                            }
+                        });
+                        return merged;
+                    });
+                });
+            })
+            .catch(function (err) {
+                if (err && err.name === 'AbortError') {
+                    throw err;
+                }
+                return apiFetch('/Items?userId=' + uid + '&' + qs, reqOpts)
+                    .then(function (rFallback) {
+                        return (rFallback && Array.isArray(rFallback.Items)) ? rFallback.Items : [];
+                    });
+            });
     }
 
     function previewInstantLocalSearch(rawQuery) {
@@ -1373,8 +1471,9 @@
             return;
         }
 
-        if (!Array.isArray(state.searchResults)) {
-            state.searchResults = matchHubItemsLocally(clean);
+        var instantLocal = matchHubItemsLocally(clean);
+        if (!Array.isArray(state.searchResults) || instantLocal.length > 0) {
+            state.searchResults = mergeUniqueMediaItems(instantLocal, state.searchResults || []);
         }
 
         var uid = encodeURIComponent(auth.userId);
@@ -1387,26 +1486,21 @@
 
         var localAbort = typeof AbortController === 'function' ? new AbortController() : null;
         state.seerrLocalAbort = localAbort;
-        var localQs = 'SearchTerm=' + encodeURIComponent(clean) + '&IncludeItemTypes=Movie,Series,BoxSet&Recursive=true&Limit=48&Fields=' + fields;
-        apiFetch('/Items?userId=' + uid + '&' + localQs, localAbort ? { signal: localAbort.signal } : {})
-            .then(function (res) {
+        fetchLocalSearchItems(uid, clean, fields, localAbort ? localAbort.signal : null)
+            .then(function (rawHits) {
                 if (state.searchSeq !== seq) {
                     return;
                 }
-                var rawHits = (res && Array.isArray(res.Items)) ? res.Items : [];
-                var filteredHits = typeof filterItemsForKidsMode === 'function' ? filterItemsForKidsMode(rawHits) : rawHits;
-                if (filteredHits.length > 0 || !state.searchResults || state.searchResults.length === 0) {
-                    state.searchResults = filteredHits;
-                }
+                var filteredHits = typeof filterItemsForKidsMode === 'function' ? filterItemsForKidsMode(rawHits || []) : (rawHits || []);
+                var latestLocal = matchHubItemsLocally(clean);
+                state.searchResults = mergeUniqueMediaItems(filteredHits, latestLocal);
                 renderCinemaHubContents();
             })
             .catch(function (err) {
                 if ((err && err.name === 'AbortError') || state.searchSeq !== seq) {
                     return;
                 }
-                if (!Array.isArray(state.searchResults)) {
-                    state.searchResults = matchHubItemsLocally(clean);
-                }
+                state.searchResults = mergeUniqueMediaItems(state.searchResults || [], matchHubItemsLocally(clean));
                 renderCinemaHubContents();
             });
 
@@ -1424,8 +1518,59 @@
                     }
                     state.seerrSearchAbort = null;
                     state.seerrSearchLoading = false;
-                    state.seerrSearchResults = (sRes && Array.isArray(sRes.results)) ? sRes.results : [];
+                    var rawSeerr = (sRes && Array.isArray(sRes.results)) ? sRes.results : [];
+                    state.seerrSearchResults = rawSeerr;
+
+                    // If Seerr points to a verified local Jellyfin item that was not yet in state.searchResults,
+                    // hydrate it into state.searchResults so available library titles never disappear.
+                    var existingLocalMap = {};
+                    (state.searchResults || []).forEach(function (li) {
+                        if (li && li.Id) {
+                            existingLocalMap[normalizeGuid(li.Id)] = true;
+                        }
+                    });
+                    var missingJfIds = [];
+                    rawSeerr.forEach(function (sItem) {
+                        if (sItem && sItem.jellyfinMediaId) {
+                            var normJf = normalizeGuid(sItem.jellyfinMediaId);
+                            if (normJf && !existingLocalMap[normJf]) {
+                                existingLocalMap[normJf] = true;
+                                var cachedHit = findCachedItemById(sItem.jellyfinMediaId);
+                                if (cachedHit && cachedHit.Id && cachedHit.Name) {
+                                    var allowedCached = typeof filterItemsForKidsMode === 'function'
+                                        ? filterItemsForKidsMode([cachedHit])
+                                        : [cachedHit];
+                                    if (allowedCached.length > 0) {
+                                        state.searchResults = mergeUniqueMediaItems(state.searchResults || [], allowedCached);
+                                    }
+                                } else if (missingJfIds.length < 4) {
+                                    missingJfIds.push(sItem.jellyfinMediaId);
+                                }
+                            }
+                        }
+                    });
+
                     renderCinemaHubContents();
+
+                    if (missingJfIds.length > 0) {
+                        Promise.all(missingJfIds.map(function (mId) {
+                            return fetchFullItemDetails(mId).catch(function () { return null; });
+                        })).then(function (fetchedItems) {
+                            if (state.searchSeq !== seq) {
+                                return;
+                            }
+                            var validFetched = (fetchedItems || []).filter(function (x) {
+                                return x && x.Id && x.Name && x.Type !== 'Episode' && x.Type !== 'Season';
+                            });
+                            if (typeof filterItemsForKidsMode === 'function') {
+                                validFetched = filterItemsForKidsMode(validFetched);
+                            }
+                            if (validFetched.length > 0) {
+                                state.searchResults = mergeUniqueMediaItems(state.searchResults || [], validFetched);
+                                renderCinemaHubContents();
+                            }
+                        });
+                    }
                 })
                 .catch(function (err) {
                     if ((err && err.name === 'AbortError') || state.searchSeq !== seq) {
@@ -1642,24 +1787,58 @@
         var seerrFiltered = seerrOk
             ? filterDeduplicatedSeerrResults(state.seerrSearchResults, localList)
             : [];
-        var totalCount = localList.length + seerrFiltered.length;
+        var hasLocal = localList.length > 0;
+        var hasSeerr = seerrFiltered.length > 0;
 
-        if (totalCount > 0) {
-            var combinedCardsHtml = localList.map(buildPosterCardHtml).join('')
-                + seerrFiltered.map(buildSeerrCardHtml).join('');
-            return ''
-                + '<section class="streamflix-row streamflix-row-grid bfx-unified-search-section" data-row-id="search">'
-                + '  <div class="streamflix-row-header bfx-unified-search-header">'
-                + '    <h2 class="streamflix-row-title">Search — “' + escapeHtml(state.searchQuery) + '”<span class="streamflix-row-count">' + totalCount + '</span></h2>'
-                + (seerrOk && state.seerrSearchLoading
-                    ? '    <span class="bfx-seerr-inline-spin"><span class="bfx-mini-ring"></span><span>Checking Seerr…</span></span>'
-                    : '')
-                + (seerrOk
-                    ? '    <button type="button" class="streamflix-ghost-btn bfx-btn-xs bfx-seerr-open-reqs-btn" data-open-seerr-requests="1">' + iconLabel('seerrIcon', 'Requests') + '</button>'
-                    : '')
-                + '  </div>'
-                + '  <div class="streamflix-grid">' + combinedCardsHtml + '</div>'
-                + '</section>';
+        if (hasLocal || hasSeerr) {
+            var html = '';
+
+            if (hasLocal) {
+                var libTitle = seerrOk
+                    ? ('In Your Library — “' + escapeHtml(state.searchQuery) + '”')
+                    : ('Search — “' + escapeHtml(state.searchQuery) + '”');
+                html += ''
+                    + '<section class="streamflix-row streamflix-row-grid bfx-unified-search-section" data-row-id="search">'
+                    + '  <div class="streamflix-row-header bfx-unified-search-header">'
+                    + '    <h2 class="streamflix-row-title">' + libTitle + '<span class="streamflix-row-count">' + localList.length + '</span></h2>'
+                    + (seerrOk && !hasSeerr
+                        ? ((state.seerrSearchLoading
+                            ? '    <span class="bfx-seerr-inline-spin"><span class="bfx-mini-ring"></span><span>Checking Seerr…</span></span>'
+                            : '')
+                            + '    <button type="button" class="streamflix-ghost-btn bfx-btn-xs bfx-seerr-open-reqs-btn" data-open-seerr-requests="1">' + iconLabel('seerrIcon', 'Requests') + '</button>')
+                        : '')
+                    + '  </div>'
+                    + '  <div class="streamflix-grid">' + localList.map(buildPosterCardHtml).join('') + '</div>'
+                    + '</section>';
+            } else {
+                html += ''
+                    + '<div class="bfx-search-lib-note">'
+                    + '  <span>Not in your library yet for <strong>“' + escapeHtml(state.searchQuery) + '”</strong></span>'
+                    + '</div>';
+            }
+
+            if (hasSeerr) {
+                html += ''
+                    + '<section class="streamflix-row streamflix-row-grid bfx-seerr-search-area" data-row-id="seerr-search" aria-label="Available to Request">'
+                    + '  <div class="bfx-seerr-area-header">'
+                    + '    <div class="bfx-seerr-area-heading">'
+                    + '      <span class="bfx-seerr-area-ico">' + icon('seerrIcon') + '</span>'
+                    + '      <h3 class="bfx-seerr-area-title">Available to Request</h3>'
+                    + '      <span class="streamflix-row-count">' + seerrFiltered.length + '</span>'
+                    + '      <span class="bfx-seerr-area-sub">From Seerr · Not in library</span>'
+                    + '    </div>'
+                    + '    <div class="bfx-seerr-area-actions">'
+                    + (state.seerrSearchLoading
+                        ? '      <span class="bfx-seerr-inline-spin"><span class="bfx-mini-ring"></span><span>Checking…</span></span>'
+                        : '')
+                    + '      <button type="button" class="streamflix-ghost-btn bfx-btn-xs" data-open-seerr-requests="1">' + iconLabel('seerrIcon', 'Requests') + '</button>'
+                    + '    </div>'
+                    + '  </div>'
+                    + '  <div class="streamflix-grid">' + seerrFiltered.map(buildSeerrCardHtml).join('') + '</div>'
+                    + '</section>';
+            }
+
+            return html;
         }
 
         if (state.seerrSearchLoading) {

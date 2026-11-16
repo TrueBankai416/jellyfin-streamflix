@@ -1,6 +1,6 @@
 /* ==========================================================================
    STREAMFLIX — Netflix-style UI for Jellyfin: server-verified Google & OIDC SSO,
-   "Who's watching?" profiles, Guest Passes & Seerr (v0.9.2.3)
+   "Who's watching?" profiles, Guest Passes & Seerr (v0.9.2.4)
    ========================================================================== */
 (function () {
     'use strict';
@@ -10,9 +10,10 @@
     }
     window.__STREAMFLIX_BOOTSTRAPPED__ = true;
 
-    var VERSION = '0.9.2.3';
+    var VERSION = '0.9.2.4';
     // Household session issued by the server ({ token, authKind, providerName, email, username, userId, name, picture, isAdmin, guestPassId, lockedProfileId, expiresAt })
     var GOOGLE_KEY = 'streamflix_session_v7';
+    var ADMIN_AUTH_KEY = 'streamflix_admin_auth_v1';
     var OAUTH_STATE_KEY = 'streamflix_oauth_state';
     var PENDING_PROFILE_KEY = 'streamflix_pending_profile';
     var PROFILE_KEY = 'streamflix_active_profile_v64';
@@ -116,6 +117,8 @@
         guestPassExpanded: false,
         heroPaused: false,
         activeProfile: initialActiveProfile,
+        adminAuth: loadJson(ADMIN_AUTH_KEY, null),
+        adminWarmAttempted: false,
         legacyProfileToMigrate: legacyProfileToMigrate,
         manageMode: false,
         verifyingGoogle: false,
@@ -788,12 +791,74 @@
         return header;
     }
 
+    function isAdminRouteHash() {
+        var h = (window.location.hash || '').toLowerCase();
+        return h.indexOf('configurationpage') !== -1
+            || h.indexOf('dashboard') !== -1
+            || h.indexOf('#/metadata') === 0
+            || h.indexOf('#!/metadata') === 0;
+    }
+
+    function saveAdminAuth(authObj) {
+        if (!authObj || !authObj.accessToken || !authObj.userId) {
+            return;
+        }
+        var clean = {
+            userId: String(authObj.userId),
+            userName: String(authObj.userName || (authObj.user && (authObj.user.Name || authObj.user.name)) || 'Administrator'),
+            accessToken: String(authObj.accessToken),
+            serverId: String(authObj.serverId || (state.config && state.config.serverId) || ''),
+            user: authObj.user || {
+                Id: String(authObj.userId),
+                Name: String(authObj.userName || 'Administrator'),
+                Policy: { IsAdministrator: true }
+            }
+        };
+        if (!clean.user.Policy && clean.user.policy) {
+            clean.user.Policy = clean.user.policy;
+        }
+        if (!clean.user.Policy) {
+            clean.user.Policy = { IsAdministrator: true };
+        } else {
+            clean.user.Policy.IsAdministrator = true;
+        }
+        state.adminAuth = clean;
+        saveJson(ADMIN_AUTH_KEY, clean);
+    }
+
+    function clearAdminAuth() {
+        state.adminAuth = null;
+        state.adminWarmAttempted = false;
+        saveJson(ADMIN_AUTH_KEY, null);
+    }
+
+    function getActiveAdminAuthForRoute() {
+        if (!isAdminRouteHash()) {
+            return null;
+        }
+        if ((state.config && state.config.isGuestPass) || (state.googleUser && state.googleUser.authKind === 'guest_pass')) {
+            return null;
+        }
+        if (state.adminAuth && state.adminAuth.accessToken && state.adminAuth.userId) {
+            return state.adminAuth;
+        }
+        return null;
+    }
+
     function getActiveToken() {
+        var adm = getActiveAdminAuthForRoute();
+        if (adm) {
+            return adm.accessToken;
+        }
         return (state.activeProfile && state.activeProfile.accessToken)
             || (window.ApiClient && typeof window.ApiClient.accessToken === 'function' ? window.ApiClient.accessToken() : null);
     }
 
     function getActiveUserId() {
+        var adm = getActiveAdminAuthForRoute();
+        if (adm) {
+            return adm.userId;
+        }
         return (state.activeProfile && state.activeProfile.jellyfinUserId)
             || (window.ApiClient && typeof window.ApiClient.getCurrentUserId === 'function' ? window.ApiClient.getCurrentUserId() : null);
     }

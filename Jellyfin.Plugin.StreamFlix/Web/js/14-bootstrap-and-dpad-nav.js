@@ -58,6 +58,16 @@
             return res.json();
         }).then(function (userDto) {
             if (userDto && state.activeProfile) {
+                var pol = userDto.Policy || userDto.policy;
+                if (pol && (pol.IsAdministrator === true || pol.isAdministrator === true) && !isGuestPassSession()) {
+                    saveAdminAuth({
+                        userId: state.activeProfile.jellyfinUserId,
+                        userName: userDto.Name || userDto.name || state.activeProfile.jellyfinUsername || 'Administrator',
+                        accessToken: state.activeProfile.accessToken,
+                        serverId: state.activeProfile.serverId || (state.config && state.config.serverId),
+                        user: userDto
+                    });
+                }
                 applyJellyfinServerCredentials({
                     serverId: state.activeProfile.serverId || (state.config && state.config.serverId),
                     userId: state.activeProfile.jellyfinUserId,
@@ -98,14 +108,25 @@
             if (document.body) {
                 document.body.classList.remove('streamflix-hub-filtered', 'streamflix-hub-active');
             }
-            if (!isGuestPassSession()
-                && isHouseholdAdmin()
-                && typeof isCurrentJellyfinClientAdmin === 'function'
-                && !isCurrentJellyfinClientAdmin()
-                && (!state.lastAutoAdminElevateAt || Date.now() - state.lastAutoAdminElevateAt > 8000)) {
-                state.lastAutoAdminElevateAt = Date.now();
-                openStreamFlixAdminRoute(window.location.hash || '#/dashboard');
-                return;
+            if (!isGuestPassSession()) {
+                if (state.adminAuth && state.adminAuth.accessToken && state.adminAuth.userId) {
+                    var admUnderlying = typeof getUnderlyingApiClientAuth === 'function' ? getUnderlyingApiClientAuth() : null;
+                    if (!admUnderlying || !admUnderlying.loggedIn || normalizeGuid(admUnderlying.userId) !== normalizeGuid(state.adminAuth.userId) || admUnderlying.accessToken !== state.adminAuth.accessToken) {
+                        applyJellyfinServerCredentials({
+                            serverId: state.adminAuth.serverId || (state.config && state.config.serverId),
+                            userId: state.adminAuth.userId,
+                            accessToken: state.adminAuth.accessToken,
+                            user: state.adminAuth.user || null
+                        });
+                    }
+                } else if (isHouseholdAdmin()
+                    && typeof isCurrentJellyfinClientAdmin === 'function'
+                    && !isCurrentJellyfinClientAdmin()
+                    && (!state.lastAutoAdminElevateAt || Date.now() - state.lastAutoAdminElevateAt > 8000)) {
+                    state.lastAutoAdminElevateAt = Date.now();
+                    openStreamFlixAdminRoute(window.location.hash || '#/dashboard');
+                    return;
+                }
             }
             if (isGateOpen() && hasHouseholdAccess() && getActiveToken()) {
                 closeOverlayGate();
@@ -175,8 +196,11 @@
         }
 
         if (window.ApiClient) {
-            var currentToken = typeof window.ApiClient.accessToken === 'function' ? window.ApiClient.accessToken() : null;
-            var currentUserId = typeof window.ApiClient.getCurrentUserId === 'function' ? window.ApiClient.getCurrentUserId() : null;
+            var rawSrv = window.ApiClient._serverInfo || {};
+            var currentToken = rawSrv.AccessToken
+                || (typeof window.ApiClient.__origAccessToken === 'function' ? window.ApiClient.__origAccessToken() : null);
+            var currentUserId = rawSrv.UserId
+                || (typeof window.ApiClient.__origGetCurrentUserId === 'function' ? window.ApiClient.__origGetCurrentUserId() : null);
             if (currentToken !== state.activeProfile.accessToken
                 || normalizeGuid(currentUserId) !== normalizeGuid(state.activeProfile.jellyfinUserId)) {
                 applyJellyfinServerCredentials({
@@ -188,6 +212,9 @@
         }
 
         verifyActiveJellyfinSessionOnce();
+        if (typeof warmAdminAuthSilently === 'function') {
+            warmAdminAuthSilently();
+        }
         installGlobalCardClickInterceptor();
 
         if (!isGateOpen()) {

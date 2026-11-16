@@ -633,6 +633,16 @@
             saveJson(PROFILE_KEY, activated);
             saveJson(LEGACY_PROFILE_KEY, activated);
 
+            if (activated.isAdmin && activated.accessToken && activated.jellyfinUserId && !isGuestPassSession()) {
+                saveAdminAuth({
+                    userId: activated.jellyfinUserId,
+                    userName: activated.jellyfinUsername || activated.name,
+                    accessToken: activated.accessToken,
+                    serverId: activated.serverId,
+                    user: res.user || null
+                });
+            }
+
             if (state.config) {
                 var sessionHasAdmin = Boolean(state.googleUser && (state.googleUser.isAdmin || state.googleUser.authKind === 'jellyfin_admin'));
                 state.config.isAdmin = (Boolean(activated.isAdmin) || sessionHasAdmin) && !isGuestPassSession();
@@ -737,23 +747,39 @@
         });
     }
 
-    function isCurrentJellyfinClientAdmin() {
+    function getUnderlyingApiClientAuth() {
+        var client = null;
         try {
-            if (!state.activeProfile || !state.activeProfile.isAdmin || !state.activeProfile.accessToken) {
-                return false;
-            }
-            var client = null;
             if (window.ServerConnections && typeof window.ServerConnections.currentApiClient === 'function') {
                 client = window.ServerConnections.currentApiClient();
             }
-            client = client || window.ApiClient;
-            if (!client || !client._currentUser) {
-                return false;
-            }
-            var u = client._currentUser;
-            var pol = u.Policy || u.policy;
-            var isAdm = Boolean(pol && (pol.IsAdministrator === true || pol.isAdministrator === true));
-            return isAdm && normalizeGuid(u.Id || u.id) === normalizeGuid(state.activeProfile.jellyfinUserId);
+        } catch (eSc) {}
+        client = client || window.ApiClient || null;
+        if (!client) {
+            return { client: null, loggedIn: false, userId: '', accessToken: '', isAdmin: false };
+        }
+        var srv = client._serverInfo || {};
+        var rawUid = srv.UserId || (typeof client.__origGetCurrentUserId === 'function' ? client.__origGetCurrentUserId() : '');
+        var rawTok = srv.AccessToken || (typeof client.__origAccessToken === 'function' ? client.__origAccessToken() : '');
+        var loggedIn = typeof client.__origIsLoggedIn === 'function'
+            ? Boolean(client.__origIsLoggedIn())
+            : Boolean(client._loggedIn);
+        var u = client._currentUser;
+        var pol = u && (u.Policy || u.policy);
+        var uIsAdmin = Boolean(pol && (pol.IsAdministrator === true || pol.isAdministrator === true));
+        return {
+            client: client,
+            loggedIn: loggedIn,
+            userId: rawUid || '',
+            accessToken: rawTok || '',
+            isAdmin: Boolean(loggedIn && u && uIsAdmin && normalizeGuid(u.Id || u.id) === normalizeGuid(rawUid))
+        };
+    }
+
+    function isCurrentJellyfinClientAdmin() {
+        try {
+            var info = getUnderlyingApiClientAuth();
+            return Boolean(info.client && info.loggedIn && info.accessToken && info.isAdmin);
         } catch (e) {
             return false;
         }
@@ -782,11 +808,114 @@
         window.location.hash = hashDest;
     }
 
+    function enterAdminRouteWithAuth(adminAuthObj, targetHash) {
+        var raw = String(targetHash || '#/configurationpage?name=StreamFlix').trim();
+        var cleanRoute = raw.replace(/^#!?\/?/, '').replace(/^\/+/, '') || 'dashboard';
+        var hashDest = '#/' + cleanRoute;
+
+        var beforeInfo = getUnderlyingApiClientAuth();
+        var alreadySyncedInMemory = Boolean(
+            beforeInfo.client
+            && beforeInfo.loggedIn
+            && beforeInfo.isAdmin
+            && normalizeGuid(beforeInfo.userId) === normalizeGuid(adminAuthObj.userId)
+            && beforeInfo.accessToken === adminAuthObj.accessToken
+        );
+
+        saveAdminAuth(adminAuthObj);
+        applyJellyfinServerCredentials({
+            serverId: adminAuthObj.serverId || (state.config && state.config.serverId) || '',
+            userId: adminAuthObj.userId,
+            accessToken: adminAuthObj.accessToken,
+            user: (state.adminAuth && state.adminAuth.user) || adminAuthObj.user || null,
+            sessionInfo: adminAuthObj.sessionInfo || null
+        });
+
+        if (alreadySyncedInMemory) {
+            navigateDirectAdminTarget(hashDest);
+            return;
+        }
+
+        // If jellyfin-web's private ES-module ServerConnections / ApiProvider has not initialized this admin
+        // session in memory yet (e.g. fresh Safari session where window.ApiClient was undefined, or switching
+        // from a non-admin profile like Max to Admin Fraggle), boot cleanly into the admin hash once so
+        // ServerConnections.connect() and ConnectionRequired(level='admin') initialize natively as Administrator.
+        var lastReloadTs = 0;
+        try {
+            lastReloadTs = Number(sessionStorage.getItem('streamflix_admin_reload_ts') || 0);
+        } catch (eSt) {}
+
+        if (!lastReloadTs || (Date.now() - lastReloadTs > 8000)) {
+            try {
+                sessionStorage.setItem('streamflix_admin_reload_ts', String(Date.now()));
+            } catch (eSet) {}
+            state.manageMode = false;
+            closeAccountDropdown();
+            closeOverlayGate();
+            if (window.location.hash !== hashDest) {
+                window.location.hash = hashDest;
+            }
+            setTimeout(function () {
+                window.location.reload();
+            }, 20);
+            return;
+        }
+
+        navigateDirectAdminTarget(hashDest);
+    }
+
     var adminElevationInFlight = false;
+    function warmAdminAuthSilently() {
+        if (state.adminWarmAttempted
+            || adminElevationInFlight
+            || isGuestPassSession()
+            || !isHouseholdAdmin()
+            || (state.adminAuth && state.adminAuth.accessToken && state.adminAuth.userId)) {
+            return;
+        }
+        state.adminWarmAttempted = true;
+        var dev = getJellyfinDeviceInfo();
+        apiFetch('/StreamFlix/Auth/ElevateAdmin', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                deviceId: dev.deviceId,
+                deviceName: dev.deviceName,
+                appName: dev.appName,
+                appVersion: dev.appVersion,
+                pin: ''
+            })
+        }).then(function (res) {
+            if (res && res.accessToken && res.userId) {
+                saveAdminAuth({
+                    userId: res.userId,
+                    userName: res.userName || 'Administrator',
+                    accessToken: res.accessToken,
+                    serverId: res.serverId || (state.config && state.config.serverId) || '',
+                    user: res.user || null
+                });
+            }
+        }).catch(function () {});
+    }
+
     function openStreamFlixAdminRoute(targetHash, suppliedPin) {
         var dest = String(targetHash || '#/configurationpage?name=StreamFlix').trim();
-        if (isCurrentJellyfinClientAdmin()) {
+        if (!suppliedPin && isCurrentJellyfinClientAdmin()) {
+            var liveInfo = getUnderlyingApiClientAuth();
+            if (liveInfo.userId && liveInfo.accessToken) {
+                saveAdminAuth({
+                    userId: liveInfo.userId,
+                    userName: (liveInfo.client && liveInfo.client._currentUser && liveInfo.client._currentUser.Name) || 'Administrator',
+                    accessToken: liveInfo.accessToken,
+                    serverId: resolveKnownServerId(),
+                    user: (liveInfo.client && liveInfo.client._currentUser) || null
+                });
+            }
             navigateDirectAdminTarget(dest);
+            return;
+        }
+        if (!suppliedPin && !isGuestPassSession() && state.adminAuth && state.adminAuth.accessToken && state.adminAuth.userId) {
+            enterAdminRouteWithAuth(state.adminAuth, dest);
             return;
         }
         if (adminElevationInFlight) {
@@ -809,39 +938,6 @@
             if (!res || !res.accessToken || !res.userId) {
                 throw new Error('Could not activate Administrator session.');
             }
-            var adminUserDto = res.user || {
-                Id: res.userId,
-                Name: res.userName || 'Administrator',
-                Policy: { IsAdministrator: true }
-            };
-            if (!adminUserDto.Policy && adminUserDto.policy) {
-                adminUserDto.Policy = adminUserDto.policy;
-            }
-            if (!adminUserDto.Policy) {
-                adminUserDto.Policy = { IsAdministrator: true };
-            } else {
-                adminUserDto.Policy.IsAdministrator = true;
-            }
-
-            var baseProf = res.profile || {
-                id: 'streamflix_owner',
-                name: res.userName || 'Owner',
-                avatarEmoji: '👑',
-                avatarColorHex: '#E50914',
-                isAdmin: true,
-                isOwner: true
-            };
-            var activated = normalizeProfileModel(baseProf, 0);
-            activated.isAdmin = true;
-            activated.jellyfinUserId = res.userId;
-            activated.jellyfinUsername = res.userName || activated.jellyfinUsername;
-            activated.accessToken = res.accessToken;
-            activated.serverId = res.serverId || (state.config && state.config.serverId) || '';
-
-            state.activeProfile = activated;
-            saveJson(PROFILE_KEY, activated);
-            saveJson(LEGACY_PROFILE_KEY, activated);
-
             if (state.config) {
                 state.config.isAdmin = true;
                 if (res.serverId) {
@@ -849,17 +945,14 @@
                 }
                 saveJson(CACHED_CONFIG_KEY, state.config);
             }
-
-            applyJellyfinServerCredentials({
-                serverId: activated.serverId,
-                userId: activated.jellyfinUserId,
-                accessToken: activated.accessToken,
-                user: adminUserDto,
+            enterAdminRouteWithAuth({
+                userId: res.userId,
+                userName: res.userName || 'Administrator',
+                accessToken: res.accessToken,
+                serverId: res.serverId || (state.config && state.config.serverId) || '',
+                user: res.user || null,
                 sessionInfo: res.sessionInfo || null
-            });
-
-            fetchPublicConfig().catch(function () {});
-            navigateDirectAdminTarget(dest);
+            }, dest);
         }).catch(function (err) {
             adminElevationInFlight = false;
             var code = err && err.code;

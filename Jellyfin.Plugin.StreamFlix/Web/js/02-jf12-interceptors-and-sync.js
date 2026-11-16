@@ -205,21 +205,28 @@
                     }, 0);
                 }
 
-                if (isSameOrigin && res && res.status === 401 && state.activeProfile && state.activeProfile.accessToken) {
+                if (isSameOrigin && res && res.status === 401 && (getActiveAdminAuthForRoute() || (state.activeProfile && state.activeProfile.accessToken))) {
                     var lowUrl = String(urlStr || '').toLowerCase();
                     if (lowUrl.indexOf('/streamflix/') === -1 && lowUrl.indexOf('/sessions/logout') === -1 && lowUrl.indexOf('/webgpuplayer/') === -1) {
-                        clearLocalJellyfinAuth();
-                        state.activeProfile = null;
-                        state.sessionVerifiedOnce = false;
-                        try {
-                            localStorage.removeItem(PROFILE_KEY);
-                            localStorage.removeItem(LEGACY_PROFILE_KEY);
-                        } catch (e401) {}
-                        fetchPublicConfig().then(function () {
+                        var admRouteAuth = getActiveAdminAuthForRoute();
+                        if (admRouteAuth && (!state.activeProfile || state.activeProfile.accessToken !== admRouteAuth.accessToken)) {
+                            clearAdminAuth();
                             scheduleLifecycleTick(0);
-                        }).catch(function () {
-                            scheduleLifecycleTick(0);
-                        });
+                        } else {
+                            clearAdminAuth();
+                            clearLocalJellyfinAuth();
+                            state.activeProfile = null;
+                            state.sessionVerifiedOnce = false;
+                            try {
+                                localStorage.removeItem(PROFILE_KEY);
+                                localStorage.removeItem(LEGACY_PROFILE_KEY);
+                            } catch (e401) {}
+                            fetchPublicConfig().then(function () {
+                                scheduleLifecycleTick(0);
+                            }).catch(function () {
+                                scheduleLifecycleTick(0);
+                            });
+                        }
                     }
                 }
 
@@ -646,6 +653,10 @@
             var origGetCurrentUserId = ac.getCurrentUserId.bind(ac);
             ac.__origGetCurrentUserId = origGetCurrentUserId;
             ac.getCurrentUserId = function () {
+                var adm = getActiveAdminAuthForRoute();
+                if (adm && adm.userId) {
+                    return adm.userId;
+                }
                 return (state.activeProfile && state.activeProfile.jellyfinUserId) || origGetCurrentUserId() || '';
             };
         }
@@ -654,7 +665,39 @@
             var origAccessToken = ac.accessToken.bind(ac);
             ac.__origAccessToken = origAccessToken;
             ac.accessToken = function () {
+                var adm = getActiveAdminAuthForRoute();
+                if (adm && adm.accessToken) {
+                    return adm.accessToken;
+                }
                 return (state.activeProfile && state.activeProfile.accessToken) || origAccessToken() || '';
+            };
+        }
+
+        if (typeof ac.isLoggedIn === 'function') {
+            var origIsLoggedIn = ac.isLoggedIn.bind(ac);
+            ac.__origIsLoggedIn = origIsLoggedIn;
+            ac.isLoggedIn = function () {
+                if (getActiveToken() && getActiveUserId()) {
+                    return true;
+                }
+                return origIsLoggedIn();
+            };
+        }
+
+        if (typeof ac.getCurrentUser === 'function') {
+            var origGetCurrentUser = ac.getCurrentUser.bind(ac);
+            ac.__origGetCurrentUser = origGetCurrentUser;
+            ac.getCurrentUser = function (enableCache) {
+                var adm = getActiveAdminAuthForRoute();
+                if (adm && adm.user && adm.userId) {
+                    var sid = resolveKnownServerId(adm.serverId);
+                    if (sid && !adm.user.ServerId) {
+                        adm.user.ServerId = sid;
+                    }
+                    ac._currentUser = adm.user;
+                    return Promise.resolve(adm.user);
+                }
+                return origGetCurrentUser(enableCache);
             };
         }
 
@@ -942,6 +985,7 @@
                     client._serverInfo.ManualAddress = client._serverInfo.ManualAddress || address;
                     client._serverInfo.LocalAddress = client._serverInfo.LocalAddress || address;
                 }
+                var prevCurrentUser = client._currentUser || null;
                 try {
                     if (typeof client.setAuthenticationInfo === 'function') {
                         client.setAuthenticationInfo(authPayload.accessToken, authPayload.userId);
@@ -984,7 +1028,9 @@
                             });
                         }
                     } catch (eOnAuth) {}
-                } else if (client._currentUser && normalizeGuid(client._currentUser.Id) !== normalizeGuid(authPayload.userId)) {
+                } else if (prevCurrentUser && normalizeGuid(prevCurrentUser.Id || prevCurrentUser.id) === normalizeGuid(authPayload.userId)) {
+                    client._currentUser = prevCurrentUser;
+                } else {
                     client._currentUser = null;
                 }
             }
@@ -1050,6 +1096,7 @@
 
     function clearHouseholdSession() {
         state.googleUser = null;
+        clearAdminAuth();
         saveJson(GOOGLE_KEY, null);
     }
 
@@ -1287,6 +1334,7 @@
         }
 
         if (!resolvedAccess) {
+            clearAdminAuth();
             if (state.activeProfile) {
                 state.activeProfile = null;
                 state.sessionVerifiedOnce = false;
