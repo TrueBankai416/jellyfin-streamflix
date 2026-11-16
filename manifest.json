@@ -9,6 +9,30 @@
     "imageUrl": "https://raw.githubusercontent.com/streamflix-dev/jellyfin-streamflix/main/Jellyfin.Plugin.StreamFlix/thumb.png",
     "versions": [
       {
+        "version": "0.9.2.4",
+        "changelog": "Build for Jellyfin 12.x (.NET 10).\n\n- Separate Seerr Requests Underneath Library Search + Bulletproof Admin Route & Library Search Fix: render Seerr requestable titles in a clean, separate section underneath library matches so requestable items are never confused with playable media; fix local library search across Video/Movie/Series/ParentId views and Seerr verified Jellyfin IDs so existing library titles always appear; persist dedicated route-aware Administrator credentials and sync jellyfin-web ServerConnections/ApiProvider cleanly so Plugin Settings and Admin Dashboard never bounce back to Home on iOS App, Safari, or Desktop WebUI",
+        "targetAbi": "12.0.0.0",
+        "sourceUrl": "https://raw.githubusercontent.com/streamflix-dev/jellyfin-streamflix/main/dist/Jellyfin.Plugin.StreamFlix_0.9.2.4_12.0.0.zip",
+        "checksum": "efb0993dc8d03d802f1c824a7aea5b9c",
+        "timestamp": "2026-11-16T05:01:24Z"
+      },
+      {
+        "version": "0.9.2.4",
+        "changelog": "Build for Jellyfin 10.11.x (.NET 9).\n\n- Separate Seerr Requests Underneath Library Search + Bulletproof Admin Route & Library Search Fix: render Seerr requestable titles in a clean, separate section underneath library matches so requestable items are never confused with playable media; fix local library search across Video/Movie/Series/ParentId views and Seerr verified Jellyfin IDs so existing library titles always appear; persist dedicated route-aware Administrator credentials and sync jellyfin-web ServerConnections/ApiProvider cleanly so Plugin Settings and Admin Dashboard never bounce back to Home on iOS App, Safari, or Desktop WebUI",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://raw.githubusercontent.com/streamflix-dev/jellyfin-streamflix/main/dist/Jellyfin.Plugin.StreamFlix_0.9.2.4_10.11.0.zip",
+        "checksum": "6a7c384f14d6f47ef0133e3887c5a26f",
+        "timestamp": "2026-11-16T05:01:24Z"
+      },
+      {
+        "version": "0.9.2.4",
+        "changelog": "Build for Jellyfin 10.9 - 10.10 (.NET 8).\n\n- Separate Seerr Requests Underneath Library Search + Bulletproof Admin Route & Library Search Fix: render Seerr requestable titles in a clean, separate section underneath library matches so requestable items are never confused with playable media; fix local library search across Video/Movie/Series/ParentId views and Seerr verified Jellyfin IDs so existing library titles always appear; persist dedicated route-aware Administrator credentials and sync jellyfin-web ServerConnections/ApiProvider cleanly so Plugin Settings and Admin Dashboard never bounce back to Home on iOS App, Safari, or Desktop WebUI",
+        "targetAbi": "10.9.0.0",
+        "sourceUrl": "https://raw.githubusercontent.com/streamflix-dev/jellyfin-streamflix/main/dist/Jellyfin.Plugin.StreamFlix_0.9.2.4_10.9.0.zip",
+        "checksum": "1ead555f613e4d6f816edc68e46c1e4f",
+        "timestamp": "2026-11-16T05:01:24Z"
+      },
+      {
         "version": "0.9.2.3",
         "changelog": "Build for Jellyfin 12.x (.NET 10).\n\n- Fix Plugin Settings & Admin Dashboard Bouncing Back to Home Overview: automatically elevate verified Administrator household sessions to a real Jellyfin Administrator token before navigating to Plugin Settings, Active Devices, or Dashboard when currently viewing a non-admin profile, and auto-seed/restore the Owner admin profile on fresh installs so administrators are never locked out across iOS App, Safari, or Desktop WebUI",
         "targetAbi": "12.0.0.0",
