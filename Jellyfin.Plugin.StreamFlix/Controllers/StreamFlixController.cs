@@ -276,6 +276,22 @@ public partial class StreamFlixController : ControllerBase
 
             var wasGuestPassesEnabled = config.EnableGuestPasses;
             config.EnableGuestPasses = request.EnableGuestPasses;
+            if (request.GuestPassManagerProfileIds != null)
+            {
+                var requestedManagerIds = new HashSet<string>(
+                    request.GuestPassManagerProfileIds
+                        .Where(id => !string.IsNullOrWhiteSpace(id))
+                        .Select(id => id.Trim()),
+                    StringComparer.OrdinalIgnoreCase);
+                config.GuestPassManagerProfileIds = (config.Profiles ?? new List<StreamFlixProfileConfig>())
+                    .Where(profile => !profile.IsKids
+                        && !IsProfileLinkedToAdmin(profile)
+                        && Guid.TryParse(profile.JellyfinUserId, out _)
+                        && requestedManagerIds.Contains(profile.Id))
+                    .Select(profile => profile.Id)
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .ToList();
+            }
             config.EnableWatchTogether = request.EnableWatchTogether;
 
             Plugin.Instance?.SaveConfiguration();
@@ -591,6 +607,9 @@ public partial class StreamFlixController : ControllerBase
             hasAccess,
             isAdmin = caller.IsAdmin,
             enableGuestPasses = config.EnableGuestPasses,
+            guestPassManagerProfileIds = hasAccess && !isGuestPass
+                ? (config.GuestPassManagerProfileIds ?? new List<string>()).ToList()
+                : new List<string>(),
             enableWatchTogether = config.EnableWatchTogether,
             hasAnyAdultPin = hasAccess && !isGuestPass && (config.Profiles ?? new List<StreamFlixProfileConfig>()).Any(p => !p.IsKids && !string.IsNullOrWhiteSpace(p.PinCode)),
             isGuestPass,
@@ -667,6 +686,7 @@ public partial class StreamFlixController : ControllerBase
             oidcRequireAllowlist = config.OidcRequireAllowlist,
             approvedOidcUsers = (config.ApprovedOidcUsers ?? new List<string>()).ToList(),
             enableGuestPasses = config.EnableGuestPasses,
+            guestPassManagerProfileIds = (config.GuestPassManagerProfileIds ?? new List<string>()).ToList(),
             enableWatchTogether = config.EnableWatchTogether,
             enableSeerr = config.EnableSeerr,
             seerrUrl = config.SeerrUrl ?? string.Empty,

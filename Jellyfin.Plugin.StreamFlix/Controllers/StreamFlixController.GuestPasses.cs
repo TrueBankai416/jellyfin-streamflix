@@ -46,9 +46,9 @@ public partial class StreamFlixController
         SetNoStoreSecurityHeaders();
         var config = Config;
         var caller = await GetCallerAsync(config).ConfigureAwait(false);
-        if (!caller.IsAdmin)
+        if (!CanManageGuestPasses(config, caller))
         {
-            return StatusCode(403, new { code = "admin_required", message = "Only a Jellyfin administrator can manage Guest Passes." });
+            return GuestPassManagerForbidden();
         }
 
         List<string> prunedIds;
@@ -107,9 +107,9 @@ public partial class StreamFlixController
 
         var config = Config;
         var caller = await GetCallerAsync(config).ConfigureAwait(false);
-        if (!caller.IsAdmin)
+        if (!CanManageGuestPasses(config, caller))
         {
-            return StatusCode(403, new { code = "admin_required", message = "Only a Jellyfin administrator can create Guest Passes." });
+            return GuestPassManagerForbidden();
         }
 
         if (!config.EnableGuestPasses)
@@ -222,9 +222,9 @@ public partial class StreamFlixController
         SetNoStoreSecurityHeaders();
         var config = Config;
         var caller = await GetCallerAsync(config).ConfigureAwait(false);
-        if (!caller.IsAdmin)
+        if (!CanManageGuestPasses(config, caller))
         {
-            return StatusCode(403, new { code = "admin_required", message = "Only a Jellyfin administrator can view Guest Pass QR codes." });
+            return GuestPassManagerForbidden();
         }
 
         var pass = (config.GuestPasses ?? new List<StreamFlixGuestPass>())
@@ -261,9 +261,9 @@ public partial class StreamFlixController
 
         var config = Config;
         var caller = await GetCallerAsync(config).ConfigureAwait(false);
-        if (!caller.IsAdmin)
+        if (!CanManageGuestPasses(config, caller))
         {
-            return StatusCode(403, new { code = "admin_required", message = "Only a Jellyfin administrator can revoke Guest Passes." });
+            return GuestPassManagerForbidden();
         }
 
         StreamFlixGuestPass? targetPass = null;
@@ -300,6 +300,44 @@ public partial class StreamFlixController
             .Select(p => MapGuestPassAdmin(config, p))
             .ToList();
         return Ok(new { revoked = true, deleted = true, terminatedSessions, passes });
+    }
+
+    private bool CanManageGuestPasses(PluginConfiguration config, CallerContext caller)
+    {
+        if (IsGuestSession(caller))
+        {
+            return false;
+        }
+
+        var user = caller.JellyfinUser;
+        if (user == null)
+        {
+            return caller.IsAdmin && caller.IsJellyfinAuthenticated;
+        }
+
+        if (StreamFlixStartupTask.IsUserAdminCompat(user))
+        {
+            return true;
+        }
+
+        var userId = user.Id;
+        var allowedProfileIds = new HashSet<string>(
+            config.GuestPassManagerProfileIds ?? new List<string>(),
+            StringComparer.OrdinalIgnoreCase);
+        return (config.Profiles ?? new List<StreamFlixProfileConfig>()).Any(profile =>
+            !profile.IsKids
+            && Guid.TryParse(profile.JellyfinUserId, out var profileUserId)
+            && profileUserId == userId
+            && (IsProfileLinkedToAdmin(profile) || allowedProfileIds.Contains(profile.Id)));
+    }
+
+    private ObjectResult GuestPassManagerForbidden()
+    {
+        return StatusCode(StatusCodes.Status403Forbidden, new
+        {
+            code = "guest_pass_manager_required",
+            message = "The active profile does not have permission to manage Guest Passes.",
+        });
     }
 
     [HttpGet("Guest/{code}")]

@@ -3,6 +3,10 @@
        7b. v0.7.0+ Modals: Temporary Guest Passes & Seerr Requests
        ---------------------------------------------------------------------- */
     function openGuestPassesModal() {
+        if (!canActiveProfileManageGuestPasses()) {
+            showToast('The active profile does not have permission to manage Guest Passes.', 'error');
+            return;
+        }
         if (!areGuestPassesEnabled()) {
             showToast('Temporary Guest Passes are turned off in Dashboard → Plugins → StreamFlix.', 'info');
             return;

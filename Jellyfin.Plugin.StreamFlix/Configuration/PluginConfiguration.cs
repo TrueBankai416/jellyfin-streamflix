@@ -131,6 +131,7 @@ public class PluginConfiguration : BasePluginConfiguration
         OidcRequireAllowlist = false;
         ApprovedOidcUsers = new List<string>();
         EnableGuestPasses = true;
+        GuestPassManagerProfileIds = new List<string>();
         EnableWatchTogether = true;
         GuestPasses = new List<StreamFlixGuestPass>();
         EnableSeerr = false;
@@ -290,6 +291,12 @@ public class PluginConfiguration : BasePluginConfiguration
     /// Gets or sets a value indicating whether Temporary Guest Passes (creation, invite links, QR codes, and guest sessions) are enabled.
     /// </summary>
     public bool EnableGuestPasses { get; set; }
+
+    /// <summary>
+    /// Gets or sets non-administrator adult profiles allowed to manage Guest Passes.
+    /// Administrator profiles always retain access.
+    /// </summary>
+    public List<string> GuestPassManagerProfileIds { get; set; }
 
     /// <summary>
     /// Gets or sets a value indicating whether StreamFlix Watch Together (SyncPlay rooms) is enabled for non-Kids profiles.

@@ -26,6 +26,22 @@
         );
     }
 
+    function canActiveProfileManageGuestPasses() {
+        var active = state.activeProfile;
+        if (!active || active.isKids || isGuestPassSession()) {
+            return false;
+        }
+        if (active.isAdmin) {
+            return true;
+        }
+        var allowedIds = state.config && Array.isArray(state.config.guestPassManagerProfileIds)
+            ? state.config.guestPassManagerProfileIds
+            : [];
+        return allowedIds.some(function (id) {
+            return String(id).toLowerCase() === String(active.id || '').toLowerCase();
+        });
+    }
+
     function isGateOpen() {
         return Boolean(document.getElementById('streamflix-overlay-root'));
     }

@@ -515,6 +515,11 @@
 
                         <div class="bfx-collapse-body hide" id="GuestPassesConfigBody">
                             <div class="bfx-subbox" style="margin-top:0;">
+                                <div class="bfx-subbox-title">Guest Pass managers</div>
+                                <div class="fieldDescription">Administrator profiles always have access. Select non-Kids profiles that may create, view, share, and revoke Guest Passes. Leave all unchecked for administrator-only access.</div>
+                                <div id="GuestPassManagerProfiles" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:4px 16px;margin-top:8px;"></div>
+                            </div>
+                            <div class="bfx-subbox" style="margin-top:0;">
                                 <div class="bfx-subbox-title">Create New Guest Pass</div>
                                 <div class="bfx-callout hide" id="StreamFlixNoGuestProfilesHint">
                                     Create at least one non-administrator viewer profile in <strong>Manage profiles</strong> above before issuing a Guest Pass.
@@ -736,6 +741,7 @@
                 var profiles = [];
                 var guestPasses = [];
                 var eligibleGuestProfiles = [];
+                var guestPassManagerProfileIds = [];
                 var activeDevices = [];
                 var activeDeviceFilter = 'all';
                 var activeConfigTab = 'all';
@@ -1652,6 +1658,45 @@
                     renderStatus();
                 }
 
+                function renderGuestPassManagerProfiles() {
+                    var host = $('#GuestPassManagerProfiles');
+                    var eligible = profiles.filter(function (profile) {
+                        return !profile.isAdmin && !profile.isKids && profile.jellyfinUserId;
+                    });
+                    if (!eligible.length) {
+                        host.innerHTML = '<div class="bfx-empty">No eligible non-Kids profiles with a linked Jellyfin user.</div>';
+                        return;
+                    }
+                    host.innerHTML = eligible.map(function (profile) {
+                        var checked = guestPassManagerProfileIds.some(function (id) {
+                            return String(id).toLowerCase() === String(profile.id).toLowerCase();
+                        });
+                        return '<label class="emby-checkbox-label" style="margin:4px 0;">'
+                            + '<input type="checkbox" is="emby-checkbox" data-guest-pass-manager-profile="1" value="' + esc(profile.id) + '"' + (checked ? ' checked' : '') + ' />'
+                            + '<span>' + esc(profile.name || 'Profile') + '</span>'
+                            + '</label>';
+                    }).join('');
+                }
+
+                $('#GuestPassManagerProfiles').addEventListener('change', function (ev) {
+                    var input = ev.target;
+                    if (!input || input.getAttribute('data-guest-pass-manager-profile') !== '1') {
+                        return;
+                    }
+                    var profileId = input.value;
+                    if (input.checked) {
+                        if (!guestPassManagerProfileIds.some(function (id) {
+                            return String(id).toLowerCase() === String(profileId).toLowerCase();
+                        })) {
+                            guestPassManagerProfileIds.push(profileId);
+                        }
+                    } else {
+                        guestPassManagerProfileIds = guestPassManagerProfileIds.filter(function (id) {
+                            return String(id).toLowerCase() !== String(profileId).toLowerCase();
+                        });
+                    }
+                });
+
                 function loadGuestPasses() {
                     return streamflixApi('GET', 'GuestPasses').then(function (res) {
                         guestPasses = (res && Array.isArray(res.passes)) ? res.passes : [];
@@ -1750,6 +1795,7 @@
                     if (pub && Array.isArray(pub.profiles)) {
                         profiles = pub.profiles;
                     }
+                    renderGuestPassManagerProfiles();
                     if (pub && pub.version) {
                         $('#StreamFlixVersionLabel').textContent = '· v' + String(pub.version).replace(/\.0$/, '');
                     }
@@ -2268,6 +2314,10 @@
                     $('#BypassLoginGateOnLan').checked = Boolean(cfg.bypassLoginGateOnLan);
                     $('#AutoProvisionJellyfinUsers').checked = cfg.autoProvisionJellyfinUsers !== false;
                     $('#EnableGuestPasses').checked = cfg.enableGuestPasses !== false;
+                    guestPassManagerProfileIds = Array.isArray(cfg.guestPassManagerProfileIds)
+                        ? cfg.guestPassManagerProfileIds.slice()
+                        : [];
+                    renderGuestPassManagerProfiles();
                     $('#EnableWatchTogether').checked = cfg.enableWatchTogether !== false;
                     $('#SessionLifetimeDays').value = cfg.sessionLifetimeDays > 0 ? cfg.sessionLifetimeDays : 30;
                     $('#Top10SelectionMode').value = cfg.top10SelectionMode || 'most_played';
@@ -2376,6 +2426,7 @@
                         bypassLoginGateOnLan: $('#BypassLoginGateOnLan').checked,
                         autoProvisionJellyfinUsers: $('#AutoProvisionJellyfinUsers').checked,
                         enableGuestPasses: $('#EnableGuestPasses').checked,
+                        guestPassManagerProfileIds: guestPassManagerProfileIds.slice(),
                         enableWatchTogether: $('#EnableWatchTogether').checked,
                         googleClientId: $('#GoogleClientId').value.trim(),
                         googleClientSecret: googleSecretTyped || '__KEEP__',

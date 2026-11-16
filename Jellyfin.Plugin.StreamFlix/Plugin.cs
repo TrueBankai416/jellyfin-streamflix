@@ -176,6 +176,13 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages
                         incoming.GuestPasses = existing.GuestPasses;
                     }
 
+                    if ((incoming.GuestPassManagerProfileIds == null || incoming.GuestPassManagerProfileIds.Count == 0)
+                        && existing.GuestPassManagerProfileIds != null
+                        && existing.GuestPassManagerProfileIds.Count > 0)
+                    {
+                        incoming.GuestPassManagerProfileIds = existing.GuestPassManagerProfileIds;
+                    }
+
                     if (string.IsNullOrWhiteSpace(incoming.SessionSigningKey) && !string.IsNullOrWhiteSpace(existing.SessionSigningKey))
                     {
                         incoming.SessionSigningKey = existing.SessionSigningKey;
@@ -454,6 +461,7 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages
                 OidcClientSecret = Val(root, nameof(PluginConfiguration.OidcClientSecret)) ?? string.Empty,
                 OidcRequireAllowlist = BoolVal(root, nameof(PluginConfiguration.OidcRequireAllowlist), false),
                 EnableGuestPasses = BoolVal(root, nameof(PluginConfiguration.EnableGuestPasses), true),
+                GuestPassManagerProfileIds = new List<string>(),
                 EnableWatchTogether = BoolVal(root, nameof(PluginConfiguration.EnableWatchTogether), true),
                 EnableSeerr = BoolVal(root, nameof(PluginConfiguration.EnableSeerr), false),
                 SeerrUrl = Val(root, nameof(PluginConfiguration.SeerrUrl)) ?? string.Empty,
@@ -469,6 +477,16 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages
                 cfg.ApprovedOidcUsers = approvedOidcEl.Elements()
                     .Select(x => (x.Value ?? string.Empty).Trim())
                     .Where(x => !string.IsNullOrEmpty(x))
+                    .ToList();
+            }
+
+            var guestPassManagersEl = root.Elements().FirstOrDefault(e => string.Equals(e.Name.LocalName, nameof(PluginConfiguration.GuestPassManagerProfileIds), StringComparison.OrdinalIgnoreCase));
+            if (guestPassManagersEl != null)
+            {
+                cfg.GuestPassManagerProfileIds = guestPassManagersEl.Elements()
+                    .Select(x => (x.Value ?? string.Empty).Trim())
+                    .Where(x => !string.IsNullOrEmpty(x))
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
                     .ToList();
             }
 
@@ -629,6 +647,12 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages
             if (cfg.GuestPasses == null)
             {
                 cfg.GuestPasses = new List<StreamFlixGuestPass>();
+                dirty = true;
+            }
+
+            if (cfg.GuestPassManagerProfileIds == null)
+            {
+                cfg.GuestPassManagerProfileIds = new List<string>();
                 dirty = true;
             }
 
