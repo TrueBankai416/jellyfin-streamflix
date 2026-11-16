@@ -9,6 +9,30 @@
     "imageUrl": "https://raw.githubusercontent.com/streamflix-dev/jellyfin-streamflix/main/Jellyfin.Plugin.StreamFlix/thumb.png",
     "versions": [
       {
+        "version": "0.9.2.1",
+        "changelog": "Build for Jellyfin 12.x (.NET 10).\n\n- Native Search Seerr Integration, Instant Requesting & Zero-Lag Transport Overhaul: unify Seerr results directly inside the native Search grid with a dedicated Seerr corner icon badge and 1-click movie requesting, eliminate 'The operation was canceled.' timeouts via IPv4-first socket connection + Docker localhost fallback + safe redirect handling + non-throwing bounded metadata enrichment, add explicit is4k/tvdbId request payloads and 25s Radarr/Sonarr timeout budgets, and add client AbortController + instant 0ms local search so Seerr never slows down loading times",
+        "targetAbi": "12.0.0.0",
+        "sourceUrl": "https://raw.githubusercontent.com/streamflix-dev/jellyfin-streamflix/main/dist/Jellyfin.Plugin.StreamFlix_0.9.2.1_12.0.0.zip",
+        "checksum": "04bfb5169d1820b071886f2ae88808ff",
+        "timestamp": "2026-11-16T02:42:02Z"
+      },
+      {
+        "version": "0.9.2.1",
+        "changelog": "Build for Jellyfin 10.11.x (.NET 9).\n\n- Native Search Seerr Integration, Instant Requesting & Zero-Lag Transport Overhaul: unify Seerr results directly inside the native Search grid with a dedicated Seerr corner icon badge and 1-click movie requesting, eliminate 'The operation was canceled.' timeouts via IPv4-first socket connection + Docker localhost fallback + safe redirect handling + non-throwing bounded metadata enrichment, add explicit is4k/tvdbId request payloads and 25s Radarr/Sonarr timeout budgets, and add client AbortController + instant 0ms local search so Seerr never slows down loading times",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://raw.githubusercontent.com/streamflix-dev/jellyfin-streamflix/main/dist/Jellyfin.Plugin.StreamFlix_0.9.2.1_10.11.0.zip",
+        "checksum": "ec3fbf4f7fefe8fe7cab172a4d51099c",
+        "timestamp": "2026-11-16T02:42:02Z"
+      },
+      {
+        "version": "0.9.2.1",
+        "changelog": "Build for Jellyfin 10.9 - 10.10 (.NET 8).\n\n- Native Search Seerr Integration, Instant Requesting & Zero-Lag Transport Overhaul: unify Seerr results directly inside the native Search grid with a dedicated Seerr corner icon badge and 1-click movie requesting, eliminate 'The operation was canceled.' timeouts via IPv4-first socket connection + Docker localhost fallback + safe redirect handling + non-throwing bounded metadata enrichment, add explicit is4k/tvdbId request payloads and 25s Radarr/Sonarr timeout budgets, and add client AbortController + instant 0ms local search so Seerr never slows down loading times",
+        "targetAbi": "10.9.0.0",
+        "sourceUrl": "https://raw.githubusercontent.com/streamflix-dev/jellyfin-streamflix/main/dist/Jellyfin.Plugin.StreamFlix_0.9.2.1_10.9.0.zip",
+        "checksum": "bc81b5a424e88ecd12383c0f92dfce22",
+        "timestamp": "2026-11-16T02:42:02Z"
+      },
+      {
         "version": "0.9.2.0",
         "changelog": "Build for Jellyfin 12.x (.NET 10).\n\n- Automatic Zero-Config WebGPU Player Support: composable IHttpResponseBodyFeature HTML injection middleware so WebGPU Player co-injects cleanly in any plugin load order, full ServerConnections ApiClient token sync for WebGPU Web Worker streams and module catalogs, automatic zero-settings selection on supported HTTPS desktop browsers, and seamless per-video/device fallback to Jellyfin's standard player on mobile, TV, HTTP, or incompatible streams",
         "targetAbi": "12.0.0.0",
