@@ -72,11 +72,11 @@
     // Resolve an Administrator token for media management without navigating away,
     // mirroring openStreamFlixAdminRoute(): live admin client → cached adminAuth →
     // server-side ElevateAdmin (with PIN pad fallback).
-    function requestManageAdminAuth(suppliedPin) {
+    function requestManageAdminAuth(suppliedPin, forceElevate) {
         if (isGuestPassSession()) {
             return Promise.reject(new Error('Guest passes cannot manage media.'));
         }
-        if (!suppliedPin) {
+        if (!suppliedPin && !forceElevate) {
             if (typeof isCurrentJellyfinClientAdmin === 'function' && isCurrentJellyfinClientAdmin()) {
                 var liveInfo = getUnderlyingApiClientAuth();
                 if (liveInfo.userId && liveInfo.accessToken) {
@@ -118,19 +118,37 @@
             return state.adminAuth;
         }).catch(function (err) {
             var code = err && err.code;
-            if ((code === 'pin_required' || code === 'pin_invalid') && typeof openPinPad === 'function') {
-                return new Promise(function (resolve) {
+            // Only open a pad for the initial request — errors for a PIN submitted from
+            // an already-open pad must propagate back to that pad's validation handler.
+            if (!suppliedPin && (code === 'pin_required' || code === 'pin_invalid') && typeof openPinPad === 'function') {
+                return new Promise(function (resolve, reject) {
+                    var settled = false;
                     var ownerProf = getProfiles().filter(function (p) { return p.isOwner || p.isAdmin; })[0]
                         || { name: 'Administrator', icon: '👑', color: '#E50914' };
-                    openPinPad({
+                    var pad = openPinPad({
                         profile: ownerProf,
                         title: 'Administrator PIN',
                         subtitleHtml: 'Enter the PIN for <strong>' + escapeHtml(ownerProf.name) + '</strong> to manage media.',
                         initialError: code === 'pin_invalid' ? err.message : '',
                         submit: function (pin) {
-                            return requestManageAdminAuth(pin).then(resolve);
+                            return requestManageAdminAuth(pin, forceElevate).then(function (auth) {
+                                settled = true;
+                                resolve(auth);
+                            });
                         }
                     });
+                    // Reject the pending auth promise when the pad is dismissed or hits a
+                    // terminal error, so busy callers (Save, Identify…) can restore their UI.
+                    var origPadClose = pad.close;
+                    pad.close = function (result) {
+                        origPadClose(result);
+                        if (!settled) {
+                            settled = true;
+                            var cancelErr = new Error('Administrator sign-in was cancelled.');
+                            cancelErr.code = 'elevation_cancelled';
+                            reject(cancelErr);
+                        }
+                    };
                 });
             }
             throw err;
@@ -140,10 +158,12 @@
     function runWithManageAuth(run) {
         return requestManageAdminAuth().then(function (adminAuth) {
             return run(adminAuth).catch(function (err) {
-                // A cached admin token may have been revoked — re-elevate once.
+                // A cached or in-memory admin token may have been revoked — force a fresh
+                // ElevateAdmin once, skipping the live-client and cached shortcuts that
+                // would hand back the same rejected token.
                 if (err && err.status === 401) {
                     clearAdminAuth();
-                    return requestManageAdminAuth().then(run);
+                    return requestManageAdminAuth('', true).then(run);
                 }
                 throw err;
             });
@@ -158,12 +178,71 @@
         });
     }
 
-    function splitCsvNames(raw) {
-        return String(raw || '').split(',').map(function (s) { return s.trim(); }).filter(Boolean);
+    // Name lists join with '; ' when any name contains a comma, so entries like
+    // "Example Pictures, Inc." round-trip through the editor without being split.
+    function joinEditableNames(arr) {
+        if (!Array.isArray(arr) || !arr.length) {
+            return '';
+        }
+        var hasComma = arr.some(function (n) { return String(n).indexOf(',') !== -1; });
+        return arr.join(hasComma ? '; ' : ', ');
+    }
+
+    function splitEditableNames(raw) {
+        var s = String(raw || '');
+        var sep = s.indexOf(';') !== -1 ? ';' : ',';
+        return s.split(sep).map(function (p) { return p.trim(); }).filter(Boolean);
     }
 
     function manageMediaErrorToast(err, fallback) {
+        if (err && err.code === 'elevation_cancelled') {
+            return;
+        }
         showToast((err && err.message) || fallback, 'error');
+    }
+
+    function matchesManagedItemId(it, norm) {
+        return Boolean(it && (normalizeGuid(it.Id) === norm
+            || normalizeGuid(it.SeriesId) === norm
+            || normalizeGuid(it.SeasonId) === norm
+            || normalizeGuid(it.ParentId) === norm));
+    }
+
+    // After a delete, scrub the item (and direct descendants) from every client-side
+    // cache and rendered card, then silently reload the hub rows from the server.
+    function purgeDeletedItemFromCaches(itemId) {
+        var norm = normalizeGuid(itemId);
+        try {
+            Object.keys(state.itemCache || {}).forEach(function (k) {
+                if (normalizeGuid(k) === norm || matchesManagedItemId(state.itemCache[k], norm)) {
+                    delete state.itemCache[k];
+                }
+            });
+        } catch (ePurge) {}
+        var d = state.hubData || {};
+        ['heroItems', 'resumeItems', 'nextUpItems', 'top10Items', 'favoriteItems',
+            'recentMovies', 'recentSeries', 'allMovies', 'allSeries', 'collectionsItems'].forEach(function (key) {
+            if (Array.isArray(d[key])) {
+                d[key] = d[key].filter(function (it) { return !matchesManagedItemId(it, norm); });
+            }
+        });
+        if (Array.isArray(state.searchResults)) {
+            state.searchResults = state.searchResults.filter(function (it) { return !matchesManagedItemId(it, norm); });
+        }
+        if (state.browseFilter && Array.isArray(state.browseFilter.items)) {
+            state.browseFilter.items = state.browseFilter.items.filter(function (it) { return !matchesManagedItemId(it, norm); });
+        }
+        state.personalRowsByUser = {};
+        try {
+            Array.prototype.forEach.call(document.querySelectorAll('[data-item-id="' + cssEscape(String(itemId)) + '"]'), function (card) {
+                if (card.parentNode) {
+                    card.parentNode.removeChild(card);
+                }
+            });
+        } catch (eCards) {}
+        if (state.hubData && state.hubData.loaded && typeof loadCinemaHubData === 'function') {
+            loadCinemaHubData(true);
+        }
     }
 
     function openManageMediaMenu(opts) {
@@ -221,6 +300,12 @@
                 } else if (act === 'download') {
                     manageDownloadMedia(item);
                 } else if (act === 'advanced') {
+                    // Close the detail modal first (keepRoute so it doesn't trigger a
+                    // history.back) — openStreamFlixAdminRoute may navigate without a
+                    // reload for an already-signed-in administrator.
+                    if (state.activeDetailModal && typeof state.activeDetailModal.close === 'function') {
+                        try { state.activeDetailModal.close(true); } catch (eCloseDetail) {}
+                    }
                     openStreamFlixAdminRoute('#/metadata?id=' + encodeURIComponent(item.Id));
                 } else if (act === 'delete') {
                     manageDeleteMedia(item, opts);
@@ -244,9 +329,12 @@
 
     function openEditMetadataDialog(adminAuth, fullItem, opts) {
         opts = opts || {};
-        var studioNames = Array.isArray(fullItem.Studios)
-            ? fullItem.Studios.map(function (s) { return s && s.Name ? s.Name : ''; }).filter(Boolean).join(', ')
-            : '';
+        var origGenresText = joinEditableNames(fullItem.Genres);
+        var origTagsText = joinEditableNames(fullItem.Tags);
+        var origStudiosText = joinEditableNames(Array.isArray(fullItem.Studios)
+            ? fullItem.Studios.map(function (s) { return s && s.Name ? s.Name : ''; }).filter(Boolean)
+            : []);
+        var listPlaceholder = 'Comma separated — use ; between names that contain commas';
         var m = openModal(''
             + '<h2>Edit Metadata</h2>'
             + '<p class="streamflix-modal-text">' + escapeHtml(fullItem.Name || '') + (fullItem.ProductionYear ? ' (' + fullItem.ProductionYear + ')' : '') + '</p>'
@@ -278,15 +366,15 @@
             + '</div>'
             + '<div class="streamflix-field">'
             + '  <label for="bfx-meta-genres">Genres</label>'
-            + '  <input type="text" id="bfx-meta-genres" class="streamflix-input" value="' + escapeHtml(Array.isArray(fullItem.Genres) ? fullItem.Genres.join(', ') : '') + '" placeholder="Comma separated, e.g. Action, Drama" />'
+            + '  <input type="text" id="bfx-meta-genres" class="streamflix-input" value="' + escapeHtml(origGenresText) + '" placeholder="' + listPlaceholder + '" />'
             + '</div>'
             + '<div class="streamflix-field">'
             + '  <label for="bfx-meta-tags">Tags</label>'
-            + '  <input type="text" id="bfx-meta-tags" class="streamflix-input" value="' + escapeHtml(Array.isArray(fullItem.Tags) ? fullItem.Tags.join(', ') : '') + '" placeholder="Comma separated" />'
+            + '  <input type="text" id="bfx-meta-tags" class="streamflix-input" value="' + escapeHtml(origTagsText) + '" placeholder="' + listPlaceholder + '" />'
             + '</div>'
             + '<div class="streamflix-field">'
             + '  <label for="bfx-meta-studios">Studios</label>'
-            + '  <input type="text" id="bfx-meta-studios" class="streamflix-input" value="' + escapeHtml(studioNames) + '" placeholder="Comma separated" />'
+            + '  <input type="text" id="bfx-meta-studios" class="streamflix-input" value="' + escapeHtml(origStudiosText) + '" placeholder="' + listPlaceholder + '" />'
             + '</div>'
             + '<div class="streamflix-form-error" id="bfx-meta-err" aria-live="assertive"></div>'
             + '<div class="streamflix-modal-actions streamflix-modal-actions-end">'
@@ -325,9 +413,20 @@
             fullItem.ProductionYear = yearRaw ? parseInt(yearRaw, 10) : null;
             fullItem.OfficialRating = q('#bfx-meta-rating').value.trim() || null;
             fullItem.CommunityRating = commRaw ? Math.min(10, Math.max(0, parseFloat(commRaw))) : null;
-            fullItem.Genres = splitCsvNames(q('#bfx-meta-genres').value);
-            fullItem.Tags = splitCsvNames(q('#bfx-meta-tags').value);
-            fullItem.Studios = splitCsvNames(q('#bfx-meta-studios').value).map(function (n) { return { Name: n }; });
+            // Only rewrite name lists the administrator actually edited, so untouched
+            // arrays (including names containing commas) are preserved exactly.
+            var genresText = q('#bfx-meta-genres').value;
+            if (genresText.trim() !== origGenresText) {
+                fullItem.Genres = splitEditableNames(genresText);
+            }
+            var tagsText = q('#bfx-meta-tags').value;
+            if (tagsText.trim() !== origTagsText) {
+                fullItem.Tags = splitEditableNames(tagsText);
+            }
+            var studiosText = q('#bfx-meta-studios').value;
+            if (studiosText.trim() !== origStudiosText) {
+                fullItem.Studios = splitEditableNames(studiosText).map(function (n) { return { Name: n }; });
+            }
 
             // Native editor semantics: POST the full (edited) item dto back
             runWithManageAuth(function (auth) {
@@ -526,9 +625,7 @@
                 return adminApiFetch(auth, '/Items/' + encodeURIComponent(item.Id), { method: 'DELETE' });
             }).then(function () {
                 showToast('"' + (item.Name || 'Item') + '" deleted.', 'success');
-                if (state.personalRowsByUser) {
-                    state.personalRowsByUser = {};
-                }
+                purgeDeletedItemFromCaches(item.Id);
                 if (typeof opts.onItemDeleted === 'function') {
                     opts.onItemDeleted();
                 }

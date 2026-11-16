@@ -100,7 +100,7 @@
                 : '')
             + '          <h2 class="streamflix-detail-title-text">' + escapeHtml(displayTitle) + '</h2>'
             + '        </div>'
-            + (episodeSubline ? '<div style="font-size:15px;font-weight:700;color:#e5e5e5;margin:0 0 14px 0;text-shadow:0 2px 10px rgba(0,0,0,0.9);">' + escapeHtml(episodeSubline) + '</div>' : '')
+            + (episodeSubline ? '<div id="streamflix-modal-episode-subline" style="font-size:15px;font-weight:700;color:#e5e5e5;margin:0 0 14px 0;text-shadow:0 2px 10px rgba(0,0,0,0.9);">' + escapeHtml(episodeSubline) + '</div>' : '')
             + (resumePct
                 ? '<div class="streamflix-detail-resume" id="streamflix-modal-resume-row"><div class="streamflix-hero-progress-bar"><span style="width:' + resumePct + '%;"></span></div>' + (resumeLeftText ? '<span>' + escapeHtml(resumeLeftText) + '</span>' : '') + '</div>'
                 : '')
@@ -266,11 +266,53 @@
                         if (!updatedItem || !updatedItem.Id || modalClosed) {
                             return;
                         }
-                        if (updatedItem.Name && updatedItem.Type !== 'Episode') {
+                        // Admin-elevated fetches carry the administrator's UserData —
+                        // keep the active profile's own watch state for resume/My List.
+                        var ownUserData = (resolvedItem && resolvedItem.UserData) || (item && item.UserData);
+                        if (ownUserData) {
+                            updatedItem.UserData = ownUserData;
+                        }
+                        // Replace every editable display field, including cleared values
+                        if (updatedItem.Type === 'Episode') {
+                            var sublineEl = qModal('#streamflix-modal-episode-subline');
+                            if (sublineEl) {
+                                sublineEl.textContent = 'Season ' + (updatedItem.ParentIndexNumber || 1)
+                                    + ' • Episode ' + (updatedItem.IndexNumber || 1) + ' — ' + (updatedItem.Name || '');
+                            }
+                        } else if (updatedItem.Name) {
                             var titleTextEl = qModal('.streamflix-detail-title-text');
                             if (titleTextEl) {
                                 titleTextEl.textContent = updatedItem.Name;
                             }
+                        }
+                        var editedOverviewEl = qModal('#streamflix-modal-overview');
+                        if (editedOverviewEl) {
+                            editedOverviewEl.textContent = updatedItem.Overview || 'No description available.';
+                        }
+                        var editedTaglineEl = qModal('#streamflix-modal-tagline');
+                        if (editedTaglineEl) {
+                            var editedTagline = extractCleanTagline(updatedItem);
+                            editedTaglineEl.textContent = editedTagline;
+                            editedTaglineEl.style.display = editedTagline ? '' : 'none';
+                        }
+                        var editedMetaRow = qModal('#streamflix-modal-meta-row');
+                        if (editedMetaRow) {
+                            var updCommunity = updatedItem.CommunityRating ? Number(updatedItem.CommunityRating).toFixed(1) : '';
+                            var updYear = updatedItem.ProductionYear ? String(updatedItem.ProductionYear) : '';
+                            var updRating = updatedItem.OfficialRating ? String(updatedItem.OfficialRating) : '';
+                            var updRuntime = formatRuntimeTicks(updatedItem.RunTimeTicks);
+                            var updGenres = Array.isArray(updatedItem.Genres) ? updatedItem.Genres.slice(0, 4) : [];
+                            editedMetaRow.innerHTML = ''
+                                + (updCommunity ? '<span class="streamflix-hero-rating">' + icon('star') + escapeHtml(updCommunity) + '</span>' : '')
+                                + (updYear ? '<span>' + escapeHtml(updYear) + '</span>' : '')
+                                + (updRating ? '<span class="streamflix-maturity-pill">' + escapeHtml(updRating) + '</span>' : '')
+                                + (updRuntime ? '<span>' + escapeHtml(updRuntime.trim()) + '</span>' : '')
+                                + (updGenres.length
+                                    ? '<span class="streamflix-detail-genre-chips">' + updGenres.map(function (g) {
+                                        return '<button type="button" class="streamflix-genre-chip" data-filter-genre="' + escapeHtml(g) + '" title="Browse ' + escapeHtml(g) + '">' + escapeHtml(g) + '</button>';
+                                    }).join('') + '</span>'
+                                    : '');
+                            bindGenreChipsInModal();
                         }
                         renderEnrichedDetails(updatedItem);
                     },
