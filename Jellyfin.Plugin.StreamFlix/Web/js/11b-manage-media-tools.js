@@ -172,6 +172,7 @@
             canIdentify ? { act: 'identify', icon: 'search', label: 'Identify', hint: 'Match against metadata providers' } : null,
             { act: 'refresh', icon: 'refresh', label: 'Refresh metadata', hint: 'Search providers for updated metadata & missing images' },
             hasMediaInfo ? { act: 'info', icon: 'info', label: 'Media info', hint: 'Container, video, audio & subtitle streams' } : null,
+            hasMediaInfo ? { act: 'download', icon: 'download', label: 'Download', hint: 'Save the media file to this device' } : null,
             { act: 'advanced', icon: 'sliders', label: 'Advanced editor', hint: 'Open Jellyfin\u2019s full Metadata Manager (images & more)' },
             { act: 'delete', icon: 'trash', label: 'Delete media', hint: 'Permanently remove the files from disk', danger: true }
         ].filter(Boolean);
@@ -205,6 +206,8 @@
                     manageRefreshMetadata(item);
                 } else if (act === 'info') {
                     openMediaInfoDialog(item);
+                } else if (act === 'download') {
+                    manageDownloadMedia(item);
                 } else if (act === 'advanced') {
                     openStreamFlixAdminRoute('#/metadata?id=' + encodeURIComponent(item.Id));
                 } else if (act === 'delete') {
@@ -520,6 +523,30 @@
             }).catch(function (err) {
                 manageMediaErrorToast(err, 'Could not delete this item.');
             });
+        });
+    }
+
+    function manageDownloadMedia(item) {
+        runWithManageAuth(function (auth) {
+            // Browser-initiated download cannot send auth headers, so pass the token
+            // as api_key like jellyfin-web's native Download action does.
+            var url = apiBase() + '/Items/' + encodeURIComponent(item.Id)
+                + '/Download?api_key=' + encodeURIComponent(auth.accessToken);
+            var a = document.createElement('a');
+            a.href = url;
+            a.download = '';
+            a.rel = 'noopener';
+            document.body.appendChild(a);
+            a.click();
+            setTimeout(function () {
+                if (a.parentNode) {
+                    a.parentNode.removeChild(a);
+                }
+            }, 1000);
+            showToast('Download started.', 'success');
+            return Promise.resolve();
+        }).catch(function (err) {
+            manageMediaErrorToast(err, 'Could not start the download.');
         });
     }
 
