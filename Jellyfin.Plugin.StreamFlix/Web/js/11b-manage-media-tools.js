@@ -334,6 +334,11 @@
         var origStudiosText = joinEditableNames(Array.isArray(fullItem.Studios)
             ? fullItem.Studios.map(function (s) { return s && s.Name ? s.Name : ''; }).filter(Boolean)
             : []);
+        // Snapshot the original arrays so each save attempt derives from them —
+        // a failed save must not leave previously edited values inside fullItem.
+        var origGenresArr = Array.isArray(fullItem.Genres) ? fullItem.Genres.slice() : [];
+        var origTagsArr = Array.isArray(fullItem.Tags) ? fullItem.Tags.slice() : [];
+        var origStudiosArr = Array.isArray(fullItem.Studios) ? fullItem.Studios.slice() : [];
         var listPlaceholder = 'Comma separated — use ; between names that contain commas';
         var m = openModal(''
             + '<h2>Edit Metadata</h2>'
@@ -413,20 +418,22 @@
             fullItem.ProductionYear = yearRaw ? parseInt(yearRaw, 10) : null;
             fullItem.OfficialRating = q('#bfx-meta-rating').value.trim() || null;
             fullItem.CommunityRating = commRaw ? Math.min(10, Math.max(0, parseFloat(commRaw))) : null;
-            // Only rewrite name lists the administrator actually edited, so untouched
-            // arrays (including names containing commas) are preserved exactly.
+            // Only rewrite name lists the administrator actually edited (so untouched
+            // arrays, including names containing commas, are preserved exactly), and
+            // re-derive from the original snapshots on every attempt so a failed save
+            // followed by a restored input submits exactly what the form shows.
             var genresText = q('#bfx-meta-genres').value;
-            if (genresText.trim() !== origGenresText) {
-                fullItem.Genres = splitEditableNames(genresText);
-            }
+            fullItem.Genres = genresText.trim() !== origGenresText
+                ? splitEditableNames(genresText)
+                : origGenresArr.slice();
             var tagsText = q('#bfx-meta-tags').value;
-            if (tagsText.trim() !== origTagsText) {
-                fullItem.Tags = splitEditableNames(tagsText);
-            }
+            fullItem.Tags = tagsText.trim() !== origTagsText
+                ? splitEditableNames(tagsText)
+                : origTagsArr.slice();
             var studiosText = q('#bfx-meta-studios').value;
-            if (studiosText.trim() !== origStudiosText) {
-                fullItem.Studios = splitEditableNames(studiosText).map(function (n) { return { Name: n }; });
-            }
+            fullItem.Studios = studiosText.trim() !== origStudiosText
+                ? splitEditableNames(studiosText).map(function (n) { return { Name: n }; })
+                : origStudiosArr.slice();
 
             // Native editor semantics: POST the full (edited) item dto back
             runWithManageAuth(function (auth) {
