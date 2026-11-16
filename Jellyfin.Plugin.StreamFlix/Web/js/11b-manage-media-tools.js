@@ -641,23 +641,25 @@
 
     function manageDownloadMedia(item) {
         runWithManageAuth(function (auth) {
-            // Browser-initiated download cannot send auth headers, so pass the token
-            // as api_key like jellyfin-web's native Download action does.
-            var url = apiBase() + '/Items/' + encodeURIComponent(item.Id)
-                + '/Download?api_key=' + encodeURIComponent(auth.accessToken);
-            var a = document.createElement('a');
-            a.href = url;
-            a.download = '';
-            a.rel = 'noopener';
-            document.body.appendChild(a);
-            a.click();
-            setTimeout(function () {
-                if (a.parentNode) {
-                    a.parentNode.removeChild(a);
-                }
-            }, 1000);
-            showToast('Download started.', 'success');
-            return Promise.resolve();
+            return adminApiFetch(auth, '/Users/' + encodeURIComponent(auth.userId)
+                + '/Items/' + encodeURIComponent(item.Id)).then(function () {
+                // Browser-initiated downloads cannot expose their response to the
+                // retry wrapper, so validate the token before creating the link.
+                var url = apiBase() + '/Items/' + encodeURIComponent(item.Id)
+                    + '/Download?api_key=' + encodeURIComponent(auth.accessToken);
+                var a = document.createElement('a');
+                a.href = url;
+                a.download = '';
+                a.rel = 'noopener';
+                document.body.appendChild(a);
+                a.click();
+                setTimeout(function () {
+                    if (a.parentNode) {
+                        a.parentNode.removeChild(a);
+                    }
+                }, 1000);
+                showToast('Download started.', 'success');
+            });
         }).catch(function (err) {
             manageMediaErrorToast(err, 'Could not start the download.');
         });
