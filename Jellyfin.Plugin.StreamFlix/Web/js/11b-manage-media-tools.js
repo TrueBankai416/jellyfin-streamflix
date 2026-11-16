@@ -4,8 +4,20 @@
            native item context menu actions, driven by the Jellyfin REST API.
        ---------------------------------------------------------------------- */
     function canManageMediaItems() {
-        return typeof isHouseholdAdmin === 'function' && isHouseholdAdmin()
-            && !(state.activeProfile && state.activeProfile.isKids);
+        if (isGuestPassSession()) {
+            return false;
+        }
+        var active = state.activeProfile;
+        if (!active || active.isKids) {
+            return false;
+        }
+        // Per-profile gate: isHouseholdAdmin() alone is household-wide and would
+        // expose media management to every adult profile in an admin household.
+        if (active.isAdmin) {
+            return true;
+        }
+        var serverProfile = active.id && typeof findProfileById === 'function' ? findProfileById(active.id) : null;
+        return Boolean(serverProfile && (serverProfile.isAdmin || serverProfile.isOwner));
     }
 
     // apiFetch() always signs with the active profile token (except on admin route
