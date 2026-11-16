@@ -810,7 +810,11 @@
         }
         var isNew = !existingProfile;
         var isAdmin = isHouseholdAdmin();
-        var verifiedJellyfinAdmin = Boolean(state.activeProfile && state.activeProfile.isAdmin && state.activeProfile.accessToken);
+        var routeAdminAuth = getActiveAdminAuthForRoute();
+        var verifiedJellyfinAdmin = Boolean(
+            (routeAdminAuth && routeAdminAuth.accessToken && routeAdminAuth.userId)
+            || (state.activeProfile && state.activeProfile.isAdmin && state.activeProfile.accessToken)
+        );
         var canChooseJellyfinAccount = verifiedJellyfinAdmin;
         var managerProfileIds = state.config && Array.isArray(state.config.guestPassManagerProfileIds)
             ? state.config.guestPassManagerProfileIds

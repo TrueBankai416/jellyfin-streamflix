@@ -79,7 +79,6 @@
         hasGoogleClientSecret: false,
         hasAccess: false,
         isAdmin: false,
-        activeProfileContextProfileId: '',
         enableGuestPasses: true,
         enableWatchTogether: true,
         hasAnyAdultPin: false,

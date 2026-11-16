@@ -154,6 +154,8 @@ public class PluginConfiguration : BasePluginConfiguration
         ApprovedOidcUsers = new List<string>();
         EnableGuestPasses = true;
         GuestPassTokenFingerprints = new List<StreamFlixGuestPassTokenFingerprint>();
+        GuestPassTokenIssuanceCount = 0;
+        LegacyGuestPassTokensRevoked = false;
         ActiveProfileContexts = new List<StreamFlixActiveProfileContext>();
         EnableWatchTogether = true;
         GuestPasses = new List<StreamFlixGuestPass>();
@@ -322,6 +324,10 @@ public class PluginConfiguration : BasePluginConfiguration
     public List<string>? GuestPassManagerProfileIds { get; set; }
 
     public List<StreamFlixGuestPassTokenFingerprint>? GuestPassTokenFingerprints { get; set; }
+
+    public int GuestPassTokenIssuanceCount { get; set; }
+
+    public bool LegacyGuestPassTokensRevoked { get; set; }
 
     public List<StreamFlixActiveProfileContext>? ActiveProfileContexts { get; set; }
 

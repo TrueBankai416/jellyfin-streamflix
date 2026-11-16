@@ -190,6 +190,9 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages
                         incoming.GuestPassTokenFingerprints = existing.GuestPassTokenFingerprints;
                     }
 
+                    incoming.GuestPassTokenIssuanceCount = Math.Max(incoming.GuestPassTokenIssuanceCount, existing.GuestPassTokenIssuanceCount);
+                    incoming.LegacyGuestPassTokensRevoked |= existing.LegacyGuestPassTokensRevoked;
+
                     if ((incoming.ActiveProfileContexts == null || incoming.ActiveProfileContexts.Count == 0)
                         && existing.ActiveProfileContexts != null
                         && existing.ActiveProfileContexts.Count > 0)
@@ -477,6 +480,8 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages
                 EnableGuestPasses = BoolVal(root, nameof(PluginConfiguration.EnableGuestPasses), true),
                 GuestPassManagerProfileIds = new List<string>(),
                 GuestPassTokenFingerprints = new List<StreamFlixGuestPassTokenFingerprint>(),
+                GuestPassTokenIssuanceCount = IntVal(root, nameof(PluginConfiguration.GuestPassTokenIssuanceCount), 0),
+                LegacyGuestPassTokensRevoked = BoolVal(root, nameof(PluginConfiguration.LegacyGuestPassTokensRevoked), false),
                 ActiveProfileContexts = new List<StreamFlixActiveProfileContext>(),
                 EnableWatchTogether = BoolVal(root, nameof(PluginConfiguration.EnableWatchTogether), true),
                 EnableSeerr = BoolVal(root, nameof(PluginConfiguration.EnableSeerr), false),
@@ -708,6 +713,15 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages
             if (cfg.GuestPassTokenFingerprints == null)
             {
                 cfg.GuestPassTokenFingerprints = new List<StreamFlixGuestPassTokenFingerprint>();
+                dirty = true;
+            }
+
+            var minimumGuestTokenIssuanceCount = Math.Max(
+                cfg.GuestPassTokenFingerprints.Count,
+                (cfg.GuestPasses ?? new List<StreamFlixGuestPass>()).Sum(pass => Math.Max(0, pass.RedemptionCount)));
+            if (cfg.GuestPassTokenIssuanceCount < minimumGuestTokenIssuanceCount)
+            {
+                cfg.GuestPassTokenIssuanceCount = minimumGuestTokenIssuanceCount;
                 dirty = true;
             }
 

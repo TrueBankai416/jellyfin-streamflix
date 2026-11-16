@@ -1273,7 +1273,6 @@
             hasGoogleClientSecret: Boolean(cfg.hasGoogleClientSecret),
             hasAccess: resolvedAccess,
             isAdmin: Boolean(cfg.isAdmin),
-            activeProfileContextProfileId: String(cfg.activeProfileContextProfileId || ''),
             enableGuestPasses: cfg.enableGuestPasses !== false,
             guestPassManagerProfileIds: Array.isArray(cfg.guestPassManagerProfileIds)
                 ? cfg.guestPassManagerProfileIds.map(function (id) { return String(id || '').trim(); }).filter(Boolean)

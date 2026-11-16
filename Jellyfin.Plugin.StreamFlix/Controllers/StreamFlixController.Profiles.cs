@@ -78,7 +78,7 @@ public partial class StreamFlixController
                 config,
                 profile,
                 caller,
-                allowAdminBypass: IsProfileLinkedToAdmin(profile) && caller.IsVerifiedJellyfinAdmin);
+                allowAdminBypass: caller.IsVerifiedJellyfinAdmin);
             if (lockResult != null)
             {
                 return lockResult;
@@ -229,6 +229,15 @@ public partial class StreamFlixController
             Username = user.Username,
             RemoteEndPoint = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "127.0.0.1",
         };
+
+        if (isGuest && !await TryReserveGuestPassTokenIssuanceAsync(config).ConfigureAwait(false))
+        {
+            return StatusCode(429, new
+            {
+                code = "guest_token_capacity_reached",
+                message = "This server has reached its safe Guest Pass token limit. Revoke unused Guest Passes and contact the administrator.",
+            });
+        }
 
         AuthenticationResult authResult;
         try
@@ -1058,6 +1067,7 @@ public partial class StreamFlixController
         var now = DateTimeOffset.UtcNow;
         var sessionFingerprint = caller.Session == null ? string.Empty : ComputeCredentialFingerprint(sessionToken!);
         var jellyfinTokenFingerprint = ComputeCredentialFingerprint(jellyfinAccessToken);
+        var previousJellyfinTokenFingerprint = caller.JellyfinTokenFingerprint;
         var activeContext = new StreamFlixActiveProfileContext
         {
             SessionFingerprint = sessionFingerprint,
@@ -1076,6 +1086,9 @@ public partial class StreamFlixController
                 config.ActiveProfileContexts ??= new List<StreamFlixActiveProfileContext>();
                 config.ActiveProfileContexts.RemoveAll(context =>
                     string.Equals(context.JellyfinTokenFingerprint, jellyfinTokenFingerprint, StringComparison.Ordinal)
+                    || (!string.IsNullOrWhiteSpace(previousJellyfinTokenFingerprint)
+                        && string.Equals(context.SessionFingerprint, sessionFingerprint, StringComparison.Ordinal)
+                        && string.Equals(context.JellyfinTokenFingerprint, previousJellyfinTokenFingerprint, StringComparison.Ordinal))
                     || !DateTimeOffset.TryParse(context.ExpiresAtUtc, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var expiresAt)
                     || expiresAt <= now);
                 config.ActiveProfileContexts.Add(activeContext);
@@ -1309,7 +1322,7 @@ public partial class StreamFlixController
             accountLockKind = effectiveLockKind,
             googleAccountEmail = lockEmail != null && (caller.IsAdmin || callerOwnsLock) ? lockEmail : null,
             googleAccountHint = lockEmail != null ? StreamFlixSessionService.MaskEmail(lockEmail) : null,
-            googleLockSatisfied = isGuest || lockEmail == null || callerOwnsLock || caller.IsAdmin,
+            googleLockSatisfied = isGuest || lockEmail == null || callerOwnsLock || caller.IsVerifiedJellyfinAdmin,
             autoplayNextEpisode = p.AutoplayNextEpisode,
             autoplayPreviews = p.AutoplayPreviews,
             jellyfinUserId = p.JellyfinUserId,

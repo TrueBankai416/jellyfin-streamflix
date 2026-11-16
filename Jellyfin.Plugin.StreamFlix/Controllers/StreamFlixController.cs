@@ -56,6 +56,7 @@ public partial class StreamFlixController : ControllerBase
     private const int MaxProfilesCount = 24;
     private const int MaxStoredGuestPasses = 100;
     private const int MaxActiveGuestPasses = 50;
+    private const int MaxGuestPassTokenFingerprints = 8192;
     private const string GuestDeviceIdPrefix = "streamflix-guest-";
 
     private static readonly HttpClient HttpClient = new() { Timeout = TimeSpan.FromSeconds(8) };
@@ -64,6 +65,10 @@ public partial class StreamFlixController : ControllerBase
     private static readonly SemaphoreSlim GuestPassTokenMigrationLock = new(1, 1);
 
     private static readonly object GuestPassAuthorizationStateLock = new();
+    private static readonly Dictionary<string, string> GuestPassTokenFingerprintIndex = new(StringComparer.Ordinal);
+    private static PluginConfiguration? GuestPassTokenFingerprintIndexConfiguration;
+    private static List<StreamFlixGuestPassTokenFingerprint>? GuestPassTokenFingerprintIndexRecords;
+    private static int GuestPassTokenFingerprintIndexCount = -1;
 
     private static readonly ConcurrentDictionary<string, ConcurrentBag<string>> ActiveGuestTokens = new(StringComparer.Ordinal);
     private static int LegacyGuestPassTokenMigrationCompleted;
@@ -418,6 +423,7 @@ public partial class StreamFlixController : ControllerBase
         var isLocalLan = StreamFlixSessionService.IsLocalLanRequest(HttpContext);
         var token = Request.Headers[StreamFlixSessionService.HeaderName].FirstOrDefault()?.Trim();
         var session = StreamFlixSessionService.Validate(config, token);
+        var legacyGuestPassUserIds = await EnsureLegacyGuestPassTokenFingerprintsAsync(config).ConfigureAwait(false);
         var sessionIsAdmin = false;
         if (session != null)
         {
@@ -514,14 +520,10 @@ public partial class StreamFlixController : ControllerBase
             var info = await _authContext.GetAuthorizationInfo(HttpContext).ConfigureAwait(false);
             if (info != null && info.IsAuthenticated && (info.IsApiKey || !StreamFlixStartupTask.IsUserDisabledCompat(info.User)))
             {
-                if (!info.IsApiKey)
-                {
-                    await EnsureLegacyGuestPassTokenFingerprintsAsync(config).ConfigureAwait(false);
-                }
-
                 var guestPassId = string.Empty;
                 isGuestPassToken = !info.IsApiKey
-                    && TryGetGuestPassIdFromJellyfinAuthorization(config, info.DeviceId, info.Token, out guestPassId);
+                    && ((info.User != null && legacyGuestPassUserIds.Contains(info.User.Id))
+                        || TryGetGuestPassIdFromJellyfinAuthorization(config, info.DeviceId, info.Token, out guestPassId));
                 if (isGuestPassToken
                     && (!IsGuestPassTokenValid(config, guestPassId)
                         || session == null
@@ -552,7 +554,21 @@ public partial class StreamFlixController : ControllerBase
 
                     isVerifiedJellyfinAdmin = info.IsApiKey
                         || (!isGuestPassToken && info.User != null && StreamFlixStartupTask.IsUserAdminCompat(info.User));
+                    var isProfileIssuedJellyfinToken = isVerifiedJellyfinAdmin
+                        && !info.IsApiKey
+                        && IsProfileIssuedJellyfinToken(config, info.Token, info.DeviceId);
                     isAdmin = isAdmin || isVerifiedJellyfinAdmin;
+
+                    return new CallerContext(
+                        session,
+                        isAuthenticated,
+                        isAdmin,
+                        isLocalLan,
+                        jellyfinAuthUser,
+                        isVerifiedJellyfinAdmin,
+                        isGuestPassToken,
+                        jellyfinTokenFingerprint,
+                        isProfileIssuedJellyfinToken);
                 }
             }
         }
@@ -641,7 +657,6 @@ public partial class StreamFlixController : ControllerBase
             hasGoogleClientSecret = caller.IsAdmin && !string.IsNullOrWhiteSpace(config.GoogleClientSecret),
             hasAccess,
             isAdmin = caller.IsAdmin,
-            activeProfileContextProfileId = GetActivatedProfileForGuestPasses(config, caller)?.Id,
             enableGuestPasses = config.EnableGuestPasses,
             guestPassManagerProfileIds = hasAccess && !isGuestPass
                 ? (config.GuestPassManagerProfileIds ?? new List<string>()).ToList()
@@ -759,5 +774,6 @@ public partial class StreamFlixController : ControllerBase
         JUser? JellyfinUser = null,
         bool IsVerifiedJellyfinAdmin = false,
         bool IsGuestPassToken = false,
-        string? JellyfinTokenFingerprint = null);
+        string? JellyfinTokenFingerprint = null,
+        bool IsProfileIssuedJellyfinToken = false);
 }

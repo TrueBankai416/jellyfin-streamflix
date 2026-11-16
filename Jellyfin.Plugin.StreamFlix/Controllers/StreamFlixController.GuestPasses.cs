@@ -310,7 +310,11 @@ public partial class StreamFlixController
             return false;
         }
 
-        if (caller.Session == null && caller.IsVerifiedJellyfinAdmin)
+        var profile = GetActivatedProfileForGuestPasses(config, caller);
+        if (profile == null
+            && caller.Session == null
+            && caller.IsVerifiedJellyfinAdmin
+            && !caller.IsProfileIssuedJellyfinToken)
         {
             return true;
         }
@@ -320,7 +324,6 @@ public partial class StreamFlixController
             return false;
         }
 
-        var profile = GetActivatedProfileForGuestPasses(config, caller);
         if (profile == null)
         {
             needsProfileReactivation = caller.IsJellyfinAuthenticated && !string.IsNullOrWhiteSpace(caller.JellyfinTokenFingerprint);
@@ -367,7 +370,7 @@ public partial class StreamFlixController
         {
             context = (config.ActiveProfileContexts ?? new List<StreamFlixActiveProfileContext>())
                 .FirstOrDefault(candidate =>
-                    string.Equals(candidate.SessionFingerprint, sessionFingerprint, StringComparison.Ordinal)
+                    (caller.Session == null || string.Equals(candidate.SessionFingerprint, sessionFingerprint, StringComparison.Ordinal))
                     && string.Equals(candidate.JellyfinTokenFingerprint, caller.JellyfinTokenFingerprint, StringComparison.Ordinal));
         }
 
@@ -397,6 +400,46 @@ public partial class StreamFlixController
         }
 
         return profile;
+    }
+
+    private bool IsProfileIssuedJellyfinToken(PluginConfiguration config, string? token, string? deviceId)
+    {
+        if (!string.IsNullOrWhiteSpace(deviceId)
+            && deviceId.StartsWith("streamflix-profile-", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        if (string.IsNullOrWhiteSpace(token))
+        {
+            return false;
+        }
+
+        var tokenFingerprint = ComputeCredentialFingerprint(token);
+        lock (GuestPassAuthorizationStateLock)
+        {
+            if ((config.ActiveProfileContexts ?? new List<StreamFlixActiveProfileContext>())
+                .Any(context => string.Equals(context.JellyfinTokenFingerprint, tokenFingerprint, StringComparison.Ordinal)))
+            {
+                return true;
+            }
+        }
+
+        try
+        {
+            var liveSessions = _sessionManager.Sessions?.ToList();
+            return liveSessions != null
+                && liveSessions.Any(session =>
+                    session?.GetType().GetProperty("AccessToken")?.GetValue(session) is string sessionToken
+                    && string.Equals(sessionToken, token, StringComparison.Ordinal)
+                    && (session.DeviceId?.StartsWith("streamflix-profile-", StringComparison.OrdinalIgnoreCase) == true
+                        || session.DeviceName?.StartsWith("StreamFlix (", StringComparison.OrdinalIgnoreCase) == true));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "StreamFlix: could not identify whether the administrator token was issued by a profile.");
+            return true;
+        }
     }
 
     private ObjectResult GuestPassManagerForbidden(bool needsProfileReactivation = false)
@@ -754,31 +797,39 @@ public partial class StreamFlixController
         return $"streamflix-profile-{(string.IsNullOrEmpty(cleanProfileId) ? "profile" : cleanProfileId)}-{suffix}";
     }
 
-    private async Task EnsureLegacyGuestPassTokenFingerprintsAsync(PluginConfiguration config)
+    private async Task<HashSet<Guid>> EnsureLegacyGuestPassTokenFingerprintsAsync(PluginConfiguration config)
     {
-        if (Volatile.Read(ref LegacyGuestPassTokenMigrationCompleted) != 0)
+        if (config.LegacyGuestPassTokensRevoked)
         {
-            return;
+            Volatile.Write(ref LegacyGuestPassTokenMigrationCompleted, 1);
+            return new HashSet<Guid>();
         }
 
+        if (Volatile.Read(ref LegacyGuestPassTokenMigrationCompleted) != 0)
+        {
+            return new HashSet<Guid>();
+        }
+
+        var affectedUserIds = GetRedeemedGuestPassUserIds(config);
         await GuestPassTokenMigrationLock.WaitAsync().ConfigureAwait(false);
         try
         {
+            if (config.LegacyGuestPassTokensRevoked)
+            {
+                Volatile.Write(ref LegacyGuestPassTokenMigrationCompleted, 1);
+                return new HashSet<Guid>();
+            }
+
             if (Volatile.Read(ref LegacyGuestPassTokenMigrationCompleted) != 0)
             {
-                return;
+                return new HashSet<Guid>();
             }
 
             var legacyTokenFingerprints = new List<StreamFlixGuestPassTokenFingerprint>();
             try
             {
                 var liveSessions = _sessionManager.Sessions?.ToList();
-                if (liveSessions == null)
-                {
-                    return;
-                }
-
-                foreach (var session in liveSessions)
+                foreach (var session in liveSessions ?? new List<SessionInfo>())
                 {
                     var deviceId = session?.DeviceId;
                     if (string.IsNullOrWhiteSpace(deviceId)
@@ -806,7 +857,6 @@ public partial class StreamFlixController
             catch (Exception ex)
             {
                 _logger.LogDebug(ex, "StreamFlix: could not migrate legacy Guest Pass token provenance.");
-                return;
             }
 
             await SyncLock.WaitAsync().ConfigureAwait(false);
@@ -829,23 +879,121 @@ public partial class StreamFlixController
                         changed = true;
                     }
 
+                    var minIssuanceCount = Math.Max(
+                        config.GuestPassTokenFingerprints.Count,
+                        (config.GuestPasses ?? new List<StreamFlixGuestPass>()).Sum(pass => Math.Max(0, pass.RedemptionCount)));
+                    if (config.GuestPassTokenIssuanceCount < minIssuanceCount)
+                    {
+                        config.GuestPassTokenIssuanceCount = minIssuanceCount;
+                        changed = true;
+                    }
+
                     if (changed)
                     {
                         Plugin.Instance?.SaveConfiguration();
                     }
                 }
 
-                Volatile.Write(ref LegacyGuestPassTokenMigrationCompleted, 1);
             }
             finally
             {
                 SyncLock.Release();
             }
+
+            var allAffectedUsersRevoked = true;
+            foreach (var userId in affectedUserIds)
+            {
+                if (!await RevokeAllJellyfinUserTokensAsync(userId).ConfigureAwait(false))
+                {
+                    allAffectedUsersRevoked = false;
+                }
+            }
+
+            if (allAffectedUsersRevoked)
+            {
+                await SyncLock.WaitAsync().ConfigureAwait(false);
+                try
+                {
+                    config.LegacyGuestPassTokensRevoked = true;
+                    Plugin.Instance?.SaveConfiguration();
+                }
+                finally
+                {
+                    SyncLock.Release();
+                }
+
+                Volatile.Write(ref LegacyGuestPassTokenMigrationCompleted, 1);
+                _logger.LogInformation(
+                    "StreamFlix: invalidated legacy Guest Pass tokens for {UserCount} profile account(s).",
+                    affectedUserIds.Count);
+            }
+
+            return affectedUserIds;
         }
         finally
         {
             GuestPassTokenMigrationLock.Release();
         }
+    }
+
+    private static HashSet<Guid> GetRedeemedGuestPassUserIds(PluginConfiguration config)
+    {
+        var userIds = new HashSet<Guid>();
+        foreach (var pass in config.GuestPasses ?? new List<StreamFlixGuestPass>())
+        {
+            if (pass.RedemptionCount <= 0)
+            {
+                continue;
+            }
+
+            var profile = FindProfile(config, pass.ProfileId);
+            if (profile != null && Guid.TryParse(profile.JellyfinUserId, out var userId))
+            {
+                userIds.Add(userId);
+            }
+        }
+
+        return userIds;
+    }
+
+    private async Task<bool> RevokeAllJellyfinUserTokensAsync(Guid userId)
+    {
+        var revokeTokens = typeof(ISessionManager).GetMethod("RevokeUserTokens", new[] { typeof(Guid), typeof(string) })
+            ?? _sessionManager.GetType().GetMethod("RevokeUserTokens", new[] { typeof(Guid), typeof(string) });
+        var revokeUser = revokeTokens == null
+            ? (typeof(ISessionManager).GetMethod("RevokeUserTokens", new[] { typeof(Guid) })
+                ?? _sessionManager.GetType().GetMethod("RevokeUserTokens", new[] { typeof(Guid) }))
+            : null;
+        var method = revokeTokens ?? revokeUser;
+        if (method == null)
+        {
+            _logger.LogWarning(
+                "StreamFlix: cannot invalidate legacy Guest Pass tokens for Jellyfin user {UserId}; RevokeUserTokens is unavailable.",
+                userId);
+            return false;
+        }
+
+        try
+        {
+            var result = revokeTokens != null
+                ? method.Invoke(_sessionManager, new object?[] { userId, null })
+                : method.Invoke(_sessionManager, new object[] { userId });
+            if (result is Task revokeTask)
+            {
+                await revokeTask.ConfigureAwait(false);
+                return true;
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "StreamFlix: could not invalidate legacy Guest Pass tokens for Jellyfin user {UserId}.", userId);
+            return false;
+        }
+
+        _logger.LogWarning(
+            "StreamFlix: could not confirm invalidation of legacy Guest Pass tokens for Jellyfin user {UserId}.",
+            userId);
+        return false;
     }
 
     private bool TryGetGuestPassIdFromJellyfinAuthorization(
@@ -860,11 +1008,10 @@ public partial class StreamFlixController
             var tokenFingerprint = ComputeCredentialFingerprint(token);
             lock (GuestPassAuthorizationStateLock)
             {
-                var knownToken = (config.GuestPassTokenFingerprints ?? new List<StreamFlixGuestPassTokenFingerprint>())
-                    .FirstOrDefault(record => string.Equals(record.TokenFingerprint, tokenFingerprint, StringComparison.Ordinal));
-                if (knownToken != null)
+                EnsureGuestPassTokenFingerprintIndexNoLock(config);
+                if (GuestPassTokenFingerprintIndex.TryGetValue(tokenFingerprint, out var knownPassId))
                 {
-                    passId = knownToken.PassId;
+                    passId = knownPassId;
                     return true;
                 }
             }
@@ -892,6 +1039,55 @@ public partial class StreamFlixController
         }
 
         return TryGetGuestPassIdFromDeviceId(deviceId, out passId);
+    }
+
+    private static void EnsureGuestPassTokenFingerprintIndexNoLock(PluginConfiguration config)
+    {
+        var records = config.GuestPassTokenFingerprints;
+        var count = records?.Count ?? 0;
+        if (ReferenceEquals(GuestPassTokenFingerprintIndexConfiguration, config)
+            && ReferenceEquals(GuestPassTokenFingerprintIndexRecords, records)
+            && GuestPassTokenFingerprintIndexCount == count)
+        {
+            return;
+        }
+
+        GuestPassTokenFingerprintIndex.Clear();
+        foreach (var record in records ?? new List<StreamFlixGuestPassTokenFingerprint>())
+        {
+            if (!string.IsNullOrWhiteSpace(record.TokenFingerprint) && !string.IsNullOrWhiteSpace(record.PassId))
+            {
+                GuestPassTokenFingerprintIndex.TryAdd(record.TokenFingerprint, record.PassId);
+            }
+        }
+
+        GuestPassTokenFingerprintIndexConfiguration = config;
+        GuestPassTokenFingerprintIndexRecords = records;
+        GuestPassTokenFingerprintIndexCount = count;
+    }
+
+    private async Task<bool> TryReserveGuestPassTokenIssuanceAsync(PluginConfiguration config)
+    {
+        await SyncLock.WaitAsync().ConfigureAwait(false);
+        try
+        {
+            config.GuestPassTokenFingerprints ??= new List<StreamFlixGuestPassTokenFingerprint>();
+            config.GuestPassTokenIssuanceCount = Math.Max(
+                config.GuestPassTokenIssuanceCount,
+                config.GuestPassTokenFingerprints.Count);
+            if (config.GuestPassTokenIssuanceCount >= MaxGuestPassTokenFingerprints)
+            {
+                return false;
+            }
+
+            config.GuestPassTokenIssuanceCount++;
+            Plugin.Instance?.SaveConfiguration();
+            return true;
+        }
+        finally
+        {
+            SyncLock.Release();
+        }
     }
 
     private static bool TryGetGuestPassIdFromDeviceId(string? deviceId, out string passId)
@@ -1125,6 +1321,21 @@ public partial class StreamFlixController
                 });
             }
 
+            config.GuestPassTokenFingerprints ??= new List<StreamFlixGuestPassTokenFingerprint>();
+            config.GuestPassTokenIssuanceCount = Math.Max(
+                config.GuestPassTokenIssuanceCount,
+                config.GuestPassTokenFingerprints.Count);
+            if (config.GuestPassTokenIssuanceCount >= MaxGuestPassTokenFingerprints)
+            {
+                return StatusCode(429, new
+                {
+                    verified = false,
+                    code = "guest_token_capacity_reached",
+                    message = "This server has reached its safe Guest Pass token limit. Revoke unused Guest Passes and contact the administrator.",
+                });
+            }
+
+            config.GuestPassTokenIssuanceCount++;
             pass.RedemptionCount = Math.Max(0, pass.RedemptionCount) + 1;
             pass.LastRedeemedAtUtc = DateTimeOffset.UtcNow.ToString("O");
             guestSession = StreamFlixSessionService.IssueGuestPassSession(config, pass, profile, out sessionToken);
