@@ -765,10 +765,16 @@
                 state.searchQuery = searchInput.value;
                 if (state.searchDebounce) {
                     clearTimeout(state.searchDebounce);
+                    state.searchDebounce = null;
                 }
-                state.searchDebounce = setTimeout(function () {
-                    runLiveSearch(state.searchQuery);
-                }, 240);
+                if (typeof previewInstantLocalSearch === 'function') {
+                    previewInstantLocalSearch(state.searchQuery);
+                }
+                if ((state.searchQuery || '').trim()) {
+                    state.searchDebounce = setTimeout(function () {
+                        runLiveSearch(state.searchQuery);
+                    }, 220);
+                }
             });
             searchInput.addEventListener('keydown', function (ev) {
                 if (ev.key === 'Escape' && (state.searchQuery || state.mobileSearchOpen)) {

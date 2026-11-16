@@ -15,12 +15,12 @@ permissions:
   contents: write
 
 env:
-  PLUGIN_VERSION: "0.9.2.0"
+  PLUGIN_VERSION: "0.9.2.1"
   PLUGIN_GUID: "7cc1a505-91f6-4661-b4f9-7eee8be33b19"
   PLUGIN_NAME: "StreamFlix"
   PLUGIN_OVERVIEW: "Netflix-style UI, Household Profiles, Guest Passes & Seerr Requests for Jellyfin"
   PLUGIN_DESCRIPTION: "Transforms Jellyfin Web into StreamFlix: a Netflix-style cinema UI with flexible Google/OIDC/Jellyfin sign-in, dedicated Kids profiles, real-time synced Watch Together, toggleable QR Guest Passes, optional Seerr/Jellyseerr search requests, automatic WebGPU Player support, and 'Who's watching?' profiles mapped to real Jellyfin users."
-  PLUGIN_CHANGELOG: "- Automatic Zero-Config WebGPU Player Support: composable IHttpResponseBodyFeature HTML injection middleware so WebGPU Player co-injects cleanly in any plugin load order, full ServerConnections ApiClient token sync for WebGPU Web Worker streams and module catalogs, automatic zero-settings selection on supported HTTPS desktop browsers, and seamless per-video/device fallback to Jellyfin's standard player on mobile, TV, HTTP, or incompatible streams"
+  PLUGIN_CHANGELOG: "- Native Search Seerr Integration, Instant Requesting & Zero-Lag Transport Overhaul: unify Seerr results directly inside the native Search grid with a dedicated Seerr corner icon badge and 1-click movie requesting, eliminate 'The operation was canceled.' timeouts via IPv4-first socket connection + Docker localhost fallback + safe redirect handling + non-throwing bounded metadata enrichment, add explicit is4k/tvdbId request payloads and 25s Radarr/Sonarr timeout budgets, and add client AbortController + instant 0ms local search so Seerr never slows down loading times"
 
 jobs:
   build-and-publish:

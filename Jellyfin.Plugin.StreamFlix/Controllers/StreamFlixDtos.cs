@@ -270,20 +270,29 @@ public class RedeemGuestPassRequest
 
 public class TestSeerrConfigRequest
 {
+    [JsonPropertyName("seerrUrl")]
     public string? SeerrUrl { get; set; }
 
+    [JsonPropertyName("seerrApiKey")]
     public string? SeerrApiKey { get; set; }
 }
 
 public class SubmitSeerrMediaRequest
 {
+    [JsonPropertyName("tmdbId")]
     public int TmdbId { get; set; }
 
+    [JsonPropertyName("mediaType")]
     public string MediaType { get; set; } = string.Empty;
 
+    [JsonPropertyName("seasons")]
     public List<int>? Seasons { get; set; }
 
+    [JsonPropertyName("profileId")]
     public string? ProfileId { get; set; }
+
+    [JsonPropertyName("is4k")]
+    public bool Is4k { get; set; }
 }
 
 public class RevokeDeviceRequest

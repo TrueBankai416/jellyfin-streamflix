@@ -119,7 +119,7 @@ public partial class StreamFlixController
         try
         {
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(HttpContext.RequestAborted);
-            cts.CancelAfter(TimeSpan.FromSeconds(8));
+            cts.CancelAfter(TimeSpan.FromMilliseconds(6500));
             var items = await StreamFlixSeerrService.SearchAsync(config, q, isKids, cts.Token).ConfigureAwait(false);
             return Ok(new
             {
@@ -139,6 +139,14 @@ public partial class StreamFlixController
                     jellyfinMediaId = i.JellyfinMediaId,
                 }).ToList(),
             });
+        }
+        catch (OperationCanceledException) when (HttpContext.RequestAborted.IsCancellationRequested)
+        {
+            return Ok(new { results = Array.Empty<object>() });
+        }
+        catch (OperationCanceledException)
+        {
+            return StatusCode(504, new { code = "seerr_timeout", message = "Seerr search timed out. Verify your Seerr URL is reachable from the Jellyfin server." });
         }
         catch (Exception ex)
         {
@@ -166,7 +174,7 @@ public partial class StreamFlixController
         try
         {
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(HttpContext.RequestAborted);
-            cts.CancelAfter(TimeSpan.FromSeconds(8));
+            cts.CancelAfter(TimeSpan.FromSeconds(10));
             var tv = await StreamFlixSeerrService.GetTvDetailsAsync(config, tmdbId, cts.Token).ConfigureAwait(false);
             return Ok(new
             {
@@ -188,6 +196,10 @@ public partial class StreamFlixController
                     statusLabel = s.StatusLabel,
                 }).ToList(),
             });
+        }
+        catch (OperationCanceledException) when (!HttpContext.RequestAborted.IsCancellationRequested)
+        {
+            return StatusCode(504, new { code = "seerr_timeout", message = "Loading seasons from Seerr timed out. Check your Seerr URL and TMDB connectivity." });
         }
         catch (Exception ex)
         {
@@ -213,7 +225,7 @@ public partial class StreamFlixController
         try
         {
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(HttpContext.RequestAborted);
-            cts.CancelAfter(TimeSpan.FromSeconds(10));
+            cts.CancelAfter(TimeSpan.FromSeconds(12));
             var list = await StreamFlixSeerrService.GetRecentRequestsAsync(config, isKids, cts.Token).ConfigureAwait(false);
             return Ok(new
             {
@@ -236,6 +248,14 @@ public partial class StreamFlixController
                     jellyfinMediaId = r.JellyfinMediaId,
                 }).ToList(),
             });
+        }
+        catch (OperationCanceledException) when (HttpContext.RequestAborted.IsCancellationRequested)
+        {
+            return Ok(new { requests = Array.Empty<object>() });
+        }
+        catch (OperationCanceledException)
+        {
+            return StatusCode(504, new { code = "seerr_timeout", message = "Connecting to Seerr timed out — check Dashboard → Plugins → StreamFlix → Seerr URL (e.g. http://127.0.0.1:5055 or your Seerr container name)." });
         }
         catch (Exception ex)
         {
@@ -272,7 +292,7 @@ public partial class StreamFlixController
         try
         {
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(HttpContext.RequestAborted);
-            cts.CancelAfter(TimeSpan.FromSeconds(12));
+            cts.CancelAfter(TimeSpan.FromSeconds(25));
             var (ok, mediaStatus, statusLabel, message) = await StreamFlixSeerrService.SubmitRequestAsync(
                 config,
                 request.TmdbId,
@@ -287,6 +307,10 @@ public partial class StreamFlixController
                 statusLabel,
                 message,
             });
+        }
+        catch (OperationCanceledException) when (!HttpContext.RequestAborted.IsCancellationRequested)
+        {
+            return StatusCode(504, new { ok = false, code = "seerr_timeout", message = "Seerr took too long to respond while contacting Radarr/Sonarr — check Media Requests in a moment to see if it was queued." });
         }
         catch (Exception ex)
         {

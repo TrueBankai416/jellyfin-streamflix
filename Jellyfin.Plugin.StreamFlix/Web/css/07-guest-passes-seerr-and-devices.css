@@ -377,8 +377,8 @@
     border: 1px solid rgba(239, 68, 68, 0.35);
 }
 
-/* ---------- Seerr Search Cards & Request Modal ---------- */
-.bfx-seerr-section .streamflix-row-header {
+/* ---------- Unified Native Search + Seerr Special Icon Cards & Modal ---------- */
+.bfx-unified-search-section .bfx-unified-search-header {
     display: flex;
     align-items: center;
     flex-wrap: wrap;
@@ -387,35 +387,103 @@
 .bfx-seerr-open-reqs-btn {
     margin-left: auto;
 }
+.bfx-seerr-inline-spin {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 3px 10px;
+    border-radius: 999px;
+    background: rgba(99, 102, 241, 0.14);
+    border: 1px solid rgba(129, 140, 248, 0.32);
+    color: #c7d2fe;
+    font-size: 11px;
+    font-weight: 700;
+}
+.bfx-mini-ring,
+.bfx-qbtn-mini-spin {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    border: 2px solid rgba(255, 255, 255, 0.28);
+    border-top-color: currentColor;
+    animation: streamflix-spin 0.72s linear infinite;
+    display: inline-block;
+    box-sizing: border-box;
+}
 .bfx-seerr-empty-reqs-wrap {
     display: flex;
     justify-content: center;
     margin-top: -8px;
     margin-bottom: 18px;
 }
-.bfx-seerr-kicker {
-    display: inline-flex;
-    align-items: center;
-    padding: 3px 9px;
-    border-radius: 999px;
-    background: rgba(99, 102, 241, 0.18);
-    border: 1px solid rgba(129, 140, 248, 0.4);
-    color: #c7d2fe;
-    font-size: 10.5px;
-    font-weight: 800;
-    letter-spacing: 0.7px;
-    text-transform: uppercase;
-}
-.bfx-seerr-card .bfx-seerr-badge {
+/* Special corner Seerr icon badge on native poster cards */
+.bfx-seerr-card .bfx-seerr-icon-badge {
     position: absolute;
     top: 8px;
-    left: 8px;
-    z-index: 3;
-    max-width: calc(100% - 68px);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.55);
+    right: 8px;
+    z-index: 4;
+    width: 30px;
+    height: 30px;
+    border-radius: 9px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.62), inset 0 1px 0 rgba(255, 255, 255, 0.22);
+    transition: transform 0.18s ease, box-shadow 0.18s ease;
+}
+.bfx-seerr-card:hover .bfx-seerr-icon-badge {
+    transform: scale(1.06);
+}
+.bfx-seerr-card .bfx-seerr-icon-badge svg {
+    width: 16px;
+    height: 16px;
+    stroke-width: 2.2;
+}
+.bfx-seerr-icon-badge.is-requestable {
+    background: linear-gradient(135deg, rgba(99, 102, 241, 0.95) 0%, rgba(139, 92, 246, 0.95) 100%);
+    border: 1px solid rgba(199, 210, 254, 0.45);
+    color: #ffffff;
+}
+.bfx-seerr-icon-badge.is-partial {
+    background: linear-gradient(135deg, rgba(14, 165, 233, 0.95) 0%, rgba(99, 102, 241, 0.95) 100%);
+    border: 1px solid rgba(186, 230, 253, 0.45);
+    color: #ffffff;
+}
+.bfx-seerr-icon-badge.is-downloading {
+    background: linear-gradient(135deg, rgba(37, 99, 235, 0.96) 0%, rgba(14, 165, 233, 0.96) 100%);
+    border: 1px solid rgba(147, 197, 253, 0.5);
+    color: #ffffff;
+}
+.bfx-seerr-icon-badge.is-pending,
+.bfx-seerr-icon-badge.is-processing {
+    background: rgba(245, 158, 11, 0.94);
+    border: 1px solid rgba(253, 230, 138, 0.55);
+    color: #111111;
+}
+/* Native circular quick-request button inside hover overlay */
+.streamflix-qbtn.bfx-qbtn-seerr.is-requestable,
+.streamflix-qbtn.bfx-qbtn-seerr.is-partial {
+    background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%) !important;
+    border-color: rgba(199, 210, 254, 0.5) !important;
+    color: #ffffff !important;
+}
+.streamflix-qbtn.bfx-qbtn-seerr.is-requestable:hover,
+.streamflix-qbtn.bfx-qbtn-seerr.is-partial:hover {
+    background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%) !important;
+    transform: scale(1.08);
+}
+.streamflix-qbtn.bfx-qbtn-seerr.is-pending,
+.streamflix-qbtn.bfx-qbtn-seerr.is-processing {
+    background: rgba(245, 158, 11, 0.25) !important;
+    border-color: rgba(245, 158, 11, 0.6) !important;
+    color: #fde68a !important;
+}
+.streamflix-qbtn.bfx-qbtn-seerr.is-downloading {
+    background: rgba(37, 99, 235, 0.3) !important;
+    border-color: rgba(96, 165, 250, 0.65) !important;
+    color: #dbeafe !important;
 }
 .bfx-seerr-badge {
     display: inline-flex;
@@ -471,12 +539,6 @@
     height: 100%;
     background: linear-gradient(90deg, #6366f1 0%, #38bdf8 100%);
 }
-.bfx-seerr-card .bfx-seerr-type {
-    position: absolute;
-    top: 8px;
-    right: 8px;
-    z-index: 3;
-}
 .bfx-seerr-type {
     display: inline-flex;
     align-items: center;
@@ -495,43 +557,9 @@
     line-height: 1.35;
     color: #cfcfcf;
     display: -webkit-box;
-    -webkit-line-clamp: 3;
+    -webkit-line-clamp: 2;
     -webkit-box-orient: vertical;
     overflow: hidden;
-}
-.bfx-seerr-req-btn {
-    width: 100%;
-    height: 32px;
-    border-radius: 7px;
-    border: none;
-    background: #6366f1;
-    color: #ffffff;
-    font-size: 12px;
-    font-weight: 800;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 5px;
-    cursor: pointer;
-    transition: background 0.15s ease;
-}
-.bfx-seerr-req-btn svg {
-    width: 13px;
-    height: 13px;
-}
-.bfx-seerr-req-btn:hover {
-    background: #4f46e5;
-}
-.bfx-seerr-req-btn.is-downloading {
-    background: rgba(59, 130, 246, 0.26);
-    border: 1px solid rgba(96, 165, 250, 0.55);
-    color: #dbeafe;
-}
-.bfx-seerr-req-btn.is-pending,
-.bfx-seerr-req-btn.is-processing {
-    background: rgba(245, 158, 11, 0.24);
-    border: 1px solid rgba(245, 158, 11, 0.5);
-    color: #fde68a;
 }
 .streamflix-modal.bfx-seerr-modal {
     padding: 0;

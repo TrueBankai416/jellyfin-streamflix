@@ -539,7 +539,8 @@
         }
 
         var hLower = h.toLowerCase();
-        if (hLower.indexOf('#/search') === 0 || hLower.indexOf('#!/search') === 0) {
+        if ((hLower.indexOf('#/search') === 0 || hLower.indexOf('#!/search') === 0) && state.cinemaHubEnabled !== false) {
+            state.mobileSearchOpen = true;
             var qMatch = h.match(/[?&]query=([^&]+)/i);
             if (qMatch && qMatch[1]) {
                 try {

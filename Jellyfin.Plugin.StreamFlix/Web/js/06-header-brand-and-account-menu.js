@@ -780,13 +780,13 @@
                         + '</div>')))
             + (tilesHtml ? ('<div class="bfx-dd-tiles">' + tilesHtml + '</div>') : '')
             + (isKidsActive
-                ? ((isCurrentProfileSeerrAllowed() ? ('<div class="streamflix-dd-divider"></div>' + ddItem('streamflix-dd-seerr-requests', 'sparkle', 'Media Requests', 'Track requested movies & shows', '', '<span class="bfx-dd-chev">' + icon('chevronRight') + '</span>')) : '')
+                ? ((isCurrentProfileSeerrAllowed() ? ('<div class="streamflix-dd-divider"></div>' + ddItem('streamflix-dd-seerr-requests', 'seerrIcon', 'Media Requests', 'Track requested movies & shows', '', '<span class="bfx-dd-chev">' + icon('chevronRight') + '</span>')) : '')
                     + (isGuest ? ('<div class="streamflix-dd-divider"></div>' + ddItem('streamflix-dd-signout', 'logout', 'Exit Guest Pass', '', 'danger')) : ''))
                 : ('<div class="streamflix-dd-divider"></div>'
                     + (wpEnabled ? ddItem('streamflix-dd-watch-party', 'party', 'Watch Together', wpSubLabel, wpActiveGroup ? 'is-watchparty-live' : '', wpTrailingHtml) : '')
                     + (!isGuest ? ddItem('streamflix-dd-user-prefs', 'sliders', 'Settings', 'Subtitles, playback & ' + getBrandName() + ' Home', '', '<span class="bfx-dd-chev">' + icon('chevronRight') + '</span>') : '')
                     + (showClientSettingsRow ? ddItem('streamflix-dd-client-settings', 'smartphone', 'Client Settings', clientSettingsSubLabel, 'is-client-settings', '<span class="bfx-dd-chev">' + icon('chevronRight') + '</span>') : '')
-                    + (isCurrentProfileSeerrAllowed() ? ddItem('streamflix-dd-seerr-requests', 'sparkle', 'Media Requests', 'Track requested movies & shows', '', '<span class="bfx-dd-chev">' + icon('chevronRight') + '</span>') : '')
+                    + (isCurrentProfileSeerrAllowed() ? ddItem('streamflix-dd-seerr-requests', 'seerrIcon', 'Media Requests', 'Track requested movies & shows', '', '<span class="bfx-dd-chev">' + icon('chevronRight') + '</span>') : '')
                     + (isAdmin && areGuestPassesEnabled() ? ddItem('streamflix-dd-guest-passes', 'ticket', 'Guest Passes', 'Temporary invite links & QR', '', '<span class="bfx-dd-chev">' + icon('chevronRight') + '</span>') : '')
                     + (isAdmin ? ddItem('streamflix-dd-dashboard', 'gear', 'Dashboard', 'Server & ' + getBrandName() + ' plugin settings', '', '<span class="bfx-dd-chev">' + icon('chevronRight') + '</span>') : '')
                     + '<div class="streamflix-dd-divider"></div>'

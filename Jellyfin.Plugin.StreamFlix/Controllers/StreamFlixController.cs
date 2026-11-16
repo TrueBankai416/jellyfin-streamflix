@@ -272,6 +272,7 @@ public partial class StreamFlixController : ControllerBase
 
             config.SeerrAllowKids = request.SeerrAllowKids;
             config.SeerrAllowGuests = request.SeerrAllowGuests;
+            StreamFlixSeerrService.ResetTransientCaches();
 
             var wasGuestPassesEnabled = config.EnableGuestPasses;
             config.EnableGuestPasses = request.EnableGuestPasses;

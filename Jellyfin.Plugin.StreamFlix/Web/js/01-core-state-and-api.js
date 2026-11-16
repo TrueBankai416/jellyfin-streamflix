@@ -1,6 +1,6 @@
 /* ==========================================================================
    STREAMFLIX — Netflix-style UI for Jellyfin: server-verified Google & OIDC SSO,
-   "Who's watching?" profiles, Guest Passes & Seerr (v0.9.2)
+   "Who's watching?" profiles, Guest Passes & Seerr (v0.9.2.1)
    ========================================================================== */
 (function () {
     'use strict';
@@ -10,7 +10,7 @@
     }
     window.__STREAMFLIX_BOOTSTRAPPED__ = true;
 
-    var VERSION = '0.9.2.0';
+    var VERSION = '0.9.2.1';
     // Household session issued by the server ({ token, authKind, providerName, email, username, userId, name, picture, isAdmin, guestPassId, lockedProfileId, expiresAt })
     var GOOGLE_KEY = 'streamflix_session_v7';
     var OAUTH_STATE_KEY = 'streamflix_oauth_state';
@@ -133,6 +133,9 @@
         searchResults: null,
         seerrSearchLoading: false,
         seerrSearchResults: null,
+        seerrSearchAbort: null,
+        seerrLocalAbort: null,
+        seerrSubmittingMap: {},
         browseFilter: null,
         lastSurpriseId: '',
         activeDetailModal: null,
@@ -641,7 +644,8 @@
         dockHome: '<path d="M4.5 10.6L11.1 4.8a1.4 1.4 0 0 1 1.8 0l6.6 5.8c.32.28.5.68.5 1.1V18a2.2 2.2 0 0 1-2.2 2.2H6.2A2.2 2.2 0 0 1 4 18v-6.3c0-.42.18-.82.5-1.1z"/><path d="M9.4 16.8h5.2"/>',
         dockHot: '<rect x="3.4" y="6.2" width="14.2" height="11.6" rx="2.4"/><path d="M7.2 3.4h11.2a2.2 2.2 0 0 1 2.2 2.2v9.4"/><path d="M9.1 9.6v4.8l4.1-2.4z" fill="currentColor" stroke="none"/>',
         dockSearch: '<circle cx="10.8" cy="10.8" r="6.3"/><path d="M19.8 19.8l-4.1-4.1"/>',
-        bookmark: '<path d="M6.2 4.2h11.6a1.3 1.3 0 0 1 1.3 1.3v14.8L12 16l-7.1 4.3V5.5a1.3 1.3 0 0 1 1.3-1.3z"/>'
+        bookmark: '<path d="M6.2 4.2h11.6a1.3 1.3 0 0 1 1.3 1.3v14.8L12 16l-7.1 4.3V5.5a1.3 1.3 0 0 1 1.3-1.3z"/>',
+        seerrIcon: '<path d="M7.2 18.2h9.6a3.7 3.7 0 0 0 .55-7.36A5.2 5.2 0 0 0 7.1 9.4a3.5 3.5 0 0 0 .1 8.8z"/><path d="M12 10.6v5.2M9.4 13.2h5.2"/>'
     };
 
     function icon(name, extraClass) {

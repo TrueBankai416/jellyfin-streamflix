@@ -2,6 +2,7 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Globalization;
+using System.IO;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
@@ -19,32 +20,51 @@ namespace Jellyfin.Plugin.StreamFlix.Services;
 /// <summary>
 /// Server-side client for Seerr / Jellyseerr / Overseerr (<c>/api/v1</c>).
 /// Keeps the configured API key strictly on the Jellyfin server, enforces SSRF protections,
-/// and normalizes search, TV season inspection, and media request operations.
+/// prefers fast IPv4 socket connections with safe redirect handling, caches search/metadata
+/// lookups, and normalizes search, TV season inspection, and media request operations.
 /// </summary>
 public static class StreamFlixSeerrService
 {
     private static readonly HttpClient SeerrHttp = new(new SocketsHttpHandler
     {
         AllowAutoRedirect = false,
-        PooledConnectionLifetime = TimeSpan.FromMinutes(5),
-        ConnectTimeout = TimeSpan.FromSeconds(5),
+        AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate | DecompressionMethods.Brotli,
+        PooledConnectionLifetime = TimeSpan.FromMinutes(2),
+        PooledConnectionIdleTimeout = TimeSpan.FromSeconds(4), // Below Node.js default 5s keepAliveTimeout
+        ConnectTimeout = TimeSpan.FromSeconds(4),
+        ConnectCallback = ConnectSeerrSocketAsync,
     })
     {
-        Timeout = TimeSpan.FromSeconds(10),
+        Timeout = Timeout.InfiniteTimeSpan, // Controlled per-call via CancellationTokenSource
+        DefaultRequestVersion = HttpVersion.Version11,
+        DefaultVersionPolicy = HttpVersionPolicy.RequestVersionOrLower,
     };
 
     private static readonly Regex SafeTmdbImagePathRegex = new(@"^/[a-zA-Z0-9._-]+$", RegexOptions.Compiled);
 
+    private static readonly ConcurrentDictionary<string, CachedHostAddresses> DnsCache = new(StringComparer.OrdinalIgnoreCase);
     private static readonly ConcurrentDictionary<string, CachedMediaMeta> MediaMetaCache = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly ConcurrentDictionary<string, CachedSearchResult> SearchCache = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly ConcurrentDictionary<string, CachedRequestsResult> RecentRequestsCache = new(StringComparer.OrdinalIgnoreCase);
+
+    private static string _unreachableBaseUrl = string.Empty;
+    private static long _unreachableUntilTicks;
+
+    private sealed record CachedHostAddresses(IPAddress[] Addresses, DateTime ExpiresAtUtc);
 
     private sealed record CachedMediaMeta(
         string Title,
         string Year,
         string PosterUrl,
         string BackdropUrl,
+        int? TvdbId,
         bool IsAdult,
         bool IsMatureForKids,
         DateTime ExpiresAtUtc);
+
+    private sealed record CachedSearchResult(List<SeerrMediaItem> Items, DateTime ExpiresAtUtc);
+
+    private sealed record CachedRequestsResult(List<SeerrRequestEntry> Entries, DateTime ExpiresAtUtc);
 
     public sealed record SeerrDiagnosticCheck(string Status, string Label, string Detail);
 
@@ -79,7 +99,8 @@ public static class StreamFlixSeerrService
         int MediaStatus,
         string StatusLabel,
         int? DownloadProgress,
-        List<SeerrSeasonItem> Seasons);
+        List<SeerrSeasonItem> Seasons,
+        int? TvdbId = null);
 
     public sealed record SeerrRequestEntry(
         int RequestId,
@@ -105,6 +126,15 @@ public static class StreamFlixSeerrService
             && !string.IsNullOrWhiteSpace(config.SeerrApiKey);
     }
 
+    public static void ResetTransientCaches()
+    {
+        Interlocked.Exchange(ref _unreachableUntilTicks, 0);
+        _unreachableBaseUrl = string.Empty;
+        DnsCache.Clear();
+        SearchCache.Clear();
+        RecentRequestsCache.Clear();
+    }
+
     public static string NormalizeBaseUrl(string? rawUrl)
     {
         var s = (rawUrl ?? string.Empty).Trim().TrimEnd('/');
@@ -116,7 +146,19 @@ public static class StreamFlixSeerrService
         return s;
     }
 
-    public static string MapStatusLabel(int status) => status switch
+    public static int NormalizeMediaStatus(int rawStatus)
+    {
+        // In Seerr / Jellyseerr: 1=Unknown, 2=Pending, 3=Processing, 4=PartiallyAvailable, 5=Available, 6=Blocklisted, 7=Deleted.
+        // Deleted (7) and <=0 can be requested again, so map them to 1 (Not Requested).
+        if (rawStatus <= 0 || rawStatus == 7)
+        {
+            return 1;
+        }
+
+        return Math.Clamp(rawStatus, 1, 6);
+    }
+
+    public static string MapStatusLabel(int status) => NormalizeMediaStatus(status) switch
     {
         2 => "Pending",
         3 => "Processing",
@@ -131,13 +173,15 @@ public static class StreamFlixSeerrService
         string? rawApiKey,
         CancellationToken cancellationToken = default)
     {
+        ResetTransientCaches();
+
         var checks = new List<SeerrDiagnosticCheck>();
         var baseUrl = NormalizeBaseUrl(rawUrl);
         var apiKey = (rawApiKey ?? string.Empty).Trim();
 
         if (string.IsNullOrEmpty(baseUrl))
         {
-            checks.Add(new("error", "Seerr URL", "Enter your Seerr / Jellyseerr URL (e.g. http://localhost:5055 or https://requests.example.com)."));
+            checks.Add(new("error", "Seerr URL", "Enter your Seerr / Jellyseerr URL (e.g. http://127.0.0.1:5055 or https://requests.example.com)."));
         }
         else
         {
@@ -169,8 +213,7 @@ public static class StreamFlixSeerrService
         {
             try
             {
-                using var statusReq = BuildGetRequest(baseUrl + "/api/v1/status", apiKey);
-                using var statusResp = await SeerrHttp.SendAsync(statusReq, cancellationToken).ConfigureAwait(false);
+                using var statusResp = await SendSeerrAsync(HttpMethod.Get, baseUrl + "/api/v1/status", apiKey, null, cancellationToken).ConfigureAwait(false);
                 if (!statusResp.IsSuccessStatusCode)
                 {
                     checks.Add(new("error", "Server Reachability", $"Seerr /api/v1/status returned HTTP {(int)statusResp.StatusCode}. Check the URL and port."));
@@ -184,17 +227,14 @@ public static class StreamFlixSeerrService
                         ? "Connected to Seerr /api/v1/status."
                         : $"Connected to Seerr v{ver}."));
 
-                    // Verify API Key authorization on a protected endpoint (/api/v1/auth/me or /api/v1/request/count)
-                    using var authReq = BuildGetRequest(baseUrl + "/api/v1/auth/me", apiKey);
-                    using var authResp = await SeerrHttp.SendAsync(authReq, cancellationToken).ConfigureAwait(false);
+                    using var authResp = await SendSeerrAsync(HttpMethod.Get, baseUrl + "/api/v1/auth/me", apiKey, null, cancellationToken).ConfigureAwait(false);
                     if (authResp.IsSuccessStatusCode)
                     {
                         checks.Add(new("ok", "API Key Authentication", "API key verified successfully against /api/v1/auth/me."));
                     }
                     else
                     {
-                        using var fallbackReq = BuildGetRequest(baseUrl + "/api/v1/request/count", apiKey);
-                        using var fallbackResp = await SeerrHttp.SendAsync(fallbackReq, cancellationToken).ConfigureAwait(false);
+                        using var fallbackResp = await SendSeerrAsync(HttpMethod.Get, baseUrl + "/api/v1/request/count", apiKey, null, cancellationToken).ConfigureAwait(false);
                         if (fallbackResp.IsSuccessStatusCode)
                         {
                             checks.Add(new("ok", "API Key Authentication", "API key verified successfully against /api/v1/request/count."));
@@ -209,6 +249,10 @@ public static class StreamFlixSeerrService
                         }
                     }
                 }
+            }
+            catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+            {
+                checks.Add(new("error", "Server Reachability", "Connection to Seerr timed out. Verify the host/IP and port are reachable from the Jellyfin server."));
             }
             catch (Exception ex)
             {
@@ -247,12 +291,22 @@ public static class StreamFlixSeerrService
         }
 
         var baseUrl = NormalizeBaseUrl(config.SeerrUrl);
+        var cacheKey = $"{baseUrl}|{(isKidsProfile ? "1" : "0")}|{q.ToLowerInvariant()}";
+        if (SearchCache.TryGetValue(cacheKey, out var cachedSearch) && cachedSearch.ExpiresAtUtc > DateTime.UtcNow)
+        {
+            return cachedSearch.Items;
+        }
+
+        if (IsTemporarilyUnreachable(baseUrl))
+        {
+            throw new InvalidOperationException("Seerr is temporarily unreachable — retrying shortly.");
+        }
+
         var apiKey = config.SeerrApiKey.Trim();
         await ValidateSafeSeerrBaseUrlAsync(baseUrl, cancellationToken).ConfigureAwait(false);
 
         var url = $"{baseUrl}/api/v1/search?query={Uri.EscapeDataString(q)}&page=1&language=en";
-        using var req = BuildGetRequest(url, apiKey);
-        using var resp = await SeerrHttp.SendAsync(req, cancellationToken).ConfigureAwait(false);
+        using var resp = await SendSeerrWithCircuitBreakerAsync(HttpMethod.Get, url, baseUrl, apiKey, null, cancellationToken).ConfigureAwait(false);
         if (!resp.IsSuccessStatusCode)
         {
             throw new InvalidOperationException($"Seerr search returned HTTP {(int)resp.StatusCode}.");
@@ -278,7 +332,6 @@ public static class StreamFlixSeerrService
                 continue;
             }
 
-            // Extra safety for Kids profiles when SeerrAllowKids is enabled: skip titles whose TMDB genreIds include Horror (27) / Crime (80)
             if (isKidsProfile && HasMatureTmdbGenre(el))
             {
                 continue;
@@ -303,25 +356,32 @@ public static class StreamFlixSeerrService
 
             var overview = JsonStr(el, "overview").Trim();
             var rating = Math.Round(Math.Clamp(JsonDouble(el, "voteAverage"), 0, 10), 1);
-            var posterUrl = BuildSafeTmdbImageUrl(JsonStr(el, "posterPath"), "w500");
+            var posterUrl = BuildSafeTmdbImageUrl(JsonStr(el, "posterPath"), "w342");
             var backdropUrl = BuildSafeTmdbImageUrl(JsonStr(el, "backdropPath"), "w1280");
 
             var mediaStatus = 1;
             int? downloadProgress = null;
             var isDownloading = false;
             string? jfMediaId = null;
+            int? tvdbId = null;
             if (el.TryGetProperty("mediaInfo", out var mi) && mi.ValueKind == JsonValueKind.Object)
             {
-                mediaStatus = Math.Clamp(JsonInt(mi, "status", 1), 1, 6);
+                mediaStatus = NormalizeMediaStatus(JsonInt(mi, "status", 1));
                 (isDownloading, downloadProgress) = ExtractDownloadProgress(mi);
                 var jfId = FirstNonEmpty(JsonStr(mi, "jellyfinMediaId"), JsonStr(mi, "jellyfinMediaId4k"));
                 if (!string.IsNullOrEmpty(jfId))
                 {
                     jfMediaId = jfId;
                 }
+
+                var rawTvdb = JsonInt(mi, "tvdbId", 0);
+                if (rawTvdb > 0)
+                {
+                    tvdbId = rawTvdb;
+                }
             }
 
-            StoreCachedMediaMeta(mediaType, tmdbId, title, year, posterUrl, backdropUrl, isAdult: false, isMatureForKids: HasMatureTmdbGenre(el));
+            StoreCachedMediaMeta(mediaType, tmdbId, title, year, posterUrl, backdropUrl, tvdbId, isAdult: false, isMatureForKids: HasMatureTmdbGenre(el));
 
             var statusLabel = isDownloading && mediaStatus is 2 or 3
                 ? (downloadProgress.HasValue && downloadProgress.Value > 0 ? $"Downloading · {downloadProgress.Value}%" : "Downloading")
@@ -347,6 +407,8 @@ public static class StreamFlixSeerrService
             }
         }
 
+        PruneSearchCacheIfNeeded();
+        SearchCache[cacheKey] = new CachedSearchResult(items, DateTime.UtcNow.AddSeconds(75));
         return items;
     }
 
@@ -364,8 +426,8 @@ public static class StreamFlixSeerrService
         var apiKey = config.SeerrApiKey.Trim();
         await ValidateSafeSeerrBaseUrlAsync(baseUrl, cancellationToken).ConfigureAwait(false);
 
-        using var req = BuildGetRequest($"{baseUrl}/api/v1/tv/{tmdbId.ToString(CultureInfo.InvariantCulture)}", apiKey);
-        using var resp = await SeerrHttp.SendAsync(req, cancellationToken).ConfigureAwait(false);
+        var url = $"{baseUrl}/api/v1/tv/{tmdbId.ToString(CultureInfo.InvariantCulture)}";
+        using var resp = await SendSeerrWithCircuitBreakerAsync(HttpMethod.Get, url, baseUrl, apiKey, null, cancellationToken).ConfigureAwait(false);
         if (!resp.IsSuccessStatusCode)
         {
             throw new InvalidOperationException($"Could not load TV seasons from Seerr (HTTP {(int)resp.StatusCode}).");
@@ -378,9 +440,18 @@ public static class StreamFlixSeerrService
         var dateRaw = JsonStr(root, "firstAirDate");
         var year = dateRaw.Length >= 4 ? dateRaw.Substring(0, 4) : string.Empty;
         var overview = JsonStr(root, "overview").Trim();
-        var posterUrl = BuildSafeTmdbImageUrl(JsonStr(root, "posterPath"), "w500");
+        var posterUrl = BuildSafeTmdbImageUrl(JsonStr(root, "posterPath"), "w342");
         var backdropUrl = BuildSafeTmdbImageUrl(JsonStr(root, "backdropPath"), "w1280");
-        StoreCachedMediaMeta("tv", tmdbId, title, year, posterUrl, backdropUrl, JsonBool(root, "adult"), HasMatureDetailGenres(root));
+
+        int? tvdbId = null;
+        if (root.TryGetProperty("externalIds", out var extIds) && extIds.ValueKind == JsonValueKind.Object)
+        {
+            var extTvdb = JsonInt(extIds, "tvdbId", 0);
+            if (extTvdb > 0)
+            {
+                tvdbId = extTvdb;
+            }
+        }
 
         var mediaStatus = 1;
         int? downloadProgress = null;
@@ -388,14 +459,23 @@ public static class StreamFlixSeerrService
         var seasonStatuses = new Dictionary<int, int>();
         if (root.TryGetProperty("mediaInfo", out var mi) && mi.ValueKind == JsonValueKind.Object)
         {
-            mediaStatus = Math.Clamp(JsonInt(mi, "status", 1), 1, 6);
+            mediaStatus = NormalizeMediaStatus(JsonInt(mi, "status", 1));
             (isDownloading, downloadProgress) = ExtractDownloadProgress(mi);
+            if (!tvdbId.HasValue)
+            {
+                var miTvdb = JsonInt(mi, "tvdbId", 0);
+                if (miTvdb > 0)
+                {
+                    tvdbId = miTvdb;
+                }
+            }
+
             if (mi.TryGetProperty("seasons", out var miSeasons) && miSeasons.ValueKind == JsonValueKind.Array)
             {
                 foreach (var ms in miSeasons.EnumerateArray())
                 {
                     var sNum = JsonInt(ms, "seasonNumber", -1);
-                    var sSt = Math.Clamp(JsonInt(ms, "status", 1), 1, 6);
+                    var sSt = NormalizeMediaStatus(JsonInt(ms, "status", 1));
                     if (sNum >= 0)
                     {
                         seasonStatuses[sNum] = sSt;
@@ -403,6 +483,8 @@ public static class StreamFlixSeerrService
                 }
             }
         }
+
+        StoreCachedMediaMeta("tv", tmdbId, title, year, posterUrl, backdropUrl, tvdbId, JsonBool(root, "adult"), HasMatureDetailGenres(root));
 
         var seasons = new List<SeerrSeasonItem>();
         if (root.TryGetProperty("seasons", out var seasonsArr) && seasonsArr.ValueKind == JsonValueKind.Array)
@@ -445,7 +527,8 @@ public static class StreamFlixSeerrService
             MediaStatus: mediaStatus,
             StatusLabel: tvStatusLabel,
             DownloadProgress: isDownloading ? downloadProgress : null,
-            Seasons: seasons);
+            Seasons: seasons,
+            TvdbId: tvdbId);
     }
 
     public static async Task<List<SeerrRequestEntry>> GetRecentRequestsAsync(
@@ -460,11 +543,22 @@ public static class StreamFlixSeerrService
         }
 
         var baseUrl = NormalizeBaseUrl(config.SeerrUrl);
+        var reqCacheKey = $"{baseUrl}|{(isKidsProfile ? "1" : "0")}";
+        if (RecentRequestsCache.TryGetValue(reqCacheKey, out var cachedReqs) && cachedReqs.ExpiresAtUtc > DateTime.UtcNow)
+        {
+            return cachedReqs.Entries;
+        }
+
         var apiKey = config.SeerrApiKey.Trim();
         await ValidateSafeSeerrBaseUrlAsync(baseUrl, cancellationToken).ConfigureAwait(false);
 
-        using var req = BuildGetRequest($"{baseUrl}/api/v1/request?take=20&skip=0&sort=added", apiKey);
-        using var resp = await SeerrHttp.SendAsync(req, cancellationToken).ConfigureAwait(false);
+        using var resp = await SendSeerrWithCircuitBreakerAsync(
+            HttpMethod.Get,
+            $"{baseUrl}/api/v1/request?take=20&skip=0&sort=added",
+            baseUrl,
+            apiKey,
+            null,
+            cancellationToken).ConfigureAwait(false);
         if (!resp.IsSuccessStatusCode)
         {
             throw new InvalidOperationException($"Seerr requests endpoint returned HTTP {(int)resp.StatusCode}.");
@@ -510,12 +604,20 @@ public static class StreamFlixSeerrService
                     mediaType = JsonStr(mediaEl, "mediaType").Trim().ToLowerInvariant();
                 }
 
-                mediaStatus = Math.Clamp(JsonInt(mediaEl, "status", 2), 1, 6);
+                mediaStatus = NormalizeMediaStatus(JsonInt(mediaEl, "status", 2));
                 (isDownloading, dlProgress) = ExtractDownloadProgress(mediaEl);
                 var jfId = FirstNonEmpty(JsonStr(mediaEl, "jellyfinMediaId"), JsonStr(mediaEl, "jellyfinMediaId4k"));
                 if (!string.IsNullOrEmpty(jfId))
                 {
                     jfMediaId = jfId;
+                }
+
+                var inlineTitle = FirstNonEmpty(JsonStr(mediaEl, "title"), JsonStr(mediaEl, "name"));
+                if (tmdbId > 0 && !string.IsNullOrEmpty(inlineTitle) && mediaType is "movie" or "tv")
+                {
+                    var inlinePoster = BuildSafeTmdbImageUrl(JsonStr(mediaEl, "posterPath"), "w342");
+                    var inlineBackdrop = BuildSafeTmdbImageUrl(JsonStr(mediaEl, "backdropPath"), "w1280");
+                    StoreCachedMediaMeta(mediaType, tmdbId, inlineTitle, string.Empty, inlinePoster, inlineBackdrop, null, false, false);
                 }
             }
 
@@ -553,57 +655,82 @@ public static class StreamFlixSeerrService
             return entries;
         }
 
-        // Resolve missing TMDB title/poster metadata in bounded parallel (up to 4 concurrent calls, cached 15 minutes)
-        using var gate = new SemaphoreSlim(4, 4);
-        var distinctKeys = parsedRows
+        // Resolve uncached TMDB title/poster metadata under a strict non-throwing 3.5s timebox (max 8 uncached per call)
+        // so slow upstream TMDB lookups NEVER cause "The operation was canceled." on the request tracker!
+        var uncachedPairs = parsedRows
             .Select(r => (r.MediaType, r.TmdbId))
             .Distinct()
+            .Where(pair =>
+            {
+                var ck = $"{pair.MediaType}:{pair.TmdbId.ToString(CultureInfo.InvariantCulture)}";
+                return !MediaMetaCache.TryGetValue(ck, out var c) || c.ExpiresAtUtc <= DateTime.UtcNow;
+            })
+            .Take(8)
             .ToList();
 
-        var fetchTasks = distinctKeys.Select(async pair =>
+        if (uncachedPairs.Count > 0)
         {
-            var cacheKey = $"{pair.MediaType}:{pair.TmdbId.ToString(CultureInfo.InvariantCulture)}";
-            if (MediaMetaCache.TryGetValue(cacheKey, out var cached) && cached.ExpiresAtUtc > DateTime.UtcNow)
-            {
-                return;
-            }
+            using var metaCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            metaCts.CancelAfter(TimeSpan.FromSeconds(3.5));
+            using var gate = new SemaphoreSlim(6, 6);
 
-            await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
-            try
+            var fetchTasks = uncachedPairs.Select(async pair =>
             {
-                if (MediaMetaCache.TryGetValue(cacheKey, out cached) && cached.ExpiresAtUtc > DateTime.UtcNow)
+                var acquired = false;
+                try
                 {
-                    return;
-                }
+                    await gate.WaitAsync(metaCts.Token).ConfigureAwait(false);
+                    acquired = true;
 
-                using var metaReq = BuildGetRequest($"{baseUrl}/api/v1/{pair.MediaType}/{pair.TmdbId.ToString(CultureInfo.InvariantCulture)}", apiKey);
-                using var metaResp = await SeerrHttp.SendAsync(metaReq, cancellationToken).ConfigureAwait(false);
-                if (!metaResp.IsSuccessStatusCode)
+                    var cacheKey = $"{pair.MediaType}:{pair.TmdbId.ToString(CultureInfo.InvariantCulture)}";
+                    if (MediaMetaCache.TryGetValue(cacheKey, out var cached) && cached.ExpiresAtUtc > DateTime.UtcNow)
+                    {
+                        return;
+                    }
+
+                    var metaUrl = $"{baseUrl}/api/v1/{pair.MediaType}/{pair.TmdbId.ToString(CultureInfo.InvariantCulture)}";
+                    using var metaResp = await SendSeerrAsync(HttpMethod.Get, metaUrl, apiKey, null, metaCts.Token).ConfigureAwait(false);
+                    if (!metaResp.IsSuccessStatusCode)
+                    {
+                        return;
+                    }
+
+                    using var mDoc = JsonDocument.Parse(await metaResp.Content.ReadAsStringAsync(metaCts.Token).ConfigureAwait(false));
+                    var mRoot = mDoc.RootElement;
+                    var mTitle = FirstNonEmpty(JsonStr(mRoot, "title"), JsonStr(mRoot, "name"), JsonStr(mRoot, "originalTitle"), JsonStr(mRoot, "originalName"));
+                    var mDate = FirstNonEmpty(JsonStr(mRoot, "releaseDate"), JsonStr(mRoot, "firstAirDate"));
+                    var mYear = mDate.Length >= 4 && int.TryParse(mDate.AsSpan(0, 4), out var yr) && yr >= 1888 && yr <= 2100
+                        ? yr.ToString(CultureInfo.InvariantCulture)
+                        : string.Empty;
+                    var mPoster = BuildSafeTmdbImageUrl(JsonStr(mRoot, "posterPath"), "w342");
+                    var mBackdrop = BuildSafeTmdbImageUrl(JsonStr(mRoot, "backdropPath"), "w1280");
+                    int? mTvdb = null;
+                    if (mRoot.TryGetProperty("externalIds", out var extIds) && extIds.ValueKind == JsonValueKind.Object)
+                    {
+                        var tvdbVal = JsonInt(extIds, "tvdbId", 0);
+                        if (tvdbVal > 0)
+                        {
+                            mTvdb = tvdbVal;
+                        }
+                    }
+
+                    StoreCachedMediaMeta(pair.MediaType, pair.TmdbId, mTitle, mYear, mPoster, mBackdrop, mTvdb, JsonBool(mRoot, "adult"), HasMatureDetailGenres(mRoot));
+                }
+                catch
                 {
-                    return;
+                    // Non-fatal: return request rows immediately even if TMDB metadata is slow
                 }
+                finally
+                {
+                    if (acquired)
+                    {
+                        gate.Release();
+                    }
+                }
+            });
 
-                using var mDoc = JsonDocument.Parse(await metaResp.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false));
-                var mRoot = mDoc.RootElement;
-                var mTitle = FirstNonEmpty(JsonStr(mRoot, "title"), JsonStr(mRoot, "name"), JsonStr(mRoot, "originalTitle"), JsonStr(mRoot, "originalName"));
-                var mDate = FirstNonEmpty(JsonStr(mRoot, "releaseDate"), JsonStr(mRoot, "firstAirDate"));
-                var mYear = mDate.Length >= 4 && int.TryParse(mDate.AsSpan(0, 4), out var yr) && yr >= 1888 && yr <= 2100
-                    ? yr.ToString(CultureInfo.InvariantCulture)
-                    : string.Empty;
-                var mPoster = BuildSafeTmdbImageUrl(JsonStr(mRoot, "posterPath"), "w500");
-                var mBackdrop = BuildSafeTmdbImageUrl(JsonStr(mRoot, "backdropPath"), "w1280");
-                StoreCachedMediaMeta(pair.MediaType, pair.TmdbId, mTitle, mYear, mPoster, mBackdrop, JsonBool(mRoot, "adult"), HasMatureDetailGenres(mRoot));
-            }
-            catch
-            {
-            }
-            finally
-            {
-                gate.Release();
-            }
-        });
-
-        await Task.WhenAll(fetchTasks).ConfigureAwait(false);
+            await Task.WhenAll(fetchTasks).ConfigureAwait(false);
+        }
 
         foreach (var row in parsedRows)
         {
@@ -684,7 +811,421 @@ public static class StreamFlixSeerrService
                 JellyfinMediaId: row.JellyfinMediaId));
         }
 
+        RecentRequestsCache[reqCacheKey] = new CachedRequestsResult(entries, DateTime.UtcNow.AddSeconds(6));
         return entries;
+    }
+
+    public static async Task<(bool Ok, int MediaStatus, string StatusLabel, string Message)> SubmitRequestAsync(
+        PluginConfiguration config,
+        int tmdbId,
+        string mediaType,
+        List<int>? requestedSeasons,
+        CancellationToken cancellationToken = default)
+    {
+        if (tmdbId <= 0)
+        {
+            throw new InvalidOperationException("Invalid media identifier.");
+        }
+
+        var cleanType = (mediaType ?? string.Empty).Trim().ToLowerInvariant();
+        if (cleanType is not ("movie" or "tv"))
+        {
+            throw new InvalidOperationException("Media type must be 'movie' or 'tv'.");
+        }
+
+        var baseUrl = NormalizeBaseUrl(config.SeerrUrl);
+        var apiKey = config.SeerrApiKey.Trim();
+        await ValidateSafeSeerrBaseUrlAsync(baseUrl, cancellationToken).ConfigureAwait(false);
+
+        string payloadJson;
+        if (cleanType == "movie")
+        {
+            payloadJson = JsonSerializer.Serialize(new
+            {
+                mediaType = "movie",
+                mediaId = tmdbId,
+                is4k = false,
+            });
+        }
+        else
+        {
+            var seasons = (requestedSeasons ?? new List<int>())
+                .Where(s => s > 0 && s <= 200)
+                .Distinct()
+                .OrderBy(s => s)
+                .ToList();
+
+            var metaKey = $"tv:{tmdbId.ToString(CultureInfo.InvariantCulture)}";
+            MediaMetaCache.TryGetValue(metaKey, out var cachedMeta);
+            int? tvdbId = cachedMeta?.TvdbId;
+
+            if (seasons.Count == 0 || !tvdbId.HasValue)
+            {
+                try
+                {
+                    using var tvCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                    tvCts.CancelAfter(TimeSpan.FromSeconds(8));
+                    var tvDetail = await GetTvDetailsAsync(config, tmdbId, tvCts.Token).ConfigureAwait(false);
+                    if (tvDetail.TvdbId.HasValue && tvDetail.TvdbId.Value > 0)
+                    {
+                        tvdbId = tvDetail.TvdbId;
+                    }
+
+                    if (seasons.Count == 0)
+                    {
+                        seasons = tvDetail.Seasons
+                            .Where(s => s.Status is not (2 or 3 or 4 or 5))
+                            .Select(s => s.SeasonNumber)
+                            .ToList();
+                        if (seasons.Count == 0)
+                        {
+                            seasons = tvDetail.Seasons
+                                .Where(s => s.Status is not 5)
+                                .Select(s => s.SeasonNumber)
+                                .ToList();
+                        }
+
+                        if (seasons.Count == 0 && tvDetail.Seasons.Count > 0)
+                        {
+                            seasons = tvDetail.Seasons.Select(s => s.SeasonNumber).ToList();
+                        }
+                    }
+                }
+                catch
+                {
+                    // Fall back cleanly if TV detail preflight times out
+                }
+            }
+
+            if (seasons.Count == 0)
+            {
+                seasons.Add(1);
+            }
+
+            payloadJson = tvdbId.HasValue && tvdbId.Value > 0
+                ? JsonSerializer.Serialize(new
+                {
+                    mediaType = "tv",
+                    mediaId = tmdbId,
+                    tvdbId = tvdbId.Value,
+                    seasons,
+                    is4k = false,
+                })
+                : JsonSerializer.Serialize(new
+                {
+                    mediaType = "tv",
+                    mediaId = tmdbId,
+                    seasons,
+                    is4k = false,
+                });
+        }
+
+        using var resp = await SendSeerrWithCircuitBreakerAsync(
+            HttpMethod.Post,
+            baseUrl + "/api/v1/request",
+            baseUrl,
+            apiKey,
+            payloadJson,
+            cancellationToken).ConfigureAwait(false);
+        var respBody = await resp.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+
+        SearchCache.Clear();
+        RecentRequestsCache.Clear();
+
+        if ((int)resp.StatusCode == 409)
+        {
+            return (true, 2, "Requested", "This title has already been requested in Seerr.");
+        }
+
+        if ((int)resp.StatusCode == 202)
+        {
+            var note = ExtractSeerrError(respBody) ?? "All available seasons are already requested or in your library.";
+            return (true, 2, "Requested", note);
+        }
+
+        if (!resp.IsSuccessStatusCode)
+        {
+            var errMsg = ExtractSeerrError(respBody) ?? $"Seerr returned HTTP {(int)resp.StatusCode}.";
+            throw new InvalidOperationException(errMsg);
+        }
+
+        var newStatus = 2;
+        try
+        {
+            using var doc = JsonDocument.Parse(respBody);
+            if (doc.RootElement.TryGetProperty("media", out var mediaEl) && mediaEl.ValueKind == JsonValueKind.Object)
+            {
+                newStatus = Math.Clamp(NormalizeMediaStatus(JsonInt(mediaEl, "status", 2)), 2, 5);
+            }
+        }
+        catch
+        {
+        }
+
+        return (true, newStatus, MapStatusLabel(newStatus), "Request submitted to Seerr!");
+    }
+
+    public static async Task ValidateSafeSeerrBaseUrlAsync(string rawBaseUrl, CancellationToken cancellationToken)
+    {
+        if (!Uri.TryCreate(rawBaseUrl, UriKind.Absolute, out var uri))
+        {
+            throw new InvalidOperationException("Seerr URL must be a valid http:// or https:// address.");
+        }
+
+        if (!string.Equals(uri.Scheme, Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase)
+            && !string.Equals(uri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException("Only http:// or https:// Seerr URLs are supported.");
+        }
+
+        if (!string.IsNullOrEmpty(uri.UserInfo) || !string.IsNullOrEmpty(uri.Query) || !string.IsNullOrEmpty(uri.Fragment))
+        {
+            throw new InvalidOperationException("Seerr URL must not embed credentials, query parameters, or URL fragments.");
+        }
+
+        await ResolveAndValidateHostAddressesAsync(uri.DnsSafeHost, cancellationToken).ConfigureAwait(false);
+    }
+
+    private static async Task<IPAddress[]> ResolveAndValidateHostAddressesAsync(string host, CancellationToken cancellationToken)
+    {
+        if (IPAddress.TryParse(host, out var literalIp))
+        {
+            var norm = literalIp.IsIPv4MappedToIPv6 ? literalIp.MapToIPv4() : literalIp;
+            if (IsForbiddenMetadataOrUnspecifiedIp(norm))
+            {
+                throw new InvalidOperationException("Seerr target IP is blocked by SSRF security policy.");
+            }
+
+            return new[] { norm };
+        }
+
+        if (DnsCache.TryGetValue(host, out var cached) && cached.ExpiresAtUtc > DateTime.UtcNow && cached.Addresses.Length > 0)
+        {
+            return cached.Addresses;
+        }
+
+        var rawAddrs = await Dns.GetHostAddressesAsync(host, cancellationToken).ConfigureAwait(false);
+        if (rawAddrs.Length == 0)
+        {
+            throw new InvalidOperationException($"Could not resolve Seerr host '{host}'.");
+        }
+
+        var ordered = new List<IPAddress>(rawAddrs.Length);
+        foreach (var rawIp in rawAddrs)
+        {
+            var ip = rawIp.IsIPv4MappedToIPv6 ? rawIp.MapToIPv4() : rawIp;
+            if (IsForbiddenMetadataOrUnspecifiedIp(ip))
+            {
+                throw new InvalidOperationException("Seerr target IP is blocked by SSRF security policy.");
+            }
+
+            ordered.Add(ip);
+        }
+
+        // Prefer IPv4 before IPv6 so dual-stack localhost / Cloudflare / Docker bridges without IPv6 never stall on SYN timeouts
+        var sorted = ordered
+            .OrderBy(a => a.AddressFamily == AddressFamily.InterNetwork ? 0 : 1)
+            .ToArray();
+
+        if (DnsCache.Count > 64)
+        {
+            DnsCache.Clear();
+        }
+
+        DnsCache[host] = new CachedHostAddresses(sorted, DateTime.UtcNow.AddMinutes(2));
+        return sorted;
+    }
+
+    private static async ValueTask<Stream> ConnectSeerrSocketAsync(SocketsHttpConnectionContext context, CancellationToken cancellationToken)
+    {
+        var host = context.DnsEndPoint.Host;
+        var port = context.DnsEndPoint.Port;
+        var addresses = await ResolveAndValidateHostAddressesAsync(host, cancellationToken).ConfigureAwait(false);
+
+        Exception? lastEx = null;
+        var sawConnectionRefused = false;
+
+        foreach (var ip in addresses)
+        {
+            var socket = new Socket(ip.AddressFamily, SocketType.Stream, ProtocolType.Tcp)
+            {
+                NoDelay = true,
+            };
+
+            try
+            {
+                using var perIpCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                perIpCts.CancelAfter(TimeSpan.FromMilliseconds(2500));
+                await socket.ConnectAsync(new IPEndPoint(ip, port), perIpCts.Token).ConfigureAwait(false);
+                return new NetworkStream(socket, ownsSocket: true);
+            }
+            catch (Exception ex)
+            {
+                socket.Dispose();
+                if (cancellationToken.IsCancellationRequested)
+                {
+                    throw;
+                }
+
+                if (ex is SocketException se && se.SocketErrorCode == SocketError.ConnectionRefused)
+                {
+                    sawConnectionRefused = true;
+                }
+
+                lastEx = ex;
+            }
+        }
+
+        // Helpful Docker container fallback: if Jellyfin runs in Docker and the admin entered http://localhost:5055,
+        // try host.docker.internal:<port> automatically when localhost refuses connection.
+        if (sawConnectionRefused
+            && (string.Equals(host, "localhost", StringComparison.OrdinalIgnoreCase) || string.Equals(host, "127.0.0.1", StringComparison.Ordinal)))
+        {
+            try
+            {
+                var dockerHostIps = await ResolveAndValidateHostAddressesAsync("host.docker.internal", cancellationToken).ConfigureAwait(false);
+                foreach (var dip in dockerHostIps)
+                {
+                    var dSocket = new Socket(dip.AddressFamily, SocketType.Stream, ProtocolType.Tcp) { NoDelay = true };
+                    try
+                    {
+                        using var dCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                        dCts.CancelAfter(TimeSpan.FromMilliseconds(2000));
+                        await dSocket.ConnectAsync(new IPEndPoint(dip, port), dCts.Token).ConfigureAwait(false);
+                        return new NetworkStream(dSocket, ownsSocket: true);
+                    }
+                    catch
+                    {
+                        dSocket.Dispose();
+                    }
+                }
+            }
+            catch
+            {
+            }
+        }
+
+        throw lastEx ?? new SocketException((int)SocketError.HostUnreachable);
+    }
+
+    private static async Task<HttpResponseMessage> SendSeerrWithCircuitBreakerAsync(
+        HttpMethod method,
+        string url,
+        string baseUrl,
+        string apiKey,
+        string? jsonBody,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var resp = await SendSeerrAsync(method, url, apiKey, jsonBody, cancellationToken).ConfigureAwait(false);
+            if (string.Equals(_unreachableBaseUrl, baseUrl, StringComparison.OrdinalIgnoreCase))
+            {
+                Interlocked.Exchange(ref _unreachableUntilTicks, 0);
+            }
+
+            return resp;
+        }
+        catch (HttpRequestException)
+        {
+            MarkTemporarilyUnreachable(baseUrl);
+            throw;
+        }
+        catch (SocketException)
+        {
+            MarkTemporarilyUnreachable(baseUrl);
+            throw;
+        }
+    }
+
+    private static async Task<HttpResponseMessage> SendSeerrAsync(
+        HttpMethod method,
+        string url,
+        string apiKey,
+        string? jsonBody,
+        CancellationToken cancellationToken)
+    {
+        var currentUri = new Uri(url, UriKind.Absolute);
+        var initialHost = currentUri.DnsSafeHost;
+        var currentMethod = method;
+        var currentBody = jsonBody;
+
+        for (var hop = 0; hop <= 3; hop++)
+        {
+            using var req = new HttpRequestMessage(currentMethod, currentUri);
+            req.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+            if (string.Equals(currentUri.DnsSafeHost, initialHost, StringComparison.OrdinalIgnoreCase) && !string.IsNullOrEmpty(apiKey))
+            {
+                req.Headers.TryAddWithoutValidation("X-Api-Key", apiKey);
+            }
+
+            if (currentBody != null && (currentMethod == HttpMethod.Post || currentMethod == HttpMethod.Put))
+            {
+                req.Content = new StringContent(currentBody, Encoding.UTF8, "application/json");
+            }
+
+            var resp = await SeerrHttp.SendAsync(req, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
+            var code = (int)resp.StatusCode;
+            if (code is not (301 or 302 or 303 or 307 or 308) || resp.Headers.Location == null || hop == 3)
+            {
+                return resp;
+            }
+
+            var loc = resp.Headers.Location;
+            resp.Dispose();
+
+            var nextUri = loc.IsAbsoluteUri ? loc : new Uri(currentUri, loc);
+            if (!string.Equals(nextUri.Scheme, Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase)
+                && !string.Equals(nextUri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidOperationException("Seerr redirect pointed to an unsupported URL scheme.");
+            }
+
+            await ResolveAndValidateHostAddressesAsync(nextUri.DnsSafeHost, cancellationToken).ConfigureAwait(false);
+
+            var isSameHostHttpsUpgrade = string.Equals(nextUri.DnsSafeHost, currentUri.DnsSafeHost, StringComparison.OrdinalIgnoreCase)
+                && string.Equals(currentUri.Scheme, Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase)
+                && string.Equals(nextUri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase);
+
+            if (code == 303 || ((code is 301 or 302) && currentMethod != HttpMethod.Get && !isSameHostHttpsUpgrade))
+            {
+                currentMethod = HttpMethod.Get;
+                currentBody = null;
+            }
+
+            currentUri = nextUri;
+        }
+
+        throw new InvalidOperationException("Too many redirects from Seerr.");
+    }
+
+    private static bool IsTemporarilyUnreachable(string baseUrl)
+    {
+        var until = Interlocked.Read(ref _unreachableUntilTicks);
+        return until > DateTime.UtcNow.Ticks && string.Equals(_unreachableBaseUrl, baseUrl, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static void MarkTemporarilyUnreachable(string baseUrl)
+    {
+        _unreachableBaseUrl = baseUrl;
+        Interlocked.Exchange(ref _unreachableUntilTicks, DateTime.UtcNow.AddSeconds(12).Ticks);
+    }
+
+    private static void PruneSearchCacheIfNeeded()
+    {
+        if (SearchCache.Count <= 96)
+        {
+            return;
+        }
+
+        var now = DateTime.UtcNow;
+        foreach (var kv in SearchCache)
+        {
+            if (kv.Value.ExpiresAtUtc <= now)
+            {
+                SearchCache.TryRemove(kv.Key, out _);
+            }
+        }
     }
 
     private static void StoreCachedMediaMeta(
@@ -694,6 +1235,7 @@ public static class StreamFlixSeerrService
         string year,
         string posterUrl,
         string backdropUrl,
+        int? tvdbId,
         bool isAdult,
         bool isMatureForKids)
     {
@@ -702,7 +1244,7 @@ public static class StreamFlixSeerrService
             return;
         }
 
-        if (MediaMetaCache.Count > 300)
+        if (MediaMetaCache.Count > 500)
         {
             var now = DateTime.UtcNow;
             foreach (var kv in MediaMetaCache)
@@ -715,14 +1257,16 @@ public static class StreamFlixSeerrService
         }
 
         var key = $"{mediaType}:{tmdbId.ToString(CultureInfo.InvariantCulture)}";
+        MediaMetaCache.TryGetValue(key, out var existing);
         MediaMetaCache[key] = new CachedMediaMeta(
             Title: title,
-            Year: year,
-            PosterUrl: posterUrl,
-            BackdropUrl: backdropUrl,
+            Year: !string.IsNullOrEmpty(year) ? year : (existing?.Year ?? string.Empty),
+            PosterUrl: !string.IsNullOrEmpty(posterUrl) ? posterUrl : (existing?.PosterUrl ?? string.Empty),
+            BackdropUrl: !string.IsNullOrEmpty(backdropUrl) ? backdropUrl : (existing?.BackdropUrl ?? string.Empty),
+            TvdbId: tvdbId ?? existing?.TvdbId,
             IsAdult: isAdult,
             IsMatureForKids: isMatureForKids,
-            ExpiresAtUtc: DateTime.UtcNow.AddMinutes(15));
+            ExpiresAtUtc: DateTime.UtcNow.AddMinutes(60));
     }
 
     private static (bool IsDownloading, int? ProgressPercent) ExtractDownloadProgress(JsonElement mediaObj)
@@ -798,161 +1342,6 @@ public static class StreamFlixSeerrService
         return false;
     }
 
-    public static async Task<(bool Ok, int MediaStatus, string StatusLabel, string Message)> SubmitRequestAsync(
-        PluginConfiguration config,
-        int tmdbId,
-        string mediaType,
-        List<int>? requestedSeasons,
-        CancellationToken cancellationToken = default)
-    {
-        if (tmdbId <= 0)
-        {
-            throw new InvalidOperationException("Invalid media identifier.");
-        }
-
-        var cleanType = (mediaType ?? string.Empty).Trim().ToLowerInvariant();
-        if (cleanType is not ("movie" or "tv"))
-        {
-            throw new InvalidOperationException("Media type must be 'movie' or 'tv'.");
-        }
-
-        var baseUrl = NormalizeBaseUrl(config.SeerrUrl);
-        var apiKey = config.SeerrApiKey.Trim();
-        await ValidateSafeSeerrBaseUrlAsync(baseUrl, cancellationToken).ConfigureAwait(false);
-
-        object payloadObj;
-        if (cleanType == "movie")
-        {
-            payloadObj = new
-            {
-                mediaType = "movie",
-                mediaId = tmdbId,
-            };
-        }
-        else
-        {
-            var seasons = (requestedSeasons ?? new List<int>())
-                .Where(s => s > 0 && s <= 200)
-                .Distinct()
-                .OrderBy(s => s)
-                .ToList();
-
-            // Resolve explicit non-zero season numbers from /api/v1/tv/{tmdbId} when empty ("All Seasons")
-            // so both Jellyseerr, Overseerr, and unified Seerr accept the payload cleanly.
-            if (seasons.Count == 0)
-            {
-                var tvDetail = await GetTvDetailsAsync(config, tmdbId, cancellationToken).ConfigureAwait(false);
-                seasons = tvDetail.Seasons
-                    .Where(s => s.Status is not (4 or 5))
-                    .Select(s => s.SeasonNumber)
-                    .ToList();
-                if (seasons.Count == 0 && tvDetail.Seasons.Count > 0)
-                {
-                    seasons = tvDetail.Seasons.Select(s => s.SeasonNumber).ToList();
-                }
-            }
-
-            if (seasons.Count == 0)
-            {
-                seasons.Add(1);
-            }
-
-            payloadObj = new
-            {
-                mediaType = "tv",
-                mediaId = tmdbId,
-                seasons,
-            };
-        }
-
-        using var req = new HttpRequestMessage(HttpMethod.Post, baseUrl + "/api/v1/request")
-        {
-            Content = new StringContent(JsonSerializer.Serialize(payloadObj), Encoding.UTF8, "application/json"),
-        };
-        req.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
-        req.Headers.TryAddWithoutValidation("X-Api-Key", apiKey);
-
-        using var resp = await SeerrHttp.SendAsync(req, cancellationToken).ConfigureAwait(false);
-        var respBody = await resp.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
-
-        if ((int)resp.StatusCode == 409)
-        {
-            return (true, 2, "Requested", "This title has already been requested.");
-        }
-
-        if (!resp.IsSuccessStatusCode)
-        {
-            var errMsg = ExtractSeerrError(respBody) ?? $"Seerr returned HTTP {(int)resp.StatusCode}.";
-            throw new InvalidOperationException(errMsg);
-        }
-
-        var newStatus = 2;
-        try
-        {
-            using var doc = JsonDocument.Parse(respBody);
-            if (doc.RootElement.TryGetProperty("media", out var mediaEl) && mediaEl.ValueKind == JsonValueKind.Object)
-            {
-                newStatus = Math.Clamp(JsonInt(mediaEl, "status", 2), 2, 5);
-            }
-        }
-        catch
-        {
-        }
-
-        return (true, newStatus, MapStatusLabel(newStatus), "Request submitted to Seerr!");
-    }
-
-    public static async Task ValidateSafeSeerrBaseUrlAsync(string rawBaseUrl, CancellationToken cancellationToken)
-    {
-        if (!Uri.TryCreate(rawBaseUrl, UriKind.Absolute, out var uri))
-        {
-            throw new InvalidOperationException("Seerr URL must be a valid http:// or https:// address.");
-        }
-
-        if (!string.Equals(uri.Scheme, Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase)
-            && !string.Equals(uri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase))
-        {
-            throw new InvalidOperationException("Only http:// or https:// Seerr URLs are supported.");
-        }
-
-        if (!string.IsNullOrEmpty(uri.UserInfo) || !string.IsNullOrEmpty(uri.Query) || !string.IsNullOrEmpty(uri.Fragment))
-        {
-            throw new InvalidOperationException("Seerr URL must not embed credentials, query parameters, or URL fragments.");
-        }
-
-        IPAddress[] addrs;
-        if (IPAddress.TryParse(uri.DnsSafeHost, out var literalIp))
-        {
-            addrs = new[] { literalIp };
-        }
-        else
-        {
-            addrs = await Dns.GetHostAddressesAsync(uri.DnsSafeHost, cancellationToken).ConfigureAwait(false);
-        }
-
-        if (addrs.Length == 0)
-        {
-            throw new InvalidOperationException($"Could not resolve Seerr host '{uri.DnsSafeHost}'.");
-        }
-
-        foreach (var rawIp in addrs)
-        {
-            var ip = rawIp.IsIPv4MappedToIPv6 ? rawIp.MapToIPv4() : rawIp;
-            if (IsForbiddenMetadataOrUnspecifiedIp(ip))
-            {
-                throw new InvalidOperationException("Seerr target IP is blocked by SSRF security policy.");
-            }
-        }
-    }
-
-    private static HttpRequestMessage BuildGetRequest(string url, string apiKey)
-    {
-        var req = new HttpRequestMessage(HttpMethod.Get, url);
-        req.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
-        req.Headers.TryAddWithoutValidation("X-Api-Key", apiKey);
-        return req;
-    }
-
     private static string BuildSafeTmdbImageUrl(string rawPath, string sizeBucket)
     {
         var trimmed = (rawPath ?? string.Empty).Trim();
@@ -975,7 +1364,6 @@ public static class StreamFlixSeerrService
         {
             if (item.ValueKind == JsonValueKind.Number && item.TryGetInt32(out var gid))
             {
-                // TMDB Genre 27 = Horror
                 if (gid == 27)
                 {
                     return true;
@@ -996,10 +1384,10 @@ public static class StreamFlixSeerrService
         try
         {
             using var doc = JsonDocument.Parse(body);
-            var msg = JsonStr(doc.RootElement, "message");
+            var msg = FirstNonEmpty(JsonStr(doc.RootElement, "message"), JsonStr(doc.RootElement, "error"));
             if (!string.IsNullOrWhiteSpace(msg))
             {
-                return msg.Length > 180 ? msg.Substring(0, 180) : msg;
+                return msg.Length > 200 ? msg.Substring(0, 200) : msg;
             }
         }
         catch

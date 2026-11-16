@@ -616,6 +616,66 @@
         fetchDevices();
     }
 
+    function applySeerrStatusUpdate(tmdbId, isTv, nextStatus, nextLabel) {
+        if (Array.isArray(state.seerrSearchResults)) {
+            state.seerrSearchResults.forEach(function (it) {
+                if (it && Number(it.tmdbId) === Number(tmdbId) && (String(it.mediaType || '').toLowerCase() === 'tv') === Boolean(isTv)) {
+                    it.mediaStatus = nextStatus;
+                    it.statusLabel = nextLabel;
+                }
+            });
+        }
+    }
+
+    function quickRequestSeerrMovie(seerrItem) {
+        if (!seerrItem || !seerrItem.tmdbId) {
+            return;
+        }
+        var tmdbId = Number(seerrItem.tmdbId);
+        var isTv = String(seerrItem.mediaType || '').toLowerCase() === 'tv';
+        var key = (isTv ? 'tv' : 'movie') + ':' + tmdbId;
+        if (!state.seerrSubmittingMap) {
+            state.seerrSubmittingMap = {};
+        }
+        if (state.seerrSubmittingMap[key]) {
+            return;
+        }
+        state.seerrSubmittingMap[key] = true;
+        if (state.searchQuery) {
+            renderCinemaHubContents();
+        }
+
+        var activeProfId = (state.activeProfile && state.activeProfile.id) || '';
+        apiFetch('/StreamFlix/Seerr/Request', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                tmdbId: tmdbId,
+                mediaType: isTv ? 'tv' : 'movie',
+                seasons: isTv ? [] : undefined,
+                is4k: false,
+                profileId: activeProfId
+            })
+        }).then(function (res) {
+            delete state.seerrSubmittingMap[key];
+            var nextStatus = (res && res.mediaStatus) ? Number(res.mediaStatus) : 2;
+            var nextLabel = (res && res.statusLabel) || 'Requested';
+            seerrItem.mediaStatus = nextStatus;
+            seerrItem.statusLabel = nextLabel;
+            applySeerrStatusUpdate(tmdbId, isTv, nextStatus, nextLabel);
+            showToast((res && res.message) || ('Requested "' + (seerrItem.title || 'Title') + '"!'), 'success');
+            if (state.searchQuery) {
+                renderCinemaHubContents();
+            }
+        }).catch(function (err) {
+            delete state.seerrSubmittingMap[key];
+            showToast((err && err.message) || 'Request failed — check Seerr settings.', 'error');
+            if (state.searchQuery) {
+                renderCinemaHubContents();
+            }
+        });
+    }
+
     function openSeerrRequestModal(seerrItem) {
         if (!seerrItem || !seerrItem.tmdbId) {
             return;
@@ -627,19 +687,30 @@
         var artUrl = /^https:\/\//i.test(rawArt) ? rawArt : '';
         var rawVote = Number(seerrItem.rating || seerrItem.voteAverage || 0);
         var rating = rawVote > 0 ? rawVote.toFixed(1) : '';
+        if (Number(seerrItem.mediaStatus) === 7) {
+            seerrItem.mediaStatus = 1;
+        }
 
         var seasons = [];
         var selectedSeasons = {};
         var loadingTv = isTv;
         var submitting = false;
         var errorMsg = '';
+        var tvAbort = (isTv && typeof AbortController === 'function') ? new AbortController() : null;
 
         var m = openModal('<div id="bfx-seerr-modal-root"></div>', {
-            className: 'streamflix-modal-md bfx-seerr-modal'
+            className: 'streamflix-modal-md bfx-seerr-modal',
+            onClose: function () {
+                if (tvAbort) {
+                    try { tvAbort.abort(); } catch (eAb) {}
+                    tvAbort = null;
+                }
+            }
         });
 
         function statusPillInfo(statusNum, customLabel, dlPct) {
             var st = Number(statusNum || 1);
+            if (st === 7) { st = 1; }
             var hasDl = (typeof dlPct === 'number' && !isNaN(dlPct)) || /^downloading/i.test(String(customLabel || ''));
             if (hasDl && (st === 2 || st === 3)) {
                 return {
@@ -663,7 +734,7 @@
                 return;
             }
             var chosenSeasons = isTv ? countSelectedSeasons() : [];
-            if (isTv && !chosenSeasons.length) {
+            if (isTv && seasons.length > 0 && !chosenSeasons.length) {
                 errorMsg = 'Select at least one season to request.';
                 render();
                 return;
@@ -679,6 +750,7 @@
                     tmdbId: tmdbId,
                     mediaType: isTv ? 'tv' : 'movie',
                     seasons: isTv ? chosenSeasons : undefined,
+                    is4k: false,
                     profileId: activeProfId
                 })
             }).then(function (res) {
@@ -687,14 +759,7 @@
                 var nextLabel = (res && res.statusLabel) || 'Requested';
                 seerrItem.mediaStatus = nextStatus;
                 seerrItem.statusLabel = nextLabel;
-                if (Array.isArray(state.seerrSearchResults)) {
-                    state.seerrSearchResults.forEach(function (it) {
-                        if (it && Number(it.tmdbId) === tmdbId && String(it.mediaType || '').toLowerCase() === (isTv ? 'tv' : 'movie')) {
-                            it.mediaStatus = nextStatus;
-                            it.statusLabel = nextLabel;
-                        }
-                    });
-                }
+                applySeerrStatusUpdate(tmdbId, isTv, nextStatus, nextLabel);
                 showToast((res && res.message) || ('Requested "' + (seerrItem.title || 'Title') + '"!'), 'success');
                 m.close(true);
                 if (state.searchQuery) {
@@ -746,8 +811,11 @@
             } else if (loadingTv) {
                 seasonsSectionHtml = '<div class="bfx-modal-loading" style="padding:20px 0;"><div class="streamflix-spinner-ring" style="width:32px;height:32px;border-width:3px;"></div><span>Loading seasons from Seerr…</span></div>';
             } else if (!seasons.length) {
-                canSubmit = Number(seerrItem.mediaStatus || 1) === 1 || Number(seerrItem.mediaStatus || 1) === 4;
-                seasonsSectionHtml = '<div class="bfx-seerr-status-note">No individual season breakdown returned by Seerr.</div>';
+                var tvSt = Number(seerrItem.mediaStatus || 1);
+                if (tvSt === 7) { tvSt = 1; }
+                canSubmit = tvSt === 1 || tvSt === 4;
+                submitLabel = 'Request Series';
+                seasonsSectionHtml = '<div class="bfx-seerr-status-note">All available seasons will be requested in Seerr.</div>';
             } else {
                 var requestableCount = 0;
                 var rowsHtml = seasons.map(function (s) {
@@ -874,19 +942,25 @@
         render();
 
         if (isTv) {
-            apiFetch('/StreamFlix/Seerr/Tv/' + encodeURIComponent(String(tmdbId)) + '?profileId=' + encodeURIComponent(activeProfId))
+            apiFetch(
+                '/StreamFlix/Seerr/Tv/' + encodeURIComponent(String(tmdbId)) + '?profileId=' + encodeURIComponent(activeProfId),
+                tvAbort ? { signal: tvAbort.signal } : {}
+            )
                 .then(function (res) {
+                    tvAbort = null;
                     loadingTv = false;
                     var rawSeasons = (res && Array.isArray(res.seasons)) ? res.seasons : [];
                     seasons = rawSeasons.filter(function (s) { return s && Number(s.seasonNumber) >= 1; });
                     seasons.forEach(function (s) {
                         var st = Number(s.status || 1);
+                        if (st === 7) { st = 1; }
+                        s.status = st;
                         if (st === 1 || st === 4) {
                             selectedSeasons[Number(s.seasonNumber)] = true;
                         }
                     });
                     if (res && res.mediaStatus) {
-                        seerrItem.mediaStatus = res.mediaStatus;
+                        seerrItem.mediaStatus = Number(res.mediaStatus) === 7 ? 1 : res.mediaStatus;
                     }
                     if (res && res.statusLabel) {
                         seerrItem.statusLabel = res.statusLabel;
@@ -903,6 +977,10 @@
                     render();
                 })
                 .catch(function (err) {
+                    if (err && err.name === 'AbortError') {
+                        return;
+                    }
+                    tvAbort = null;
                     loadingTv = false;
                     errorMsg = (err && err.message) || 'Could not load season details from Seerr.';
                     render();
@@ -920,17 +998,25 @@
         var filterKey = 'all';
         var loading = true;
 
+        var reqsAbort = null;
+
         var m = openModal(''
             + '<div class="bfx-modal-top">'
             + '  <div class="bfx-modal-top-title">'
-            + '    <span class="bfx-modal-kicker">' + icon('sparkle') + ' <span>SEERR TRACKER</span></span>'
+            + '    <span class="bfx-modal-kicker">' + icon('seerrIcon') + ' <span>SEERR TRACKER</span></span>'
             + '    <h2>Media Requests</h2>'
             + '    <p class="streamflix-modal-text">Track requested movies and TV seasons from queue to download to ready-to-watch.</p>'
             + '  </div>'
             + '  <button type="button" class="streamflix-detail-close bfx-modal-close-inline" data-act="close" aria-label="Close">' + icon('close') + '</button>'
             + '</div>'
             + '<div id="bfx-seerr-reqs-body"><div class="bfx-modal-loading"><div class="streamflix-spinner-ring"></div><span>Loading recent requests from Seerr…</span></div></div>', {
-            className: 'streamflix-modal-lg bfx-seerr-reqs-modal'
+            className: 'streamflix-modal-lg bfx-seerr-reqs-modal',
+            onClose: function () {
+                if (reqsAbort) {
+                    try { reqsAbort.abort(); } catch (eAbR) {}
+                    reqsAbort = null;
+                }
+            }
         });
 
         m.modal.querySelector('[data-act="close"]').addEventListener('click', function () {
@@ -990,15 +1076,27 @@
         }
 
         function fetchRequests() {
+            if (reqsAbort) {
+                try { reqsAbort.abort(); } catch (ePrev) {}
+            }
+            reqsAbort = typeof AbortController === 'function' ? new AbortController() : null;
             loading = true;
             renderBody();
-            apiFetch('/StreamFlix/Seerr/Requests?profileId=' + encodeURIComponent(activeProfId))
+            apiFetch(
+                '/StreamFlix/Seerr/Requests?profileId=' + encodeURIComponent(activeProfId),
+                reqsAbort ? { signal: reqsAbort.signal } : {}
+            )
                 .then(function (res) {
+                    reqsAbort = null;
                     loading = false;
                     requests = (res && Array.isArray(res.requests)) ? res.requests : [];
                     renderBody();
                 })
                 .catch(function (err) {
+                    if (err && err.name === 'AbortError') {
+                        return;
+                    }
+                    reqsAbort = null;
                     loading = false;
                     if (!m.isClosed()) {
                         var bodyEl = m.modal.querySelector('#bfx-seerr-reqs-body');
