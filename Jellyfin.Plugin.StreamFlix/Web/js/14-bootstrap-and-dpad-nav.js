@@ -4,6 +4,7 @@
        ---------------------------------------------------------------------- */
     var configFetchInFlight = null;
     var lastConfigFetchAt = 0;
+    var contextReactivationPromptedFor = '';
 
     function fetchPublicConfig() {
         if (configFetchInFlight) {
@@ -168,6 +169,15 @@
                 state.activeProfile = null;
                 localStorage.removeItem(PROFILE_KEY);
             } else if (sp) {
+                var contextProfileId = String(state.config.activeProfileContextProfileId || '');
+                if (!isGuestPassSession() && contextProfileId !== String(sp.id)) {
+                    if (contextReactivationPromptedFor !== String(sp.id)) {
+                        contextReactivationPromptedFor = String(sp.id);
+                        handleSelectProfile(sp);
+                    }
+                    return;
+                }
+                contextReactivationPromptedFor = '';
                 state.activeProfile.name = sp.name || state.activeProfile.name;
                 state.activeProfile.color = sp.color || state.activeProfile.color;
                 state.activeProfile.icon = sp.icon || state.activeProfile.icon;

@@ -100,6 +100,8 @@ public class StreamFlixActiveProfileContext
 {
     public string SessionFingerprint { get; set; } = string.Empty;
 
+    public string JellyfinTokenFingerprint { get; set; } = string.Empty;
+
     public string ProfileId { get; set; } = string.Empty;
 
     public string JellyfinUserId { get; set; } = string.Empty;

@@ -526,12 +526,13 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages
                     .Select(e => new StreamFlixActiveProfileContext
                     {
                         SessionFingerprint = Val(e, nameof(StreamFlixActiveProfileContext.SessionFingerprint)) ?? string.Empty,
+                        JellyfinTokenFingerprint = Val(e, nameof(StreamFlixActiveProfileContext.JellyfinTokenFingerprint)) ?? string.Empty,
                         ProfileId = Val(e, nameof(StreamFlixActiveProfileContext.ProfileId)) ?? string.Empty,
                         JellyfinUserId = Val(e, nameof(StreamFlixActiveProfileContext.JellyfinUserId)) ?? string.Empty,
                         ProfileSecurityFingerprint = Val(e, nameof(StreamFlixActiveProfileContext.ProfileSecurityFingerprint)) ?? string.Empty,
                         ExpiresAtUtc = Val(e, nameof(StreamFlixActiveProfileContext.ExpiresAtUtc)) ?? string.Empty,
                     })
-                    .Where(x => !string.IsNullOrWhiteSpace(x.SessionFingerprint)
+                    .Where(x => !string.IsNullOrWhiteSpace(x.JellyfinTokenFingerprint)
                         && !string.IsNullOrWhiteSpace(x.ProfileId)
                         && !string.IsNullOrWhiteSpace(x.JellyfinUserId)
                         && !string.IsNullOrWhiteSpace(x.ProfileSecurityFingerprint))
@@ -713,6 +714,10 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages
             if (cfg.ActiveProfileContexts == null)
             {
                 cfg.ActiveProfileContexts = new List<StreamFlixActiveProfileContext>();
+                dirty = true;
+            }
+            else if (cfg.ActiveProfileContexts.RemoveAll(context => string.IsNullOrWhiteSpace(context.JellyfinTokenFingerprint)) > 0)
+            {
                 dirty = true;
             }
 

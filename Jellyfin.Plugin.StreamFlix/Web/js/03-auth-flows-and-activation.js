@@ -649,6 +649,7 @@
             if (state.config) {
                 var sessionHasAdmin = Boolean(state.googleUser && (state.googleUser.isAdmin || state.googleUser.authKind === 'jellyfin_admin'));
                 state.config.isAdmin = (Boolean(activated.isAdmin) || sessionHasAdmin) && !isGuestPassSession();
+                state.config.activeProfileContextProfileId = activated.id;
                 if (!state.config.isAdmin) {
                     state.config.serverUsers = [];
                     state.config.approvedGoogleAccounts = [];

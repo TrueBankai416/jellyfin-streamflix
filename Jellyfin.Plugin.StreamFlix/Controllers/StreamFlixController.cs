@@ -507,6 +507,7 @@ public partial class StreamFlixController : ControllerBase
         var isAdmin = sessionIsAdmin;
         var isVerifiedJellyfinAdmin = false;
         var isGuestPassToken = false;
+        string? jellyfinTokenFingerprint = null;
         JUser? jellyfinAuthUser = null;
         try
         {
@@ -520,9 +521,10 @@ public partial class StreamFlixController : ControllerBase
 
                 var guestPassId = string.Empty;
                 isGuestPassToken = !info.IsApiKey
-                    && TryGetGuestPassIdFromJellyfinAuthorization(config, info.Token, out guestPassId);
+                    && TryGetGuestPassIdFromJellyfinAuthorization(config, info.DeviceId, info.Token, out guestPassId);
                 if (isGuestPassToken
-                    && (session == null
+                    && (!IsGuestPassTokenValid(config, guestPassId)
+                        || session == null
                         || !string.Equals(session.AuthKind, StreamFlixSessionService.AuthKindGuestPass, StringComparison.Ordinal)
                         || !string.Equals(session.GuestPassId, guestPassId, StringComparison.Ordinal)))
                 {
@@ -543,6 +545,11 @@ public partial class StreamFlixController : ControllerBase
                 {
                     isAuthenticated = true;
                     jellyfinAuthUser = info.User;
+                    if (!info.IsApiKey && !string.IsNullOrWhiteSpace(info.Token))
+                    {
+                        jellyfinTokenFingerprint = ComputeCredentialFingerprint(info.Token);
+                    }
+
                     isVerifiedJellyfinAdmin = info.IsApiKey
                         || (!isGuestPassToken && info.User != null && StreamFlixStartupTask.IsUserAdminCompat(info.User));
                     isAdmin = isAdmin || isVerifiedJellyfinAdmin;
@@ -554,7 +561,7 @@ public partial class StreamFlixController : ControllerBase
             _logger.LogDebug(ex, "StreamFlix: could not read Jellyfin authorization info.");
         }
 
-        return new CallerContext(session, isAuthenticated, isAdmin, isLocalLan, jellyfinAuthUser, isVerifiedJellyfinAdmin, isGuestPassToken);
+        return new CallerContext(session, isAuthenticated, isAdmin, isLocalLan, jellyfinAuthUser, isVerifiedJellyfinAdmin, isGuestPassToken, jellyfinTokenFingerprint);
     }
 
     private object BuildPublicState(PluginConfiguration config, CallerContext caller)
@@ -634,6 +641,7 @@ public partial class StreamFlixController : ControllerBase
             hasGoogleClientSecret = caller.IsAdmin && !string.IsNullOrWhiteSpace(config.GoogleClientSecret),
             hasAccess,
             isAdmin = caller.IsAdmin,
+            activeProfileContextProfileId = GetActivatedProfileForGuestPasses(config, caller)?.Id,
             enableGuestPasses = config.EnableGuestPasses,
             guestPassManagerProfileIds = hasAccess && !isGuestPass
                 ? (config.GuestPassManagerProfileIds ?? new List<string>()).ToList()
@@ -750,5 +758,6 @@ public partial class StreamFlixController : ControllerBase
         bool IsLocalLan = false,
         JUser? JellyfinUser = null,
         bool IsVerifiedJellyfinAdmin = false,
-        bool IsGuestPassToken = false);
+        bool IsGuestPassToken = false,
+        string? JellyfinTokenFingerprint = null);
 }

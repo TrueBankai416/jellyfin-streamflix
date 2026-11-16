@@ -727,6 +727,9 @@
                     }).catch(function (err) {
                         makeGuestBtn.disabled = false;
                         makeGuestBtn.classList.remove('streamflix-btn-loading');
+                        if (handleGuestPassContextRequired(m, err)) {
+                            return;
+                        }
                         showToast((err && err.message) || 'Could not create Guest Pass link.', 'error');
                     });
                 });

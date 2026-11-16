@@ -214,7 +214,7 @@ public partial class StreamFlixController
         var appVersion = !string.IsNullOrWhiteSpace(request?.AppVersion) ? request!.AppVersion!.Trim() : "10.11.0";
         var deviceId = isGuest && !string.IsNullOrWhiteSpace(caller.Session?.GuestPassId)
             ? BuildGuestDeviceId(caller.Session!.GuestPassId!, request?.DeviceId)
-            : (!string.IsNullOrWhiteSpace(request?.DeviceId) ? request!.DeviceId!.Trim() : $"streamflix-profile-{profile.Id}");
+            : BuildProfileDeviceId(profile.Id, request?.DeviceId);
         var deviceName = isGuest
             ? $"StreamFlix Guest ({(string.IsNullOrWhiteSpace(caller.Session?.Username) ? profile.Name : caller.Session!.Username)})"
             : (!string.IsNullOrWhiteSpace(request?.DeviceName) ? request!.DeviceName!.Trim() : $"StreamFlix ({profile.Name})");
@@ -247,7 +247,7 @@ public partial class StreamFlixController
         }
         else if (!string.IsNullOrWhiteSpace(authResult.AccessToken))
         {
-            await RegisterActiveProfileContextAsync(config, caller, profile, user).ConfigureAwait(false);
+            await RegisterActiveProfileContextAsync(config, caller, profile, user, authResult.AccessToken).ConfigureAwait(false);
         }
 
         return Ok(new
@@ -366,16 +366,26 @@ public partial class StreamFlixController
             return BadRequest(new { message = $"You can create at most {MaxProfilesCount} profiles." });
         }
 
-        // Administrator/owner profiles can only be edited while signed in to an administrator profile,
-        // and protected profiles can only be edited by someone who can open them.
-        if (existing != null && !caller.IsAdmin)
+        var isPrivilegedProfileEdit = existing != null
+            && (IsProfileLinkedToAdmin(existing)
+                || (config.GuestPassManagerProfileIds ?? new List<string>())
+                    .Contains(existing.Id, StringComparer.OrdinalIgnoreCase));
+        if (existing != null
+            && (!caller.IsAdmin || (isPrivilegedProfileEdit && !caller.IsVerifiedJellyfinAdmin)))
         {
-            if (IsProfileLinkedToAdmin(existing))
+            if (isPrivilegedProfileEdit
+                && !caller.IsVerifiedJellyfinAdmin
+                && string.IsNullOrWhiteSpace(existing.PinCode)
+                && string.IsNullOrWhiteSpace(existing.GoogleAccountEmail))
             {
-                return StatusCode(403, new { code = "admin_required", message = "Switch to an administrator profile first to edit an administrator profile." });
+                return StatusCode(403, new
+                {
+                    code = "admin_required",
+                    message = "Verified Jellyfin administrator credentials or the target profile's existing PIN/account lock are required to edit this profile.",
+                });
             }
 
-            var lockResult = CheckGoogleLock(config, existing, caller);
+            var lockResult = CheckGoogleLock(config, existing, caller, allowAdminBypass: false);
             if (lockResult != null)
             {
                 return lockResult;
@@ -421,7 +431,7 @@ public partial class StreamFlixController
 
                 var changed = !string.Equals(newLock, existing?.GoogleAccountEmail, StringComparison.OrdinalIgnoreCase)
                     || !string.Equals(newLockKind ?? string.Empty, existing?.AccountLockKind ?? string.Empty, StringComparison.OrdinalIgnoreCase);
-                if (changed && !caller.IsAdmin && !DoesCallerOwnExplicitLock(config, newLock, newLockKind, caller))
+                if (changed && !caller.IsVerifiedJellyfinAdmin && !DoesCallerOwnExplicitLock(config, newLock, newLockKind, caller))
                 {
                     return StatusCode(403, new { code = "google_lock_forbidden", message = "You can only lock a profile to the account you're currently signed in with." });
                 }
@@ -445,7 +455,7 @@ public partial class StreamFlixController
         JUser? targetUser = null;
         var createName = cleanName;
 
-        if (caller.IsAdmin)
+        if (caller.IsVerifiedJellyfinAdmin)
         {
             createName = !string.IsNullOrWhiteSpace(request.JellyfinUsername) ? request.JellyfinUsername.Trim() : cleanName;
             if (explicitUid != Guid.Empty)
@@ -525,7 +535,7 @@ public partial class StreamFlixController
         }
 
         if (targetUser != null
-            && !caller.IsAdmin
+            && !caller.IsVerifiedJellyfinAdmin
             && StreamFlixStartupTask.IsUserAdminCompat(targetUser)
             && !string.Equals(targetUser.Id.ToString("N"), currentLinkedId, StringComparison.OrdinalIgnoreCase))
         {
@@ -1034,23 +1044,28 @@ public partial class StreamFlixController
         PluginConfiguration config,
         CallerContext caller,
         StreamFlixProfileConfig profile,
-        JUser user)
+        JUser user,
+        string jellyfinAccessToken)
     {
         var sessionToken = Request.Headers[StreamFlixSessionService.HeaderName].FirstOrDefault()?.Trim();
-        if (caller.Session == null || IsGuestSession(caller) || string.IsNullOrWhiteSpace(sessionToken))
+        if (IsGuestSession(caller)
+            || string.IsNullOrWhiteSpace(jellyfinAccessToken)
+            || (caller.Session != null && string.IsNullOrWhiteSpace(sessionToken)))
         {
             return;
         }
 
         var now = DateTimeOffset.UtcNow;
-        var sessionFingerprint = ComputeCredentialFingerprint(sessionToken);
+        var sessionFingerprint = caller.Session == null ? string.Empty : ComputeCredentialFingerprint(sessionToken!);
+        var jellyfinTokenFingerprint = ComputeCredentialFingerprint(jellyfinAccessToken);
         var activeContext = new StreamFlixActiveProfileContext
         {
             SessionFingerprint = sessionFingerprint,
+            JellyfinTokenFingerprint = jellyfinTokenFingerprint,
             ProfileId = profile.Id,
             JellyfinUserId = user.Id.ToString("N"),
             ProfileSecurityFingerprint = ComputeProfileSecurityFingerprint(profile),
-            ExpiresAtUtc = caller.Session.ExpiresAt.ToString("O", CultureInfo.InvariantCulture),
+            ExpiresAtUtc = (caller.Session?.ExpiresAt ?? now.AddDays(30)).ToString("O", CultureInfo.InvariantCulture),
         };
 
         await SyncLock.WaitAsync().ConfigureAwait(false);
@@ -1060,7 +1075,7 @@ public partial class StreamFlixController
             {
                 config.ActiveProfileContexts ??= new List<StreamFlixActiveProfileContext>();
                 config.ActiveProfileContexts.RemoveAll(context =>
-                    string.Equals(context.SessionFingerprint, sessionFingerprint, StringComparison.Ordinal)
+                    string.Equals(context.JellyfinTokenFingerprint, jellyfinTokenFingerprint, StringComparison.Ordinal)
                     || !DateTimeOffset.TryParse(context.ExpiresAtUtc, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var expiresAt)
                     || expiresAt <= now);
                 config.ActiveProfileContexts.Add(activeContext);

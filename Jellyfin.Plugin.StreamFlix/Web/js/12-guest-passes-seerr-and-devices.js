@@ -2,6 +2,30 @@
     /* ----------------------------------------------------------------------
        7b. v0.7.0+ Modals: Temporary Guest Passes & Seerr Requests
        ---------------------------------------------------------------------- */
+    function handleGuestPassContextRequired(modal, err) {
+        if (!err || err.code !== 'guest_pass_context_required') {
+            return false;
+        }
+        var profileId = state.activeProfile && state.activeProfile.id;
+        if (modal && !modal.isClosed()) {
+            modal.close(false);
+        }
+        showToast('Verify your profile again to manage Guest Passes.', 'info');
+        fetchPublicConfig().then(function () {
+            var profile = profileId ? findProfileById(profileId) : null;
+            if (profile) {
+                handleSelectProfile(profile);
+                return;
+            }
+            state.activeProfile = null;
+            localStorage.removeItem(PROFILE_KEY);
+            renderProfilePickerGate();
+        }).catch(function (refreshError) {
+            showToast((refreshError && refreshError.message) || 'Could not refresh profile access.', 'error');
+        });
+        return true;
+    }
+
     function openGuestPassesModal() {
         if (!canActiveProfileManageGuestPasses()) {
             showToast('The active profile does not have permission to manage Guest Passes.', 'error');
@@ -305,6 +329,9 @@
                         if (createBtn) {
                             createBtn.disabled = false;
                         }
+                        if (handleGuestPassContextRequired(m, err)) {
+                            return;
+                        }
                         showToast((err && err.message) || 'Could not create Guest Pass.', 'error');
                     });
                 });
@@ -328,6 +355,9 @@
                         })
                         .catch(function (err) {
                             busyAction = false;
+                            if (handleGuestPassContextRequired(m, err)) {
+                                return;
+                            }
                             showToast((err && err.message) || 'Could not load Guest Pass QR code.', 'error');
                         });
                 });
@@ -359,6 +389,9 @@
                     }).catch(function (err) {
                         busyAction = false;
                         btn.disabled = false;
+                        if (handleGuestPassContextRequired(m, err)) {
+                            return;
+                        }
                         showToast((err && err.message) || 'Could not revoke Guest Pass.', 'error');
                     });
                 });
@@ -374,6 +407,9 @@
             })
             .catch(function (err) {
                 loading = false;
+                if (handleGuestPassContextRequired(m, err)) {
+                    return;
+                }
                 if (!m.isClosed()) {
                     var bodyEl = m.modal.querySelector('#bfx-gp-body');
                     if (bodyEl) {

@@ -810,8 +810,19 @@
         }
         var isNew = !existingProfile;
         var isAdmin = isHouseholdAdmin();
+        var verifiedJellyfinAdmin = Boolean(state.activeProfile && state.activeProfile.isAdmin && state.activeProfile.accessToken);
+        var canChooseJellyfinAccount = verifiedJellyfinAdmin;
+        var managerProfileIds = state.config && Array.isArray(state.config.guestPassManagerProfileIds)
+            ? state.config.guestPassManagerProfileIds
+            : [];
+        var isPrivilegedTarget = Boolean(existingProfile && (
+            existingProfile.isAdmin
+            || existingProfile.isOwner
+            || managerProfileIds.some(function (id) {
+                return String(id).toLowerCase() === String(existingProfile.id || '').toLowerCase();
+            })
+        ));
 
-        // Administrator/owner profiles can only be edited while signed in to an administrator profile.
         if (!isNew && !isAdmin && (existingProfile.isAdmin || existingProfile.isOwner)) {
             confirmDialog({
                 title: 'Administrator Profile',
@@ -827,8 +838,28 @@
             return;
         }
 
-        // Protected profiles can only be edited by someone who can open them (admins excepted)
-        if (!isNew && !isAdmin) {
+        if (!isNew && isPrivilegedTarget && !verifiedJellyfinAdmin
+            && !existingProfile.hasPin && !existingProfile.googleLocked) {
+            if (existingProfile.isAdmin || existingProfile.isOwner) {
+                confirmDialog({
+                    title: 'Administrator Credentials Required',
+                    message: 'Switch to "' + existingProfile.name + '" and verify its Jellyfin administrator credentials before editing this profile.',
+                    confirmText: 'Switch to ' + existingProfile.name,
+                    cancelText: 'Cancel'
+                }).then(function (ok) {
+                    if (ok) {
+                        state.manageMode = false;
+                        handleSelectProfile(existingProfile);
+                    }
+                });
+            } else {
+                showToast('Verified Jellyfin administrator credentials are required because this manager profile has no PIN or account lock.', 'error');
+            }
+            return;
+        }
+
+        // Protected profiles can only be edited by someone who can open them or a verified Jellyfin administrator.
+        if (!isNew && (!isAdmin || (isPrivilegedTarget && !verifiedJellyfinAdmin))) {
             if (existingProfile.googleLocked && !existingProfile.googleLockSatisfied) {
                 openGoogleLockPrompt(existingProfile);
                 return;
@@ -854,9 +885,9 @@
         }
 
         var profileCount = getProfiles().length;
-        var serverUsers = (isAdmin && state.config && Array.isArray(state.config.serverUsers)) ? state.config.serverUsers : [];
+        var serverUsers = (canChooseJellyfinAccount && state.config && Array.isArray(state.config.serverUsers)) ? state.config.serverUsers : [];
         var defaultNewJfUserId = '__CREATE__';
-        if (isNew && isAdmin && !getProfiles().some(function (p) { return p && (p.isAdmin || p.isOwner); })) {
+        if (isNew && canChooseJellyfinAccount && !getProfiles().some(function (p) { return p && (p.isAdmin || p.isOwner); })) {
             var sessAdminUid = state.googleUser && state.googleUser.userId ? normalizeGuid(state.googleUser.userId) : '';
             var matchedAdminSu = null;
             for (var suIdx = 0; suIdx < serverUsers.length; suIdx++) {
@@ -891,7 +922,7 @@
 
         // Linked Jellyfin account: only administrators can view the server user list or change which account a profile uses.
         var userOptionsHtml = '';
-        if (isAdmin) {
+        if (canChooseJellyfinAccount) {
             userOptionsHtml = serverUsers.map(function (su) {
                 var selected = draft.jellyfinUserId && draft.jellyfinUserId !== '__CREATE__' && normalizeGuid(draft.jellyfinUserId) === normalizeGuid(su.id) ? ' selected' : '';
                 var adminAttr = su.isAdmin ? ' data-is-admin="1"' : '';
@@ -903,7 +934,7 @@
         var lockedAccountTitle = isNew
             ? 'New dedicated Jellyfin user'
             : ((draft.jellyfinUsername || draft.name || 'Dedicated Jellyfin user') + (draft.isAdmin ? ' (Admin)' : ''));
-        var linkedAccountSectionHtml = isAdmin
+        var linkedAccountSectionHtml = canChooseJellyfinAccount
             ? (''
                 + '<div class="streamflix-field">'
                 + '  <label for="streamflix-prof-jfuser">Linked Jellyfin User</label>'
@@ -998,17 +1029,17 @@
             addLockOption(defSsoKind, sessionEmail, 'Only ' + formatLockPrefix(defSsoKind) + sessionEmail + ' (you)');
         }
 
-        if (isAdmin && state.config && Array.isArray(state.config.approvedGoogleAccounts)) {
+        if (canChooseJellyfinAccount && state.config && Array.isArray(state.config.approvedGoogleAccounts)) {
             state.config.approvedGoogleAccounts.forEach(function (em) {
                 addLockOption('google', em);
             });
         }
-        if (isAdmin && state.config && Array.isArray(state.config.approvedOidcUsers)) {
+        if (canChooseJellyfinAccount && state.config && Array.isArray(state.config.approvedOidcUsers)) {
             state.config.approvedOidcUsers.forEach(function (u) {
                 addLockOption('oidc', u);
             });
         }
-        if (isAdmin && stdLockActive && Array.isArray(serverUsers)) {
+        if (canChooseJellyfinAccount && stdLockActive && Array.isArray(serverUsers)) {
             serverUsers.forEach(function (su) {
                 if (su && su.name) {
                     addLockOption('jellyfin', su.name);
