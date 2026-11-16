@@ -1,22 +1,25 @@
 using System;
 using System.IO;
+using System.Security.Cryptography;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http.Features;
 using Microsoft.Extensions.Logging;
 
 namespace Jellyfin.Plugin.StreamFlix.Services;
 
 /// <summary>
 /// Request-time ASP.NET Core middleware (<see cref="IStartupFilter"/>) that injects the StreamFlix
-/// Netflix UI stylesheet and script into Jellyfin's <c>/web/index.html</c> response and prevents
-/// stale 304 browser cache hits from serving un-injected HTML.
+/// Netflix UI stylesheet and script into Jellyfin's <c>/web/index.html</c> response while composing
+/// cooperatively with other web-rewriting plugins (such as WebGPU Player and File Transformation).
 /// </summary>
 public class StreamFlixStartupFilter : IStartupFilter
 {
+    private static readonly UTF8Encoding Utf8NoBom = new(encoderShouldEmitUTF8Identifier: false);
     private readonly ILogger<StreamFlixStartupFilter> _logger;
     private int _loggedOnce;
 
@@ -83,87 +86,113 @@ public class StreamFlixStartupFilter : IStartupFilter
             return;
         }
 
-        // Strip conditional cache headers and compression/range headers so the browser
-        // never receives a 304 Not Modified with an old cached un-injected index.html.
+        // Capture client ETag validator before stripping conditional/compression headers for downstream middleware
+        // (so WebGPU Player, File Transformation, and StaticFileMiddleware all emit uncompressed 200 HTML into our buffer).
+        var clientIfNoneMatch = context.Request.Headers["If-None-Match"].ToString();
         context.Request.Headers.Remove("Accept-Encoding");
         context.Request.Headers.Remove("Range");
         context.Request.Headers.Remove("If-Range");
         context.Request.Headers.Remove("If-None-Match");
         context.Request.Headers.Remove("If-Modified-Since");
-
-        // Fast & reliable path: if index.html exists on disk in WebPath, read and serve it
-        // directly with the StreamFlix bundle injected so Kestrel's SendFileAsync cannot bypass us.
-        var diskIndex = Plugin.Instance?.IndexHtmlPath;
-        if (!string.IsNullOrEmpty(diskIndex) && File.Exists(diskIndex))
-        {
-            try
-            {
-                var diskHtml = await File.ReadAllTextAsync(diskIndex, Encoding.UTF8).ConfigureAwait(false);
-                var injectedHtml = InjectBundleIfNeeded(diskHtml);
-                var diskBytes = Encoding.UTF8.GetBytes(injectedHtml);
-
-                context.Response.StatusCode = 200;
-                context.Response.ContentType = "text/html;charset=utf-8";
-                context.Response.ContentLength = diskBytes.Length;
-                context.Response.Headers["Cache-Control"] = "no-cache, no-store, must-revalidate";
-                context.Response.Headers["Pragma"] = "no-cache";
-                context.Response.Headers["Expires"] = "0";
-                context.Response.Headers.Remove("ETag");
-                context.Response.Headers.Remove("Last-Modified");
-                context.Response.Headers.Remove("Accept-Ranges");
-
-                await context.Response.Body.WriteAsync(diskBytes, 0, diskBytes.Length).ConfigureAwait(false);
-                return;
-            }
-            catch (Exception ex)
-            {
-                _logger.LogDebug(ex, "StreamFlix: falling back to buffered downstream response for index.html.");
-            }
-        }
+        context.Request.Headers.Remove("If-Match");
+        context.Request.Headers.Remove("If-Unmodified-Since");
 
         var originalBody = context.Response.Body;
+        var originalBodyFeature = context.Features.Get<IHttpResponseBodyFeature>();
         using var buffer = new MemoryStream();
+        context.Features.Set<IHttpResponseBodyFeature>(new StreamResponseBodyFeature(buffer));
         context.Response.Body = buffer;
         try
         {
             await nextMw().ConfigureAwait(false);
         }
-        catch
+        finally
         {
             context.Response.Body = originalBody;
-            throw;
+            if (originalBodyFeature != null)
+            {
+                context.Features.Set<IHttpResponseBodyFeature>(originalBodyFeature);
+            }
         }
 
-        context.Response.Body = originalBody;
-        buffer.Seek(0, SeekOrigin.Begin);
-
-        var isHtml = context.Response.StatusCode == 200
-            && (context.Response.ContentType?.Contains("text/html", StringComparison.OrdinalIgnoreCase) ?? false);
-
-        if (!isHtml)
+        // Preserve redirects (e.g. /web -> /web/ so WebGPU Player's /web/ base path resolution stays intact) and non-200 responses
+        if (context.Response.StatusCode != StatusCodes.Status200OK)
         {
-            await buffer.CopyToAsync(originalBody).ConfigureAwait(false);
+            if (buffer.Length > 0)
+            {
+                buffer.Seek(0, SeekOrigin.Begin);
+                await buffer.CopyToAsync(originalBody).ConfigureAwait(false);
+            }
+
             return;
         }
 
-        string html;
-        using (var reader = new StreamReader(buffer, Encoding.UTF8, true, 1024, leaveOpen: true))
+        // If downstream left body empty despite 200 OK, fall back to reading index.html from WebPath on disk
+        string? html = null;
+        if (buffer.Length == 0)
         {
+            var diskIndex = Plugin.Instance?.IndexHtmlPath;
+            if (!string.IsNullOrEmpty(diskIndex) && File.Exists(diskIndex))
+            {
+                try
+                {
+                    html = await File.ReadAllTextAsync(diskIndex, Encoding.UTF8).ConfigureAwait(false);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogDebug(ex, "StreamFlix: fallback disk read for index.html failed.");
+                }
+            }
+        }
+        else
+        {
+            var isHtml = (context.Response.ContentType?.Contains("text/html", StringComparison.OrdinalIgnoreCase) ?? false)
+                || string.IsNullOrEmpty(context.Response.ContentType);
+            var isUncompressed = string.IsNullOrEmpty(context.Response.Headers["Content-Encoding"].ToString());
+
+            if (!isHtml || !isUncompressed)
+            {
+                buffer.Seek(0, SeekOrigin.Begin);
+                await buffer.CopyToAsync(originalBody).ConfigureAwait(false);
+                return;
+            }
+
+            buffer.Seek(0, SeekOrigin.Begin);
+            using var reader = new StreamReader(buffer, Encoding.UTF8, detectEncodingFromByteOrderMarks: true, bufferSize: 1024, leaveOpen: true);
             html = await reader.ReadToEndAsync().ConfigureAwait(false);
         }
 
-        html = InjectBundleIfNeeded(html);
+        if (string.IsNullOrEmpty(html))
+        {
+            return;
+        }
 
-        var bytes = Encoding.UTF8.GetBytes(html);
-        context.Response.ContentType = "text/html;charset=utf-8";
-        context.Response.ContentLength = bytes.Length;
-        context.Response.Headers["Cache-Control"] = "no-cache, no-store, must-revalidate";
-        context.Response.Headers["Pragma"] = "no-cache";
-        context.Response.Headers["Expires"] = "0";
-        context.Response.Headers.Remove("ETag");
+        var injectedHtml = InjectBundleIfNeeded(html);
+        var bytes = Utf8NoBom.GetBytes(injectedHtml);
+        var computedEtag = ComputeStrongEtag(bytes);
+
         context.Response.Headers.Remove("Last-Modified");
         context.Response.Headers.Remove("Accept-Ranges");
+        context.Response.Headers["Cache-Control"] = "no-cache";
+        context.Response.Headers["ETag"] = computedEtag;
+
+        if (!string.IsNullOrEmpty(clientIfNoneMatch) && clientIfNoneMatch.Contains(computedEtag, StringComparison.Ordinal))
+        {
+            context.Response.StatusCode = StatusCodes.Status304NotModified;
+            context.Response.ContentLength = null;
+            return;
+        }
+
+        context.Response.ContentType = "text/html;charset=utf-8";
+        context.Response.ContentLength = bytes.Length;
         await originalBody.WriteAsync(bytes, 0, bytes.Length).ConfigureAwait(false);
+    }
+
+    private static string ComputeStrongEtag(ReadOnlySpan<byte> content)
+    {
+        Span<byte> hash = stackalloc byte[32];
+        SHA256.HashData(content, hash);
+        return "\"sf-" + Convert.ToHexString(hash.Slice(0, 8)).ToLowerInvariant() + "\"";
     }
 
     private string InjectBundleIfNeeded(string html)
@@ -192,7 +221,7 @@ public class StreamFlixStartupFilter : IStartupFilter
                 html = html.Substring(0, bodyClose) + injectionBlock + "\n" + html.Substring(bodyClose);
                 if (Interlocked.Exchange(ref _loggedOnce, 1) == 0)
                 {
-                    _logger.LogInformation("StreamFlix: injected Netflix UI & Google OAuth gate into index.html via StreamFlixStartupFilter.");
+                    _logger.LogInformation("StreamFlix: injected Netflix UI & SSO gate into index.html via composable StreamFlixStartupFilter.");
                 }
             }
         }

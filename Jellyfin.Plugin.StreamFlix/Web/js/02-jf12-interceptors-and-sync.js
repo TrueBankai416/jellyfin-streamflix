@@ -74,7 +74,8 @@
         XMLHttpRequest.prototype.open = function (method, url) {
             this.__streamflixMethod = String(method || 'GET').toUpperCase();
             var urlStr = typeof url === 'string' ? url : String(url || '');
-            var isSameOrigin = isSafeSameOriginUrl(urlStr);
+            var isAnonAddonAsset = urlStr.toLowerCase().indexOf('/webgpuplayer/addon/') !== -1;
+            var isSameOrigin = !isAnonAddonAsset && isSafeSameOriginUrl(urlStr);
             this.__streamflixSameOrigin = isSameOrigin;
             this.__streamflixHeaders = {};
 
@@ -147,15 +148,19 @@
                 urlStr = typeof input === 'string' ? input : (input && input.url ? input.url : String(input));
             } catch (e) {}
 
+            var lowCheckUrl = String(urlStr || '').toLowerCase();
+            if (lowCheckUrl.indexOf('/webgpuplayer/addon/') !== -1) {
+                return nativeFetch(input, init);
+            }
+
             var isSameOrigin = isSafeSameOriginUrl(urlStr);
 
             var method = ((init && init.method) || (input && input.method) || 'GET').toUpperCase();
 
             if (isSameOrigin && method === 'POST' && init && typeof init.body === 'string' && typeof onWatchPartyNativeProgressReport === 'function') {
                 try {
-                    var fUrlLow = String(urlStr || '').toLowerCase();
-                    if (fUrlLow.indexOf('/sessions/playing') !== -1 && init.body.charAt(0) === '{') {
-                        onWatchPartyNativeProgressReport(JSON.parse(init.body), fUrlLow);
+                    if (lowCheckUrl.indexOf('/sessions/playing') !== -1 && init.body.charAt(0) === '{') {
+                        onWatchPartyNativeProgressReport(JSON.parse(init.body), lowCheckUrl);
                     }
                 } catch (eProg) {}
             }
@@ -166,34 +171,37 @@
             }
 
             if (isSameOrigin && getActiveToken()) {
-                init = init || {};
-                var token = getActiveToken();
-                var authVal = getEmbyAuthHeader(token);
-                if (typeof Headers !== 'undefined' && init.headers instanceof Headers) {
-                    init.headers.set('Authorization', authVal);
-                    init.headers.set('X-Emby-Authorization', authVal);
-                    init.headers.set('X-Emby-Token', token);
-                } else if (typeof input !== 'string' && input && input.headers && typeof Headers !== 'undefined') {
-                    var mergedHeaders = new Headers(input.headers);
-                    if (init.headers) {
-                        var extraHeaders = new Headers(init.headers);
-                        extraHeaders.forEach(function (v, k) {
-                            mergedHeaders.set(k, v);
-                        });
+                var token = sanitizeHeaderField(getActiveToken());
+                if (token) {
+                    var authVal = getEmbyAuthHeader(token);
+                    init = Object.assign({}, init || {});
+                    if (typeof Headers !== 'undefined') {
+                        var baseHdrs = init.headers || (typeof input !== 'string' && input && input.headers ? input.headers : undefined);
+                        var mergedHeaders = new Headers(baseHdrs || undefined);
+                        mergedHeaders.set('Authorization', authVal);
+                        mergedHeaders.set('X-Emby-Authorization', authVal);
+                        mergedHeaders.set('X-Emby-Token', token);
+                        init.headers = mergedHeaders;
+                    } else {
+                        var hCopy = Object.assign({}, init.headers || {});
+                        hCopy['Authorization'] = authVal;
+                        hCopy['X-Emby-Authorization'] = authVal;
+                        hCopy['X-Emby-Token'] = token;
+                        init.headers = hCopy;
                     }
-                    mergedHeaders.set('Authorization', authVal);
-                    mergedHeaders.set('X-Emby-Authorization', authVal);
-                    mergedHeaders.set('X-Emby-Token', token);
-                    init.headers = mergedHeaders;
-                } else {
-                    init.headers = buildJellyfinAuthHeaders(init.headers);
                 }
             }
 
             return nativeFetch(input, init).then(function (res) {
+                if (isSameOrigin && lowCheckUrl.indexOf('/webgpuplayer/clientdefaults') !== -1) {
+                    setTimeout(function () {
+                        syncAutomaticWebGpuPlayerPreference();
+                    }, 0);
+                }
+
                 if (isSameOrigin && res && res.status === 401 && state.activeProfile && state.activeProfile.accessToken) {
                     var lowUrl = String(urlStr || '').toLowerCase();
-                    if (lowUrl.indexOf('/streamflix/') === -1 && lowUrl.indexOf('/sessions/logout') === -1) {
+                    if (lowUrl.indexOf('/streamflix/') === -1 && lowUrl.indexOf('/sessions/logout') === -1 && lowUrl.indexOf('/webgpuplayer/') === -1) {
                         clearLocalJellyfinAuth();
                         state.activeProfile = null;
                         state.sessionVerifiedOnce = false;
@@ -366,29 +374,400 @@
         };
     }
 
+    var webGpuRuntimeState = {
+        probed: false,
+        adapterAvailable: null,
+        failedNormIds: {},
+        lastChosenMode: '',
+        lastFallbackNormId: '',
+        lastFallbackAtMs: 0,
+        observerInstalled: false
+    };
+
+    function isWebGpuPluginInstalled() {
+        return Boolean(
+            window.WebGPUPlayer
+            || window.WebGPUPlayerConfig
+            || document.querySelector('script[data-webgpu-player-bootstrap]')
+        );
+    }
+
+    function isDesktopWebGpuEligibleClient() {
+        try {
+            if (!window.isSecureContext || window.NativeShell) {
+                return false;
+            }
+            if (typeof navigator === 'undefined' || !navigator.gpu || typeof navigator.gpu.requestAdapter !== 'function') {
+                return false;
+            }
+            var ua = String(navigator.userAgent || '');
+            if (/Android|iPhone|iPad|iPod|Mobile|SmartTV|Web0S|Tizen|CrKey|PlayStation|Xbox/i.test(ua)) {
+                return false;
+            }
+            var docEl = document.documentElement;
+            if (docEl && (docEl.classList.contains('layout-tv') || docEl.classList.contains('layout-mobile'))) {
+                return false;
+            }
+            if (document.body && (document.body.classList.contains('bfx-phone-mode') || document.body.classList.contains('bfx-tv-mode'))) {
+                return false;
+            }
+            if (navigator.maxTouchPoints > 1 && Math.min(window.innerWidth || 9999, window.innerHeight || 9999) < 820) {
+                return false;
+            }
+            return true;
+        } catch (e) {
+            return false;
+        }
+    }
+
+    function collectKnownConnectionManagers() {
+        var cmList = [];
+        var addCm = function (candidate) {
+            if (candidate && cmList.indexOf(candidate) === -1) {
+                cmList.push(candidate);
+            }
+        };
+        addCm(window.ServerConnections);
+        addCm(window.ConnectionManager);
+        if (window.Emby) {
+            addCm(window.Emby.ConnectionManager);
+        }
+        return cmList;
+    }
+
+    function resolveCurrentContextItemNormId(explicitTargetId) {
+        if (explicitTargetId) {
+            return normalizeGuid(explicitTargetId);
+        }
+        if (state.lastPlayNormId && state.lastPlayTimestamp && (Date.now() - state.lastPlayTimestamp < 30000)) {
+            return state.lastPlayNormId;
+        }
+        var h = String(window.location.hash || '');
+        var m = h.match(/[?&]id=([a-f0-9-]+)/i);
+        return m ? normalizeGuid(m[1]) : '';
+    }
+
+    function syncAutomaticWebGpuPlayerPreference(forceMode, targetItemId) {
+        if (!isWebGpuPluginInstalled()) {
+            webGpuRuntimeState.lastChosenMode = 'html';
+            return 'html';
+        }
+        var normItemId = resolveCurrentContextItemNormId(targetItemId);
+        var chosen = forceMode;
+        if (!chosen) {
+            if (normItemId && webGpuRuntimeState.failedNormIds[normItemId]) {
+                chosen = 'html';
+            } else {
+                var canUse = isDesktopWebGpuEligibleClient()
+                    && webGpuRuntimeState.adapterAvailable !== false;
+                chosen = canUse ? 'webgpu' : 'html';
+            }
+        }
+        webGpuRuntimeState.lastChosenMode = chosen;
+        try {
+            var uids = [''];
+            var activeUid = getActiveUserId();
+            if (activeUid && uids.indexOf(activeUid) === -1) {
+                uids.push(activeUid);
+            }
+            if (window.ApiClient && typeof window.ApiClient.__origGetCurrentUserId === 'function') {
+                var rawUid = window.ApiClient.__origGetCurrentUserId();
+                if (rawUid && uids.indexOf(rawUid) === -1) {
+                    uids.push(rawUid);
+                }
+            }
+            var cmList = collectKnownConnectionManagers();
+            for (var c = 0; c < cmList.length; c++) {
+                try {
+                    var curAc = typeof cmList[c].currentApiClient === 'function' ? cmList[c].currentApiClient() : null;
+                    var cmUid = curAc && typeof curAc.getCurrentUserId === 'function' ? curAc.getCurrentUserId() : '';
+                    if (cmUid && uids.indexOf(cmUid) === -1) {
+                        uids.push(cmUid);
+                    }
+                } catch (eCmUid) {}
+            }
+            for (var i = 0; i < uids.length; i++) {
+                var prefix = uids[i] ? (uids[i] + '-') : '';
+                localStorage.setItem(prefix + 'preferredVideoPlayer', chosen);
+                localStorage.setItem(prefix + 'webGPULegacyChoicesMigrated', 'true');
+            }
+        } catch (e) {}
+        return chosen;
+    }
+
+    function probeWebGpuAdapterOnce() {
+        if (webGpuRuntimeState.probed || !isWebGpuPluginInstalled()) {
+            return;
+        }
+        webGpuRuntimeState.probed = true;
+        if (!isDesktopWebGpuEligibleClient()) {
+            webGpuRuntimeState.adapterAvailable = false;
+            syncAutomaticWebGpuPlayerPreference('html');
+            return;
+        }
+        try {
+            navigator.gpu.requestAdapter().then(function (adapter) {
+                webGpuRuntimeState.adapterAvailable = Boolean(adapter);
+                syncAutomaticWebGpuPlayerPreference();
+            }).catch(function () {
+                webGpuRuntimeState.adapterAvailable = false;
+                syncAutomaticWebGpuPlayerPreference('html');
+            });
+        } catch (e) {
+            webGpuRuntimeState.adapterAvailable = false;
+            syncAutomaticWebGpuPlayerPreference('html');
+        }
+    }
+
+    function installWebGpuFatalErrorFallbackWatcher() {
+        if (webGpuRuntimeState.observerInstalled || typeof MutationObserver !== 'function' || !document.body) {
+            return;
+        }
+        webGpuRuntimeState.observerInstalled = true;
+
+        // Also ensure native Jellyfin detail/card Play clicks sync WebGPU/HTML preference for that item beforehand
+        try {
+            document.addEventListener('click', function (ev) {
+                if (!isWebGpuPluginInstalled() || !ev || !ev.target || !ev.target.closest) {
+                    return;
+                }
+                var playEl = ev.target.closest('.btnPlay, .btnResume, button[data-action="play"], button[data-action="resume"]');
+                if (!playEl) {
+                    return;
+                }
+                var cardWithId = playEl.closest('[data-id]');
+                var clickedId = (cardWithId && cardWithId.getAttribute('data-id')) || '';
+                if (!clickedId) {
+                    var hm = String(window.location.hash || '').match(/[?&]id=([a-f0-9-]+)/i);
+                    clickedId = hm ? hm[1] : '';
+                }
+                if (clickedId) {
+                    var normClicked = normalizeGuid(clickedId);
+                    if (!state.lastPlayNormId || state.lastPlayNormId !== normClicked) {
+                        state.lastPlayNormId = normClicked;
+                        state.lastPlayRawTarget = clickedId;
+                        state.lastPlayTimestamp = Date.now();
+                    }
+                    syncAutomaticWebGpuPlayerPreference(null, normClicked);
+                }
+            }, true);
+        } catch (eClickHook) {}
+
+        try {
+            var obs = new MutationObserver(function () {
+                if (!isWebGpuPluginInstalled() || webGpuRuntimeState.lastChosenMode !== 'webgpu') {
+                    return;
+                }
+                var dlg = document.querySelector(
+                    '.dialogContainer:not([data-bfx-dismissing="true"]) .dialog:not(.hide), '
+                    + '.MuiDialog-root:not([data-bfx-dismissing="true"]), '
+                    + '.webgpuFailureDialog:not(.hide):not([data-bfx-dismissing="true"])'
+                );
+                if (!dlg) {
+                    return;
+                }
+                var txt = String(dlg.textContent || '').toLowerCase();
+                var isFatalPlaybackAlert = (txt.indexOf('playback error') !== -1 && txt.indexOf('fatal player error') !== -1)
+                    || dlg.classList.contains('webgpuFailureDialog');
+                if (!isFatalPlaybackAlert) {
+                    return;
+                }
+
+                var replayId = resolveCurrentContextItemNormId('');
+                var nowMs = Date.now();
+                if (!replayId || (webGpuRuntimeState.lastFallbackNormId === replayId && (nowMs - webGpuRuntimeState.lastFallbackAtMs) < 12000)) {
+                    return;
+                }
+
+                webGpuRuntimeState.failedNormIds[replayId] = true;
+                webGpuRuntimeState.lastFallbackNormId = replayId;
+                webGpuRuntimeState.lastFallbackAtMs = nowMs;
+                syncAutomaticWebGpuPlayerPreference('html', replayId);
+
+                var wrap = (dlg.closest && dlg.closest('.dialogContainer, .MuiDialog-root')) || dlg;
+                wrap.setAttribute('data-bfx-dismissing', 'true');
+                wrap.style.setProperty('opacity', '0', 'important');
+                wrap.style.setProperty('pointer-events', 'none', 'important');
+
+                if (typeof showPlaybackLoader === 'function') {
+                    showPlaybackLoader('Starting playback…');
+                }
+
+                var dismissBtn = dlg.querySelector('button[data-id="ok"], .btnSubmit, button');
+                if (dismissBtn) {
+                    setTimeout(function () {
+                        try { dismissBtn.click(); } catch (eClick) {}
+                    }, 10);
+                }
+
+                setTimeout(function () {
+                    if (typeof playItemImmediately === 'function') {
+                        playItemImmediately(
+                            state.lastPlayRawTarget || replayId,
+                            state.lastPlayAudioIndex,
+                            state.lastPlaySubtitleIndex,
+                            state.lastPlayForcedTicks,
+                            { forceReplay: true }
+                        );
+                    }
+                }, 220);
+            });
+            obs.observe(document.body, { childList: true, subtree: true });
+        } catch (eObs) {}
+    }
+
+    function patchSingleApiClientInstance(ac) {
+        if (!ac || ac.__streamflixPatched) {
+            return ac;
+        }
+        ac.__streamflixPatched = true;
+
+        if (typeof ac.serverId === 'function') {
+            var origServerId = ac.serverId.bind(ac);
+            ac.__origServerId = origServerId;
+            ac.serverId = function () {
+                var sid = origServerId();
+                return sid || (state.activeProfile && state.activeProfile.serverId) || (state.config && state.config.serverId) || '';
+            };
+        }
+
+        if (typeof ac.getCurrentUserId === 'function') {
+            var origGetCurrentUserId = ac.getCurrentUserId.bind(ac);
+            ac.__origGetCurrentUserId = origGetCurrentUserId;
+            ac.getCurrentUserId = function () {
+                return (state.activeProfile && state.activeProfile.jellyfinUserId) || origGetCurrentUserId() || '';
+            };
+        }
+
+        if (typeof ac.accessToken === 'function') {
+            var origAccessToken = ac.accessToken.bind(ac);
+            ac.__origAccessToken = origAccessToken;
+            ac.accessToken = function () {
+                return (state.activeProfile && state.activeProfile.accessToken) || origAccessToken() || '';
+            };
+        }
+
+        if (typeof ac.getItems === 'function') {
+            var origGetItems = ac.getItems.bind(ac);
+            ac.getItems = function (userId, options) {
+                var opts = Object.assign({}, options || {});
+                if (opts.ParentId === 'undefined' || opts.ParentId === 'null') {
+                    delete opts.ParentId;
+                }
+                if (opts.parentId === 'undefined' || opts.parentId === 'null') {
+                    delete opts.parentId;
+                }
+                var uid = userId || getActiveUserId();
+                return origGetItems(uid, opts).then(function (res) {
+                    if (res && Array.isArray(res.Items) && res.Items.length > 0) {
+                        return stampServerIdOnItems(res);
+                    }
+                    if (opts.Filters || opts.IncludeItemTypes === 'Episode' || opts.IncludeItemTypes === 'Season') {
+                        return res;
+                    }
+                    var qs = new URLSearchParams();
+                    if (uid) {
+                        qs.set('userId', String(uid));
+                    }
+                    Object.keys(opts).forEach(function (k) {
+                        if (opts[k] !== undefined && opts[k] !== null && k.toLowerCase() !== 'userid') {
+                            qs.set(k, String(opts[k]));
+                        }
+                    });
+                    qs.set('Recursive', 'true');
+                    return apiFetch('/Items?' + qs.toString()).then(function (d1) {
+                        if (d1 && Array.isArray(d1.Items) && d1.Items.length > 0) {
+                            return stampServerIdOnItems(d1);
+                        }
+                        var pid = qs.get('ParentId') || qs.get('parentId') || '';
+                        if (pid && !isKnownTopLevelViewId(pid)) {
+                            return res;
+                        }
+                        var inferredType = inferItemTypesForParentOrRoute(pid, qs.get('IncludeItemTypes'));
+                        if (!inferredType) {
+                            return res;
+                        }
+                        qs.delete('ParentId');
+                        qs.delete('parentId');
+                        qs.set('IncludeItemTypes', inferredType);
+                        return apiFetch('/Items?' + qs.toString()).then(function (d2) {
+                            return (d2 && Array.isArray(d2.Items) && d2.Items.length > 0) ? stampServerIdOnItems(d2) : res;
+                        });
+                    }).catch(function () {
+                        return res;
+                    });
+                });
+            };
+        }
+
+        if (typeof ac.getLatestItems === 'function') {
+            var origGetLatest = ac.getLatestItems.bind(ac);
+            ac.getLatestItems = function (options) {
+                return origGetLatest(options).then(function (res) {
+                    if (Array.isArray(res) && res.length > 0) {
+                        return stampServerIdOnItems(res);
+                    }
+                    var opts = options || {};
+                    var pid = opts.ParentId || opts.parentId || '';
+                    var inferredType = inferItemTypesForParentOrRoute(pid, opts.IncludeItemTypes) || 'Movie,Series';
+                    var qs = new URLSearchParams();
+                    var uid = getActiveUserId();
+                    if (uid) {
+                        qs.set('userId', String(uid));
+                    }
+                    qs.set('Recursive', 'true');
+                    qs.set('IncludeItemTypes', inferredType);
+                    qs.set('SortBy', 'DateCreated,SortName');
+                    qs.set('SortOrder', 'Descending');
+                    qs.set('Limit', String(opts.Limit || 16));
+                    if (opts.Fields) {
+                        qs.set('Fields', String(opts.Fields));
+                    }
+                    return apiFetch('/Items?' + qs.toString()).then(function (d) {
+                        return (d && Array.isArray(d.Items) && d.Items.length > 0) ? stampServerIdOnItems(d.Items) : res;
+                    }).catch(function () {
+                        return res;
+                    });
+                });
+            };
+        }
+
+        return ac;
+    }
+
     function patchJellyfinApiClientMethods() {
         try {
-            var cmList = [];
-            if (window.ConnectionManager) {
-                cmList.push(window.ConnectionManager);
-            }
-            if (window.Emby && window.Emby.ConnectionManager && cmList.indexOf(window.Emby.ConnectionManager) === -1) {
-                cmList.push(window.Emby.ConnectionManager);
-            }
+            probeWebGpuAdapterOnce();
+            syncAutomaticWebGpuPlayerPreference();
+            installWebGpuFatalErrorFallbackWatcher();
+
+            var cmList = collectKnownConnectionManagers();
             for (var cIdx = 0; cIdx < cmList.length; cIdx++) {
                 var cm = cmList[cIdx];
                 if (cm && !cm.__streamflixPatched) {
                     cm.__streamflixPatched = true;
+                    if (typeof cm.currentApiClient === 'function') {
+                        var origCurrentApiClient = cm.currentApiClient.bind(cm);
+                        cm.currentApiClient = function () {
+                            try {
+                                var cur = origCurrentApiClient();
+                                if (cur) {
+                                    return patchSingleApiClientInstance(cur);
+                                }
+                            } catch (e) {}
+                            return window.ApiClient ? patchSingleApiClientInstance(window.ApiClient) : null;
+                        };
+                    }
                     if (typeof cm.getApiClient === 'function') {
                         var origGetApiClient = cm.getApiClient.bind(cm);
                         cm.getApiClient = function (itemOrServerId) {
                             try {
                                 var res = origGetApiClient(itemOrServerId);
                                 if (res) {
-                                    return res;
+                                    return patchSingleApiClientInstance(res);
                                 }
                             } catch (e) {}
-                            return window.ApiClient || null;
+                            return window.ApiClient ? patchSingleApiClientInstance(window.ApiClient) : null;
                         };
                     }
                     if (typeof cm.getApi === 'function') {
@@ -397,6 +776,10 @@
                             try {
                                 var apiRes = origGetApi(itemOrServerId);
                                 if (apiRes) {
+                                    var activeTok = getActiveToken();
+                                    if (activeTok && typeof apiRes.update === 'function' && apiRes.accessToken !== activeTok) {
+                                        try { apiRes.update({ accessToken: activeTok }); } catch (eUpd) {}
+                                    }
                                     return apiRes;
                                 }
                             } catch (e) {}
@@ -404,123 +787,18 @@
                         };
                     }
                 }
-            }
-
-            if (!window.ApiClient || window.ApiClient.__streamflixPatched) {
-                return;
-            }
-            window.ApiClient.__streamflixPatched = true;
-
-            if (typeof window.ApiClient.serverId === 'function') {
-                var origServerId = window.ApiClient.serverId.bind(window.ApiClient);
-                window.ApiClient.__origServerId = origServerId;
-                window.ApiClient.serverId = function () {
-                    var sid = origServerId();
-                    return sid || (state.activeProfile && state.activeProfile.serverId) || (state.config && state.config.serverId) || '';
-                };
-            }
-
-            if (typeof window.ApiClient.getCurrentUserId === 'function') {
-                var origGetCurrentUserId = window.ApiClient.getCurrentUserId.bind(window.ApiClient);
-                window.ApiClient.__origGetCurrentUserId = origGetCurrentUserId;
-                window.ApiClient.getCurrentUserId = function () {
-                    var uid = origGetCurrentUserId();
-                    return uid || (state.activeProfile && state.activeProfile.jellyfinUserId) || '';
-                };
-            }
-
-            if (typeof window.ApiClient.accessToken === 'function') {
-                var origAccessToken = window.ApiClient.accessToken.bind(window.ApiClient);
-                window.ApiClient.__origAccessToken = origAccessToken;
-                window.ApiClient.accessToken = function () {
-                    var tok = origAccessToken();
-                    return tok || (state.activeProfile && state.activeProfile.accessToken) || '';
-                };
-            }
-
-            if (typeof window.ApiClient.getItems === 'function') {
-                var origGetItems = window.ApiClient.getItems.bind(window.ApiClient);
-                window.ApiClient.getItems = function (userId, options) {
-                    var opts = Object.assign({}, options || {});
-                    if (opts.ParentId === 'undefined' || opts.ParentId === 'null') {
-                        delete opts.ParentId;
+                try {
+                    var existingClients = typeof cm.getApiClients === 'function' ? cm.getApiClients() : cm._apiClients;
+                    if (Array.isArray(existingClients)) {
+                        for (var a = 0; a < existingClients.length; a++) {
+                            patchSingleApiClientInstance(existingClients[a]);
+                        }
                     }
-                    if (opts.parentId === 'undefined' || opts.parentId === 'null') {
-                        delete opts.parentId;
-                    }
-                    var uid = userId || getActiveUserId();
-                    return origGetItems(uid, opts).then(function (res) {
-                        if (res && Array.isArray(res.Items) && res.Items.length > 0) {
-                            return stampServerIdOnItems(res);
-                        }
-                        if (opts.Filters || opts.IncludeItemTypes === 'Episode' || opts.IncludeItemTypes === 'Season') {
-                            return res;
-                        }
-                        var qs = new URLSearchParams();
-                        if (uid) {
-                            qs.set('userId', String(uid));
-                        }
-                        Object.keys(opts).forEach(function (k) {
-                            if (opts[k] !== undefined && opts[k] !== null && k.toLowerCase() !== 'userid') {
-                                qs.set(k, String(opts[k]));
-                            }
-                        });
-                        qs.set('Recursive', 'true');
-                        return apiFetch('/Items?' + qs.toString()).then(function (d1) {
-                            if (d1 && Array.isArray(d1.Items) && d1.Items.length > 0) {
-                                return stampServerIdOnItems(d1);
-                            }
-                            var pid = qs.get('ParentId') || qs.get('parentId') || '';
-                            if (pid && !isKnownTopLevelViewId(pid)) {
-                                return res;
-                            }
-                            var inferredType = inferItemTypesForParentOrRoute(pid, qs.get('IncludeItemTypes'));
-                            if (!inferredType) {
-                                return res;
-                            }
-                            qs.delete('ParentId');
-                            qs.delete('parentId');
-                            qs.set('IncludeItemTypes', inferredType);
-                            return apiFetch('/Items?' + qs.toString()).then(function (d2) {
-                                return (d2 && Array.isArray(d2.Items) && d2.Items.length > 0) ? stampServerIdOnItems(d2) : res;
-                            });
-                        }).catch(function () {
-                            return res;
-                        });
-                    });
-                };
+                } catch (eList) {}
             }
 
-            if (typeof window.ApiClient.getLatestItems === 'function') {
-                var origGetLatest = window.ApiClient.getLatestItems.bind(window.ApiClient);
-                window.ApiClient.getLatestItems = function (options) {
-                    return origGetLatest(options).then(function (res) {
-                        if (Array.isArray(res) && res.length > 0) {
-                            return stampServerIdOnItems(res);
-                        }
-                        var opts = options || {};
-                        var pid = opts.ParentId || opts.parentId || '';
-                        var inferredType = inferItemTypesForParentOrRoute(pid, opts.IncludeItemTypes) || 'Movie,Series';
-                        var qs = new URLSearchParams();
-                        var uid = getActiveUserId();
-                        if (uid) {
-                            qs.set('userId', String(uid));
-                        }
-                        qs.set('Recursive', 'true');
-                        qs.set('IncludeItemTypes', inferredType);
-                        qs.set('SortBy', 'DateCreated,SortName');
-                        qs.set('SortOrder', 'Descending');
-                        qs.set('Limit', String(opts.Limit || 16));
-                        if (opts.Fields) {
-                            qs.set('Fields', String(opts.Fields));
-                        }
-                        return apiFetch('/Items?' + qs.toString()).then(function (d) {
-                            return (d && Array.isArray(d.Items) && d.Items.length > 0) ? stampServerIdOnItems(d.Items) : res;
-                        }).catch(function () {
-                            return res;
-                        });
-                    });
-                };
+            if (window.ApiClient) {
+                patchSingleApiClientInstance(window.ApiClient);
             }
         } catch (e) {}
     }
@@ -600,26 +878,69 @@
         } catch (e) {}
 
         try {
-            if (window.ApiClient) {
-                if (window.ApiClient._serverInfo) {
-                    if (serverId) {
-                        window.ApiClient._serverInfo.Id = serverId;
+            var targetClients = [];
+            var pushClient = function (c) {
+                if (c && targetClients.indexOf(c) === -1) {
+                    targetClients.push(c);
+                }
+            };
+            pushClient(window.ApiClient);
+            var cmList = collectKnownConnectionManagers();
+            for (var cIdx = 0; cIdx < cmList.length; cIdx++) {
+                var cm = cmList[cIdx];
+                try {
+                    if (typeof cm.currentApiClient === 'function') {
+                        pushClient(cm.currentApiClient());
                     }
-                    window.ApiClient._serverInfo.UserId = authPayload.userId;
-                    window.ApiClient._serverInfo.AccessToken = authPayload.accessToken;
-                    window.ApiClient._serverInfo.ManualAddress = window.ApiClient._serverInfo.ManualAddress || address;
-                    window.ApiClient._serverInfo.LocalAddress = window.ApiClient._serverInfo.LocalAddress || address;
+                } catch (eCur) {}
+                try {
+                    if (serverId && typeof cm.getApiClient === 'function') {
+                        pushClient(cm.getApiClient(serverId));
+                    }
+                } catch (eById) {}
+                try {
+                    var allClients = typeof cm.getApiClients === 'function' ? cm.getApiClients() : cm._apiClients;
+                    if (Array.isArray(allClients)) {
+                        for (var a = 0; a < allClients.length; a++) {
+                            pushClient(allClients[a]);
+                        }
+                    }
+                } catch (eAll) {}
+                try {
+                    if (serverId && typeof cm.getApi === 'function') {
+                        var sdkApi = cm.getApi(serverId);
+                        if (sdkApi && typeof sdkApi.update === 'function') {
+                            sdkApi.update({
+                                basePath: address,
+                                accessToken: authPayload.accessToken
+                            });
+                        }
+                    }
+                } catch (eCmSdk) {}
+            }
+
+            for (var tIdx = 0; tIdx < targetClients.length; tIdx++) {
+                var client = targetClients[tIdx];
+                patchSingleApiClientInstance(client);
+                if (client._serverInfo) {
+                    if (serverId) {
+                        client._serverInfo.Id = serverId;
+                    }
+                    client._serverInfo.UserId = authPayload.userId;
+                    client._serverInfo.AccessToken = authPayload.accessToken;
+                    client._serverInfo.ManualAddress = client._serverInfo.ManualAddress || address;
+                    client._serverInfo.LocalAddress = client._serverInfo.LocalAddress || address;
                 }
                 try {
-                    if (typeof window.ApiClient.setAuthenticationInfo === 'function') {
-                        window.ApiClient.setAuthenticationInfo(authPayload.accessToken, authPayload.userId);
+                    if (typeof client.setAuthenticationInfo === 'function') {
+                        client.setAuthenticationInfo(authPayload.accessToken, authPayload.userId);
                     }
                 } catch (eAuth) {}
                 // NOTE: In @jellyfin/sdk, Api.prototype.accessToken is a getter-only property!
-                // Never assign window.ApiClient._sdk.accessToken = ... directly in strict mode; call _sdk.update() instead.
+                // Never assign client._sdk.accessToken = ... directly in strict mode; call _sdk.update() instead.
                 try {
-                    if (window.ApiClient._sdk && typeof window.ApiClient._sdk.update === 'function') {
-                        window.ApiClient._sdk.update({
+                    if (client._sdk && typeof client._sdk.update === 'function') {
+                        client._sdk.update({
                             basePath: address,
                             accessToken: authPayload.accessToken
                         });
@@ -629,21 +950,26 @@
                     if (serverId && !authPayload.user.ServerId) {
                         authPayload.user.ServerId = serverId;
                     }
-                    window.ApiClient._currentUser = authPayload.user;
-                    try {
-                        if (typeof window.ApiClient.onAuthenticated === 'function') {
-                            window.ApiClient.onAuthenticated(window.ApiClient, {
-                                User: authPayload.user,
-                                SessionInfo: authPayload.sessionInfo || null,
-                                AccessToken: authPayload.accessToken,
-                                ServerId: serverId || (authPayload.user && authPayload.user.ServerId) || ''
-                            });
-                        }
-                    } catch (eOnAuth) {}
-                } else if (window.ApiClient._currentUser && normalizeGuid(window.ApiClient._currentUser.Id) !== normalizeGuid(authPayload.userId)) {
-                    window.ApiClient._currentUser = null;
+                    client._currentUser = authPayload.user;
+                    if (client === window.ApiClient) {
+                        try {
+                            if (typeof client.onAuthenticated === 'function') {
+                                client.onAuthenticated(client, {
+                                    User: authPayload.user,
+                                    SessionInfo: authPayload.sessionInfo || null,
+                                    AccessToken: authPayload.accessToken,
+                                    ServerId: serverId || (authPayload.user && authPayload.user.ServerId) || ''
+                                });
+                            }
+                        } catch (eOnAuth) {}
+                    }
+                } else if (client._currentUser && normalizeGuid(client._currentUser.Id) !== normalizeGuid(authPayload.userId)) {
+                    client._currentUser = null;
                 }
             }
+
+            probeWebGpuAdapterOnce();
+            syncAutomaticWebGpuPlayerPreference();
         } catch (e) {}
     }
 

@@ -234,6 +234,23 @@
         osdState.pausedTimer = setTimeout(showOsdPaused, OSD_PAUSED_DELAY_MS);
     }
 
+    function isWebGpuWindowOpen() {
+        return Boolean(document.querySelector('.webgpuSettingsWindows .webgpuWindow:not([hidden]), .webgpuFailureDialog:not(.hide), .dialog.webgpuDialog:not(.hide)'));
+    }
+
+    function isWebGpuCustomPlaybackActive(v) {
+        var el = v || osdState.video;
+        if (!el || !el.hasAttribute('disablepictureinpicture')) {
+            return false;
+        }
+        return Boolean(window.WebGPUPlayer || window.WebGPUPlayerConfig || document.querySelector('#videoOsdPage .btnWebGPUPlayerSettings, .webgpuSettingsWindows'));
+    }
+
+    function syncWebGpuPipState() {
+        var noPip = isWebGpuCustomPlaybackActive(osdState.video);
+        document.body.classList.toggle('bfx-webgpu-no-pip', noPip);
+    }
+
     // Netflix's "You're watching" screen after the video has been paused for a while
     function showOsdPaused() {
         osdState.pausedTimer = null;
@@ -241,7 +258,7 @@
         if (!v || !v.paused || v.ended || !isVideoPlayerActive()) {
             return;
         }
-        if (osdState.episodesOpen || osdState.tracksOpen || osdState.upNextVisible || document.querySelector('.dialogContainer .dialog.opened, .actionSheet, .upNextDialog:not(.hide)')) {
+        if (osdState.episodesOpen || osdState.tracksOpen || osdState.upNextVisible || isWebGpuWindowOpen() || document.querySelector('.dialogContainer .dialog.opened, .actionSheet, .upNextDialog:not(.hide)')) {
             return;
         }
         var info = osdDisplayInfo();
@@ -293,8 +310,13 @@
                 v.removeEventListener(evName, h[evName]);
             });
         }
+        if (osdState.videoAttrObserver) {
+            try { osdState.videoAttrObserver.disconnect(); } catch (eObs) {}
+            osdState.videoAttrObserver = null;
+        }
         osdState.video = null;
         osdState.videoHandlers = null;
+        document.body.classList.remove('bfx-webgpu-no-pip');
     }
 
     function bindOsdVideo(v) {
@@ -304,6 +326,15 @@
         }
         osdState.video = v;
         osdState.attachedAt = Date.now();
+        syncWebGpuPipState();
+        if (typeof MutationObserver === 'function') {
+            try {
+                osdState.videoAttrObserver = new MutationObserver(function () {
+                    syncWebGpuPipState();
+                });
+                osdState.videoAttrObserver.observe(v, { attributes: true, attributeFilter: ['disablepictureinpicture'] });
+            } catch (eMo) {}
+        }
         var h = {
             play: function () {
                 if (osdState.pausedTimer) {
@@ -494,7 +525,7 @@
         if (!page || !buttons) {
             return;
         }
-        var anchor = buttons.querySelector('.btnSubtitles, .btnAudio, .btnVideoOsdSettings');
+        var anchor = buttons.querySelector('.btnSubtitles, .btnAudio, .btnWebGPUPlayerSettings, .btnVideoOsdSettings');
         if (!buttons.querySelector('.streamflix-osd-episodes-btn')) {
             var epBtn = document.createElement('button');
             epBtn.type = 'button';
@@ -604,6 +635,7 @@
             trBtn.classList.toggle('is-active', Boolean(osdState.tracksOpen));
         }
         document.body.classList.toggle('bfx-unified-tracks', showTracks);
+        syncWebGpuPipState();
         if (typeof syncWatchPartyIndicators === 'function') {
             syncWatchPartyIndicators();
         }
@@ -908,16 +940,29 @@
         } catch (eTt) {}
 
         // 3. Fallback: Jellyfin Session Command API when playbackManager was not directly invoked
-        if (!appliedViaPm && osdState.sessionId) {
-            var cmdName = kind === 'audio' ? 'SetAudioStreamIndex' : 'SetSubtitleStreamIndex';
-            apiFetch('/Sessions/' + encodeURIComponent(osdState.sessionId) + '/Command', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    Name: cmdName,
-                    Arguments: { Index: String(idx) }
-                })
-            }).catch(function () {});
+        if (!appliedViaPm) {
+            var sendSessionTrackCmd = function (sid) {
+                if (!sid) {
+                    return;
+                }
+                var cmdName = kind === 'audio' ? 'SetAudioStreamIndex' : 'SetSubtitleStreamIndex';
+                apiFetch('/Sessions/' + encodeURIComponent(sid) + '/Command', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        Name: cmdName,
+                        Arguments: { Index: String(idx) }
+                    })
+                }).catch(function () {});
+            };
+            if (osdState.sessionId) {
+                sendSessionTrackCmd(osdState.sessionId);
+            } else {
+                refreshOsdInfo(true);
+                setTimeout(function () {
+                    sendSessionTrackCmd(osdState.sessionId);
+                }, 450);
+            }
         }
     }
 

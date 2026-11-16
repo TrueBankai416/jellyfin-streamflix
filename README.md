@@ -240,6 +240,12 @@ Pushing code changes to `main` triggers [`.github/workflows/build-plugin.yml`](.
         └── js/                          # Modular client scripts (01..14: auth, profiles, hub, player, Kids, Watch Together & settings)
 ```
 
+## Compatible Plugins
+
+StreamFlix works out of the box alongside supported third-party Jellyfin plugins (more integrations will be added over time):
+
+- **[WebGPU Player](https://github.com/alchemyyy/jellyfin-plugin-webgpu-player)** — Automatically detected when installed with zero configuration required (uses WebGPU on supported desktop browsers and automatically falls back to Jellyfin's standard player on mobile, TV, plain HTTP, or incompatible media streams).
+
 ## Credits
 
 Demo library media courtesy of [Blender Studio Open Movies](https://studio.blender.org/films/) ([CC BY](https://creativecommons.org/licenses/by/4.0/)) — *Sintel* (© Blender Foundation | `durian.blender.org`, CC BY 3.0) and *Cosmos Laundromat* (© Blender Foundation | `gooseberry.blender.org`, CC BY 4.0).

@@ -1383,3 +1383,10 @@ body.bfx-settings-route button:focus-visible {
         bottom: calc(82px + env(safe-area-inset-bottom, 0px)) !important;
     }
 }
+
+/* ---------- WebGPU Player Automatic Selection (Hide Manual Player Picker) ---------- */
+.fldWebGPUPreferredVideoPlayer,
+body.bfx-settings-route #languagePreferencesPage .fldWebGPUPreferredVideoPlayer,
+body.bfx-settings-route #playbackPreferencesPage .fldWebGPUPreferredVideoPlayer {
+    display: none !important;
+}

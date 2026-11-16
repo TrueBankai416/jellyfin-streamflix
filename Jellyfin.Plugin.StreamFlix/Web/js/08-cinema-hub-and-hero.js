@@ -516,6 +516,10 @@
         }
         state.lastPlayNormId = normTarget;
         state.lastPlayTimestamp = nowTs;
+        state.lastPlayRawTarget = itemObj || targetId;
+        state.lastPlayAudioIndex = audioStreamIndex;
+        state.lastPlaySubtitleIndex = subtitleStreamIndex;
+        state.lastPlayForcedTicks = forcedStartPositionTicks;
 
         if (state.activeProfile && state.activeProfile.accessToken && state.activeProfile.jellyfinUserId) {
             applyJellyfinServerCredentials({
@@ -525,6 +529,9 @@
             });
         }
         patchJellyfinApiClientMethods();
+        if (typeof syncAutomaticWebGpuPlayerPreference === 'function') {
+            syncAutomaticWebGpuPlayerPreference(null, normTarget);
+        }
 
         // 1. Immediately close any open StreamFlix detail modal AND show the dark playback transition loader
         // so the card disappears right away instead of staying stuck on screen!
@@ -543,6 +550,9 @@
 
         resolvePlayableItem(itemObj || targetId).then(function (playableItem) {
             var playableId = (playableItem && playableItem.Id) || targetId;
+            if (typeof syncAutomaticWebGpuPlayerPreference === 'function') {
+                syncAutomaticWebGpuPlayerPreference(null, playableId);
+            }
             var serverId = (playableItem && playableItem.ServerId) || resolveKnownServerId();
 
             var effectiveForcedTicks = forcedStartPositionTicks;
@@ -565,7 +575,7 @@
                     clearInterval(state.shortcutPollTimer);
                 }
                 state.shortcutPollTimer = setInterval(function () {
-                    if (isVideoPlayerActive() || document.querySelector('.dialogContainer .dialog:not(.hide)')) {
+                    if (isVideoPlayerActive() || document.querySelector('.dialogContainer:not([data-bfx-dismissing="true"]) .dialog:not(.hide)')) {
                         hidePlaybackLoader();
                         return;
                     }
@@ -601,7 +611,7 @@
                         hidePlaybackLoader();
                         return;
                     }
-                    if (isVideoPlayerActive() || document.querySelector('.dialogContainer .dialog:not(.hide)')) {
+                    if (isVideoPlayerActive() || document.querySelector('.dialogContainer:not([data-bfx-dismissing="true"]) .dialog:not(.hide)')) {
                         hidePlaybackLoader();
                         return;
                     }

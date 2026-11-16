@@ -345,7 +345,10 @@ body.streamflix-nf-player .videoOsdBottom .buttons button > .material-icons {
     transition: transform 0.15s ease;
 }
 body.streamflix-nf-player .videoOsdBottom .btnPause > .material-icons { font-size: 42px !important; }
-body.streamflix-nf-player .videoOsdBottom .btnVideoOsdSettings > .material-icons { font-size: 30px !important; }
+body.streamflix-nf-player .videoOsdBottom .btnVideoOsdSettings > .material-icons,
+body.streamflix-nf-player .videoOsdBottom .btnWebGPUPlayerSettings > .material-icons { font-size: 30px !important; }
+body.streamflix-nf-player.bfx-webgpu-no-pip .videoOsdBottom .buttons .btnPip,
+body.streamflix-nf-player .videoOsdBottom .buttons button.btnPip[disabled] { display: none !important; }
 body.streamflix-nf-player .videoOsdBottom .buttons button:hover > .material-icons,
 body.streamflix-nf-player .videoOsdBottom .buttons button:focus-visible > .material-icons { transform: scale(1.18); }
 body.streamflix-nf-player .videoOsdBottom .buttons button:focus-visible { outline: 2px solid rgba(255, 255, 255, 0.8); outline-offset: -2px; }

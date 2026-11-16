@@ -769,8 +769,8 @@
                     }
                 }
 
-                // Ignore other clicks inside #itemDetailPage, user settings pages, video player, StreamFlix modals, Cinema Hub, mobile dock, top bar, side drawer, or dialogs
-                if (isUserPreferencesRoute() || target.closest('#itemDetailPage, #myPreferencesMenuPage, #userProfilePage, #displayPreferencesPage, #homePreferencesPage, #languagePreferencesPage, #playbackPreferencesPage, #subtitlePreferencesPage, #controlsPreferencesPage, #myPreferencesQuickConnectPage, #bfx-prefs-hero, #bfx-prefs-subbar, #videoOsdPage, .videoPlayerContainer, .streamflix-modal-backdrop, #streamflix-cinema-hub, #streamflix-library-page-fallback, #streamflix-overlay-root, #streamflix-account-dropdown, #streamflix-header-profile-btn, #streamflix-mobile-dock, .MuiDrawer-root, .skinHeader, .videoOsdBottom, .actionSheet, .dialogContainer')) {
+                // Ignore other clicks inside #itemDetailPage, user settings pages, video player, WebGPU Player floating windows, StreamFlix modals, Cinema Hub, mobile dock, top bar, side drawer, or dialogs
+                if (isUserPreferencesRoute() || target.closest('#itemDetailPage, #myPreferencesMenuPage, #userProfilePage, #displayPreferencesPage, #homePreferencesPage, #languagePreferencesPage, #playbackPreferencesPage, #subtitlePreferencesPage, #controlsPreferencesPage, #myPreferencesQuickConnectPage, #bfx-prefs-hero, #bfx-prefs-subbar, #videoOsdPage, .videoPlayerContainer, .webgpuSettingsWindows, .webgpuWindow, .webgpuFailureDialog, .streamflix-modal-backdrop, #streamflix-cinema-hub, #streamflix-library-page-fallback, #streamflix-overlay-root, #streamflix-account-dropdown, #streamflix-header-profile-btn, #streamflix-mobile-dock, .MuiDrawer-root, .skinHeader, .videoOsdBottom, .actionSheet, .dialogContainer')) {
                     return;
                 }
 
