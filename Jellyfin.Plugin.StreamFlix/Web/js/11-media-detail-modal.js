@@ -271,7 +271,45 @@
                         var ownUserData = (resolvedItem && resolvedItem.UserData) || (item && item.UserData);
                         if (ownUserData) {
                             updatedItem.UserData = ownUserData;
+                        } else {
+                            delete updatedItem.UserData;
                         }
+                        var editedId = normalizeGuid(updatedItem.Id);
+                        function mergeEditedMetadata(target) {
+                            if (!target || target === updatedItem || normalizeGuid(target.Id) !== editedId) {
+                                return;
+                            }
+                            Object.keys(updatedItem).forEach(function (key) {
+                                if (key !== 'UserData') {
+                                    target[key] = updatedItem[key];
+                                }
+                            });
+                        }
+                        mergeEditedMetadata(item);
+                        mergeEditedMetadata(resolvedItem);
+                        Object.keys(state.itemCache || {}).forEach(function (key) {
+                            mergeEditedMetadata(state.itemCache[key]);
+                        });
+                        var editedItemPools = [
+                            state.hubData && state.hubData.heroItems,
+                            state.hubData && state.hubData.resumeItems,
+                            state.hubData && state.hubData.nextUpItems,
+                            state.hubData && state.hubData.top10Items,
+                            state.hubData && state.hubData.favoriteItems,
+                            state.hubData && state.hubData.recentMovies,
+                            state.hubData && state.hubData.recentSeries,
+                            state.hubData && state.hubData.allMovies,
+                            state.hubData && state.hubData.allSeries,
+                            state.hubData && state.hubData.collectionsItems,
+                            state.searchResults,
+                            state.browseFilter && state.browseFilter.items
+                        ];
+                        editedItemPools.forEach(function (pool) {
+                            if (Array.isArray(pool)) {
+                                pool.forEach(mergeEditedMetadata);
+                            }
+                        });
+                        putCachedItem(updatedItem.Id, updatedItem);
                         // Replace every editable display field, including cleared values
                         if (updatedItem.Type === 'Episode') {
                             var sublineEl = qModal('#streamflix-modal-episode-subline');

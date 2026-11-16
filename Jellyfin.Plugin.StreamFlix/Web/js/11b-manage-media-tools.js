@@ -125,11 +125,19 @@
                     var settled = false;
                     var ownerProf = getProfiles().filter(function (p) { return p.isOwner || p.isAdmin; })[0]
                         || { name: 'Administrator', icon: '👑', color: '#E50914' };
-                    var pad = openPinPad({
+                    openPinPad({
                         profile: ownerProf,
                         title: 'Administrator PIN',
                         subtitleHtml: 'Enter the PIN for <strong>' + escapeHtml(ownerProf.name) + '</strong> to manage media.',
                         initialError: code === 'pin_invalid' ? err.message : '',
+                        onClose: function () {
+                            if (!settled) {
+                                settled = true;
+                                var cancelErr = new Error('Administrator sign-in was cancelled.');
+                                cancelErr.code = 'elevation_cancelled';
+                                reject(cancelErr);
+                            }
+                        },
                         submit: function (pin) {
                             return requestManageAdminAuth(pin, forceElevate).then(function (auth) {
                                 settled = true;
@@ -137,18 +145,6 @@
                             });
                         }
                     });
-                    // Reject the pending auth promise when the pad is dismissed or hits a
-                    // terminal error, so busy callers (Save, Identify…) can restore their UI.
-                    var origPadClose = pad.close;
-                    pad.close = function (result) {
-                        origPadClose(result);
-                        if (!settled) {
-                            settled = true;
-                            var cancelErr = new Error('Administrator sign-in was cancelled.');
-                            cancelErr.code = 'elevation_cancelled';
-                            reject(cancelErr);
-                        }
-                    };
                 });
             }
             throw err;
@@ -178,14 +174,15 @@
         });
     }
 
-    // Name lists join with '; ' when any name contains a comma, so entries like
-    // "Example Pictures, Inc." round-trip through the editor without being split.
+    // Include a trailing semicolon when names contain commas so a single name such
+    // as "Example Pictures, Inc." remains unambiguous in the editable field.
     function joinEditableNames(arr) {
         if (!Array.isArray(arr) || !arr.length) {
             return '';
         }
         var hasComma = arr.some(function (n) { return String(n).indexOf(',') !== -1; });
-        return arr.join(hasComma ? '; ' : ', ');
+        var joined = arr.join(hasComma ? '; ' : ', ');
+        return hasComma ? joined + ';' : joined;
     }
 
     function splitEditableNames(raw) {
