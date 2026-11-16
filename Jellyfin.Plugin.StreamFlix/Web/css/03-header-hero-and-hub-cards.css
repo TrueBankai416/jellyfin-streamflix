@@ -1492,3 +1492,296 @@ body.bfx-header-tucked:not(.streamflix-in-video-player) .headerSelectedPlayer { 
 /* ---------- Rows tuned to the profile ---------- */
 .bfx-row-em { color: #fff; }
 .streamflix-row-personal .streamflix-row-title { color: var(--bfx-text-2); }
+
+/* ---------- Full Catalog Browser, Nav Customizer & Embedded Admin Fallback ---------- */
+.bfx-browse-all-hdr-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    height: 34px;
+    padding: 0 14px;
+    border-radius: 999px;
+    font-size: 12.5px;
+    font-weight: 700;
+    white-space: nowrap;
+}
+.bfx-browse-all-hdr-btn .bfx-icon { width: 15px; height: 15px; }
+
+.bfx-grid-more-banner {
+    margin-top: 22px;
+    padding: 18px 20px;
+    border-radius: 16px;
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.06) 0%, rgba(255, 255, 255, 0.02) 100%);
+    border: 1px solid var(--bfx-hairline);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 14px;
+    color: var(--bfx-text-2);
+    font-size: 14px;
+}
+.bfx-grid-more-banner strong { color: #fff; }
+.bfx-browse-all-footer-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    height: 40px;
+    padding: 0 18px;
+    border-radius: 999px;
+    font-size: 13.5px;
+    font-weight: 700;
+}
+.bfx-browse-all-footer-btn .bfx-icon { width: 16px; height: 16px; }
+
+.bfx-lib-browser {
+    padding-top: 6px;
+}
+.bfx-lb-header {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-bottom: 14px;
+}
+.bfx-lb-title-wrap {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+.bfx-lb-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+.bfx-lb-toolbar {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+    padding: 12px 14px;
+    margin-bottom: 10px;
+    border-radius: 16px;
+    background: rgba(18, 18, 22, 0.72);
+    backdrop-filter: blur(18px) saturate(150%);
+    -webkit-backdrop-filter: blur(18px) saturate(150%);
+    border: 1px solid var(--bfx-hairline);
+}
+.bfx-lb-control {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    height: 36px;
+    padding: 0 10px 0 12px;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: var(--bfx-text-2);
+    font-size: 12px;
+    font-weight: 600;
+    transition: border-color 0.18s ease, background 0.18s ease;
+}
+.bfx-lb-control:focus-within,
+.bfx-lb-control:hover {
+    background: rgba(255, 255, 255, 0.09);
+    border-color: rgba(255, 255, 255, 0.26);
+}
+.bfx-lb-control-lbl {
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    font-size: 10.5px;
+    color: var(--bfx-text-3);
+    user-select: none;
+}
+.bfx-lb-select {
+    appearance: auto;
+    border: none !important;
+    background: transparent !important;
+    color: #fff !important;
+    font: 600 13px/1.2 inherit;
+    padding: 4px 2px;
+    max-width: 185px;
+    cursor: pointer;
+    outline: none;
+}
+.bfx-lb-select option,
+.bfx-lb-select optgroup {
+    background: #16161a;
+    color: #fff;
+}
+.bfx-lb-alpha-bar {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    overflow-x: auto;
+    scrollbar-width: none;
+    padding: 2px 2px 14px 2px;
+}
+.bfx-lb-alpha-bar::-webkit-scrollbar { display: none; }
+.bfx-lb-alpha-btn {
+    flex: none;
+    min-width: 30px;
+    height: 28px;
+    padding: 0 8px;
+    border-radius: 8px;
+    border: 1px solid transparent;
+    background: rgba(255, 255, 255, 0.04);
+    color: var(--bfx-text-3);
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+.bfx-lb-alpha-btn:hover {
+    background: rgba(255, 255, 255, 0.11);
+    color: #fff;
+}
+.bfx-lb-alpha-btn.active {
+    background: var(--streamflix-red);
+    border-color: var(--streamflix-red);
+    color: #fff;
+}
+.bfx-lb-footer {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    padding: 26px 0 12px 0;
+}
+.bfx-lb-progress-text {
+    font-size: 13px;
+    color: var(--bfx-text-3);
+}
+.bfx-lb-progress-text strong { color: #fff; }
+.bfx-lb-more-btn {
+    min-width: 190px;
+    height: 42px;
+    border-radius: 999px;
+    justify-content: center;
+    gap: 8px;
+    font-weight: 700;
+}
+.bfx-lb-sentinel {
+    width: 100%;
+    height: 2px;
+}
+
+/* Profile Navigation Bar Customizer Modal */
+.bfx-nav-customize-modal {
+    max-width: 540px !important;
+}
+.bfx-nav-cust-section {
+    margin: 14px 0;
+}
+.bfx-nav-cust-label {
+    font-size: 11.5px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    color: var(--bfx-text-3);
+    margin-bottom: 8px;
+}
+.bfx-nav-cust-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 8px;
+}
+.bfx-nav-cust-chip {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 9px 11px;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: #fff;
+    font-size: 13.5px;
+    font-weight: 600;
+    cursor: pointer;
+    user-select: none;
+}
+.bfx-nav-cust-chip:hover {
+    background: rgba(255, 255, 255, 0.09);
+    border-color: rgba(255, 255, 255, 0.24);
+}
+.bfx-nav-cust-chip.is-locked {
+    opacity: 0.65;
+    cursor: default;
+}
+.bfx-nav-cust-chip input {
+    accent-color: #e50914;
+    width: 16px;
+    height: 16px;
+    margin: 0;
+}
+.bfx-nav-cust-chip small {
+    margin-left: auto;
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--bfx-text-3);
+}
+
+/* Lockout-proof Embedded StreamFlix Admin Settings Fallback */
+.bfx-embedded-admin-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 2147482500;
+    background: #101014;
+    color: #fff;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+.bfx-embedded-admin-shell {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+}
+.bfx-embedded-admin-topbar {
+    flex: none;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: calc(env(safe-area-inset-top, 0px) + 10px) 18px 10px 18px;
+    background: rgba(18, 18, 23, 0.94);
+    border-bottom: 1px solid var(--bfx-hairline);
+}
+.bfx-embedded-admin-title {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--bfx-text-2);
+}
+.bfx-embedded-admin-body {
+    flex: 1 1 auto;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    padding: 16px max(16px, 4vw) 48px max(16px, 4vw);
+}
+.bfx-embedded-admin-body #StreamFlixConfigPage {
+    position: static !important;
+    display: block !important;
+    padding: 0 !important;
+    max-width: 1080px;
+    margin: 0 auto;
+}
+@media (max-width: 640px) {
+    .bfx-lb-toolbar {
+        padding: 10px;
+        gap: 8px;
+    }
+    .bfx-lb-control {
+        flex: 1 1 calc(50% - 4px);
+        min-width: 130px;
+        justify-content: space-between;
+    }
+    .bfx-lb-select {
+        max-width: 125px;
+    }
+}

@@ -158,6 +158,22 @@ public partial class StreamFlixController : ControllerBase
         return Ok(BuildAdminConfigResponse(config));
     }
 
+    [HttpGet("AdminPageHtml")]
+    [AllowAnonymous]
+    [Produces(MediaTypeNames.Application.Json)]
+    public async Task<ActionResult<object>> GetAdminPageHtml()
+    {
+        SetNoStoreSecurityHeaders();
+        var config = Config;
+        var caller = await GetCallerAsync(config).ConfigureAwait(false);
+        if (!caller.IsAdmin)
+        {
+            return StatusCode(403, new { code = "admin_required", message = "Only a Jellyfin administrator can open StreamFlix settings." });
+        }
+
+        return Ok(new { html = Plugin.GetEmbeddedConfigPageBundle().Text });
+    }
+
     [HttpPost("AdminConfig")]
     [AllowAnonymous]
     [Produces(MediaTypeNames.Application.Json)]
@@ -227,6 +243,33 @@ public partial class StreamFlixController : ControllerBase
             if (request.HeroLibraryIds != null)
             {
                 config.HeroLibraryIds = request.HeroLibraryIds
+                    .Where(id => !string.IsNullOrWhiteSpace(id))
+                    .Select(id => id.Trim())
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .ToList();
+            }
+
+            config.ShowLibrariesInNav = request.ShowLibrariesInNav;
+            if (request.NavHiddenBuiltIns != null)
+            {
+                var allowedBuiltIns = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+                {
+                    "series",
+                    "movies",
+                    "collections",
+                    "top10",
+                    "mylist",
+                };
+                config.NavHiddenBuiltIns = request.NavHiddenBuiltIns
+                    .Where(id => !string.IsNullOrWhiteSpace(id) && allowedBuiltIns.Contains(id.Trim()))
+                    .Select(id => id.Trim().ToLowerInvariant())
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .ToList();
+            }
+
+            if (request.NavLibraryIds != null)
+            {
+                config.NavLibraryIds = request.NavLibraryIds
                     .Where(id => !string.IsNullOrWhiteSpace(id))
                     .Select(id => id.Trim())
                     .Distinct(StringComparer.OrdinalIgnoreCase)
@@ -563,6 +606,16 @@ public partial class StreamFlixController : ControllerBase
             .Select(id => id.Trim())
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
+        var navHiddenBuiltInsSnapshot = (config.NavHiddenBuiltIns ?? new List<string>())
+            .Where(id => !string.IsNullOrWhiteSpace(id))
+            .Select(id => id.Trim().ToLowerInvariant())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        var navLibraryIdsSnapshot = (config.NavLibraryIds ?? new List<string>())
+            .Where(id => !string.IsNullOrWhiteSpace(id))
+            .Select(id => id.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
 
         return new
         {
@@ -620,6 +673,9 @@ public partial class StreamFlixController : ControllerBase
             heroSelectionMode = NormalizeHeroSelectionMode(config.HeroSelectionMode),
             heroContentType = NormalizeHeroContentType(config.HeroContentType),
             heroLibraryIds = heroLibrariesSnapshot,
+            showLibrariesInNav = config.ShowLibrariesInNav,
+            navHiddenBuiltIns = navHiddenBuiltInsSnapshot,
+            navLibraryIds = navLibraryIdsSnapshot,
             approvedGoogleAccounts = hasAccess && caller.IsAdmin ? approvedSnapshot : new List<string>(),
             approvedOidcUsers = hasAccess && caller.IsAdmin ? approvedOidcSnapshot : new List<string>(),
             serverUsers,
@@ -659,6 +715,9 @@ public partial class StreamFlixController : ControllerBase
             heroSelectionMode = NormalizeHeroSelectionMode(config.HeroSelectionMode),
             heroContentType = NormalizeHeroContentType(config.HeroContentType),
             heroLibraryIds = (config.HeroLibraryIds ?? new List<string>()).ToList(),
+            showLibrariesInNav = config.ShowLibrariesInNav,
+            navHiddenBuiltIns = (config.NavHiddenBuiltIns ?? new List<string>()).ToList(),
+            navLibraryIds = (config.NavLibraryIds ?? new List<string>()).ToList(),
             enableCustomOidc = config.EnableCustomOidc,
             oidcProviderName = config.OidcProviderName ?? string.Empty,
             oidcIssuerUrl = config.OidcIssuerUrl ?? string.Empty,

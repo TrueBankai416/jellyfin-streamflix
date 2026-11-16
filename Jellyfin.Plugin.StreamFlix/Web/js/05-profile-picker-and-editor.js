@@ -204,7 +204,10 @@
             + '</div>');
 
         var hasSessionToken = Boolean(state.googleUser && state.googleUser.token);
-        var canOpenPluginSettings = Boolean(isAdmin);
+        var onAdminPage = typeof isAdminConfigRoute === 'function' && isAdminConfigRoute();
+        var canOpenPluginSettings = Boolean(isAdmin && !onAdminPage);
+        var canResumeOrReturn = Boolean((state.activeProfile && state.activeProfile.accessToken) || onAdminPage);
+        var resumeLabel = onAdminPage ? 'Back to Settings' : ('Back to ' + escapeHtml(getBrandName()));
         var actionsHtml = buildAccountChipHtml()
             + (canOpenPluginSettings
                 ? '<button type="button" class="streamflix-ghost-btn" id="streamflix-open-plugin-cfg-btn" title="Open StreamFlix Plugin Settings">' + icon('gear') + '<span>Plugin Settings</span></button>'
@@ -212,8 +215,8 @@
             + (hasSessionToken
                 ? '<button type="button" class="streamflix-ghost-btn" id="streamflix-google-signout-btn">' + (isGuest ? 'Exit Guest Pass' : 'Sign out') + '</button>'
                 : '')
-            + (state.activeProfile && state.activeProfile.accessToken
-                ? '<button type="button" class="streamflix-ghost-btn streamflix-ghost-btn-accent" id="streamflix-resume-session-btn">' + icon('chevronLeft') + '<span>Back to ' + escapeHtml(getBrandName()) + '</span></button>'
+            + (canResumeOrReturn
+                ? '<button type="button" class="streamflix-ghost-btn streamflix-ghost-btn-accent" id="streamflix-resume-session-btn">' + icon('chevronLeft') + '<span>' + resumeLabel + '</span></button>'
                 : '');
 
         var guestRelExp = isGuest ? formatRelativeExpiry((state.config && state.config.guestPassExpiresAt) || (state.googleUser && state.googleUser.expiresAt)) : '';
@@ -356,6 +359,15 @@
         var manageBtn = root.querySelector('#streamflix-toggle-manage-btn');
         if (manageBtn) {
             manageBtn.addEventListener('click', function () {
+                if (state.manageMode && state.openedDirectlyToManage && canResumeOrReturn) {
+                    closeOverlayGate();
+                    var cfgPage = document.getElementById('StreamFlixConfigPage');
+                    if (cfgPage) {
+                        try { cfgPage.dispatchEvent(new CustomEvent('viewshow')); } catch (eEv) {}
+                    }
+                    scheduleLifecycleTick(0);
+                    return;
+                }
                 if (!state.manageMode && typeof isKidsExitLockRequired === 'function' && isKidsExitLockRequired()) {
                     requestExitKidsVerification(null).then(function (res) {
                         if (res && res.verified) {
@@ -395,8 +407,11 @@
         var resumeBtn = root.querySelector('#streamflix-resume-session-btn');
         if (resumeBtn) {
             resumeBtn.addEventListener('click', function () {
-                state.manageMode = false;
                 closeOverlayGate();
+                var cfgPage = document.getElementById('StreamFlixConfigPage');
+                if (cfgPage) {
+                    try { cfgPage.dispatchEvent(new CustomEvent('viewshow')); } catch (eEv) {}
+                }
                 scheduleLifecycleTick(0);
             });
         }

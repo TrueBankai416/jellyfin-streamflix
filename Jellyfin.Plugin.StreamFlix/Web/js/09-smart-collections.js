@@ -137,6 +137,18 @@
         wrap.classList.toggle('no-scroll', max <= 4);
     }
 
+    function collectLibraryViewCachedItems() {
+        var out = [];
+        var map = state.libraryViewData || {};
+        Object.keys(map).forEach(function (k) {
+            var entry = map[k];
+            if (entry && Array.isArray(entry.items)) {
+                out = out.concat(entry.items);
+            }
+        });
+        return out;
+    }
+
     function bindInteractiveCardsInContainer(containerEl, extraItemsList, onAfterPlay) {
         if (!containerEl) {
             return;
@@ -147,7 +159,9 @@
             d.heroItems, d.resumeItems, d.nextUpItems, d.top10Items,
             d.favoriteItems, d.recentMovies, d.recentSeries,
             d.allMovies, d.allSeries, d.collectionsItems,
-            state.searchResults || [], (state.browseFilter && state.browseFilter.items) || [], personalRowItems(), extraItemsList || []
+            state.searchResults || [], (state.browseFilter && state.browseFilter.items) || [],
+            (state.libraryBrowser && state.libraryBrowser.items) || [], collectLibraryViewCachedItems(),
+            personalRowItems(), extraItemsList || []
         ].forEach(function (arr) {
             (arr || []).forEach(function (it) {
                 if (it && it.Id) {
@@ -232,6 +246,14 @@
         var d = state.hubData;
         var limit = getHeroSlideLimit();
         var cat = state.activeCategory || 'all';
+        if (cat.indexOf('lib:') === 0) {
+            var libId = cat.slice(4);
+            var libEntry = state.libraryViewData && state.libraryViewData[normalizeGuid(libId)];
+            if (libEntry && Array.isArray(libEntry.heroItems) && libEntry.heroItems.length > 0) {
+                return libEntry.heroItems.slice(0, limit);
+            }
+            return [];
+        }
         if (cat === 'movies') {
             return (d.recentMovies && d.recentMovies.length) ? d.recentMovies.slice(0, limit) : (d.heroItems || []).slice(0, limit);
         }
@@ -251,11 +273,17 @@
         var d = state.hubData || {};
         var cat = state.activeCategory || 'all';
         var basePool = [];
-        if (cat === 'movies' && Array.isArray(d.allMovies) && d.allMovies.length >= 2) {
+        if (cat.indexOf('lib:') === 0) {
+            var libEntry = state.libraryViewData && state.libraryViewData[normalizeGuid(cat.slice(4))];
+            if (libEntry && Array.isArray(libEntry.items) && libEntry.items.length >= 2) {
+                basePool = dedupeMediaItems(libEntry.items);
+            }
+        }
+        if (!basePool.length && cat === 'movies' && Array.isArray(d.allMovies) && d.allMovies.length >= 2) {
             basePool = dedupeMediaItems(d.allMovies);
-        } else if (cat === 'series' && Array.isArray(d.allSeries) && d.allSeries.length >= 2) {
+        } else if (!basePool.length && cat === 'series' && Array.isArray(d.allSeries) && d.allSeries.length >= 2) {
             basePool = dedupeMediaItems(d.allSeries);
-        } else {
+        } else if (!basePool.length) {
             basePool = dedupeMediaItems([].concat(d.allMovies || [], d.allSeries || []));
         }
         if (!basePool.length) {
@@ -380,6 +408,963 @@
         });
     }
 
+    /* ----------------------------------------------------------------------
+       Top Navigation Customization, User Library Views & Full Library Browser
+       ---------------------------------------------------------------------- */
+    var LIBRARY_BROWSER_PAGE_SIZE = 60;
+    var LIBRARY_BROWSER_SORTS = [
+        { key: 'date_desc', label: 'Date Added (Newest)', sortBy: 'DateCreated,SortName', sortOrder: 'Descending' },
+        { key: 'date_asc', label: 'Date Added (Oldest)', sortBy: 'DateCreated,SortName', sortOrder: 'Ascending' },
+        { key: 'alpha_asc', label: 'Alphabetical (A–Z)', sortBy: 'SortName', sortOrder: 'Ascending' },
+        { key: 'alpha_desc', label: 'Alphabetical (Z–A)', sortBy: 'SortName', sortOrder: 'Descending' },
+        { key: 'year_desc', label: 'Release Year (Newest)', sortBy: 'ProductionYear,PremiereDate,SortName', sortOrder: 'Descending' },
+        { key: 'year_asc', label: 'Release Year (Oldest)', sortBy: 'ProductionYear,PremiereDate,SortName', sortOrder: 'Ascending' },
+        { key: 'rating_desc', label: 'Community Rating', sortBy: 'CommunityRating,SortName', sortOrder: 'Descending' },
+        { key: 'critic_desc', label: 'Critic Rating', sortBy: 'CriticRating,CommunityRating,SortName', sortOrder: 'Descending' },
+        { key: 'runtime_desc', label: 'Runtime (Longest)', sortBy: 'RunTimeTicks,SortName', sortOrder: 'Descending' },
+        { key: 'runtime_asc', label: 'Runtime (Shortest)', sortBy: 'RunTimeTicks,SortName', sortOrder: 'Ascending' },
+        { key: 'random', label: 'Random Shuffle', sortBy: 'Random', sortOrder: 'Descending' }
+    ];
+
+    function getProfileNavPrefs() {
+        var pid = state.activeProfile && state.activeProfile.id;
+        if (!pid) {
+            return null;
+        }
+        var stored = loadJson(NAV_PROFILE_PREF_PREFIX + pid, null);
+        if (!stored || typeof stored !== 'object' || !stored.customized) {
+            return null;
+        }
+        return stored;
+    }
+
+    function saveProfileNavPrefs(prefs) {
+        var pid = state.activeProfile && state.activeProfile.id;
+        if (!pid) {
+            return;
+        }
+        saveJson(NAV_PROFILE_PREF_PREFIX + pid, prefs || null);
+    }
+
+    function getEffectiveHiddenBuiltInNavMap() {
+        var map = {};
+        var profPrefs = getProfileNavPrefs();
+        var list = profPrefs && Array.isArray(profPrefs.hiddenBuiltIns)
+            ? profPrefs.hiddenBuiltIns
+            : ((state.config && Array.isArray(state.config.navHiddenBuiltIns)) ? state.config.navHiddenBuiltIns : []);
+        list.forEach(function (id) {
+            var clean = String(id || '').trim().toLowerCase();
+            if (clean && clean !== 'all') {
+                map[clean] = true;
+            }
+        });
+        return map;
+    }
+
+    function isNavBuiltInHidden(builtInId) {
+        var map = getEffectiveHiddenBuiltInNavMap();
+        return Boolean(map[String(builtInId || '').toLowerCase()]);
+    }
+
+    function getEligibleUserLibraryViews(d) {
+        var views = (d && Array.isArray(d.views)) ? d.views : ((state.hubData && Array.isArray(state.hubData.views)) ? state.hubData.views : []);
+        var excluded = { music: 1, books: 1, audiobooks: 1, photos: 1, playlists: 1, livetv: 1 };
+        return views.filter(function (v) {
+            if (!v || !v.Id || !v.Name) {
+                return false;
+            }
+            var ct = String(v.CollectionType || '').toLowerCase();
+            return !excluded[ct];
+        });
+    }
+
+    function isDuplicateBuiltInLibraryName(viewName, hiddenBuiltInMap) {
+        var low = String(viewName || '').trim().toLowerCase();
+        if (!hiddenBuiltInMap.movies && (low === 'movies' || low === 'films')) {
+            return true;
+        }
+        if (!hiddenBuiltInMap.series && (low === 'shows' || low === 'tv shows' || low === 'tv' || low === 'series')) {
+            return true;
+        }
+        if (!hiddenBuiltInMap.collections && (low === 'collections' || low === 'boxsets' || low === 'box sets')) {
+            return true;
+        }
+        return false;
+    }
+
+    function getDefaultVisibleLibraryIdsMap(views, hiddenBuiltInMap) {
+        var out = {};
+        var cfg = state.config || {};
+        if (cfg.showLibrariesInNav === false) {
+            return out;
+        }
+        var cfgLibIds = Array.isArray(cfg.navLibraryIds) ? cfg.navLibraryIds : [];
+        if (cfgLibIds.length > 0) {
+            if (cfgLibIds.indexOf('__NONE__') !== -1) {
+                return out;
+            }
+            var allow = {};
+            cfgLibIds.forEach(function (id) {
+                var norm = normalizeGuid(id);
+                if (norm) {
+                    allow[norm] = true;
+                }
+            });
+            views.forEach(function (v) {
+                var norm = normalizeGuid(v.Id);
+                if (allow[norm]) {
+                    out[norm] = true;
+                }
+            });
+            return out;
+        }
+        // Smart default when uncustomized: surface all custom/additional libraries (e.g. "Anime", "Anime Movies", "4K")
+        // without duplicating a single standard "Movies" or "Shows" pill already shown in the nav bar.
+        views.forEach(function (v) {
+            if (!isDuplicateBuiltInLibraryName(v.Name, hiddenBuiltInMap)) {
+                out[normalizeGuid(v.Id)] = true;
+            }
+        });
+        return out;
+    }
+
+    function getConfiguredNavPills(d) {
+        d = d || state.hubData || {};
+        var hiddenBuiltInMap = getEffectiveHiddenBuiltInNavMap();
+        var eligibleViews = getEligibleUserLibraryViews(d);
+        var profPrefs = getProfileNavPrefs();
+        var visibleLibMap = {};
+
+        if (profPrefs && Array.isArray(profPrefs.libraryIds)) {
+            profPrefs.libraryIds.forEach(function (id) {
+                var norm = normalizeGuid(id);
+                if (norm) {
+                    visibleLibMap[norm] = true;
+                }
+            });
+        } else {
+            visibleLibMap = getDefaultVisibleLibraryIdsMap(eligibleViews, hiddenBuiltInMap);
+        }
+
+        var pills = [{ id: 'all', label: 'Home', hide: false }];
+        if (!hiddenBuiltInMap.series) {
+            pills.push({ id: 'series', label: 'Shows', hide: !d.allSeries.length });
+        }
+        if (!hiddenBuiltInMap.movies) {
+            pills.push({ id: 'movies', label: 'Movies', hide: !d.allMovies.length });
+        }
+
+        eligibleViews.forEach(function (v) {
+            var normId = normalizeGuid(v.Id);
+            if (visibleLibMap[normId]) {
+                pills.push({
+                    id: 'lib:' + v.Id,
+                    label: String(v.Name || 'Library'),
+                    view: v,
+                    hide: false
+                });
+            }
+        });
+
+        if (!hiddenBuiltInMap.collections) {
+            pills.push({
+                id: 'collections',
+                label: 'Collections',
+                hide: !d.collectionsItems.length && !buildSmartCollections(d).length
+            });
+        }
+        if (!hiddenBuiltInMap.top10) {
+            pills.push({ id: 'top10', label: 'Top 10', hide: !d.top10Items.length });
+        }
+        if (!hiddenBuiltInMap.mylist) {
+            pills.push({ id: 'mylist', label: 'My List', hide: false });
+        }
+        return pills;
+    }
+
+    function openNavCustomizeModal() {
+        var d = state.hubData || {};
+        var eligibleViews = getEligibleUserLibraryViews(d);
+        var profPrefs = getProfileNavPrefs();
+        var hiddenMap = getEffectiveHiddenBuiltInNavMap();
+        var visibleLibMap = (profPrefs && Array.isArray(profPrefs.libraryIds))
+            ? (function () {
+                var m = {};
+                profPrefs.libraryIds.forEach(function (id) { m[normalizeGuid(id)] = true; });
+                return m;
+            })()
+            : getDefaultVisibleLibraryIdsMap(eligibleViews, hiddenMap);
+
+        var builtIns = [
+            { id: 'series', label: 'Shows' },
+            { id: 'movies', label: 'Movies' },
+            { id: 'collections', label: 'Collections' },
+            { id: 'top10', label: 'Top 10' },
+            { id: 'mylist', label: 'My List' }
+        ];
+
+        var builtInRowsHtml = ''
+            + '<label class="bfx-nav-cust-chip is-locked">'
+            + '  <input type="checkbox" checked disabled />'
+            + '  <span>Home</span><small>Pinned</small>'
+            + '</label>'
+            + builtIns.map(function (b) {
+                var on = !hiddenMap[b.id];
+                return ''
+                    + '<label class="bfx-nav-cust-chip">'
+                    + '  <input type="checkbox" data-nav-builtin="' + escapeHtml(b.id) + '"' + (on ? ' checked' : '') + ' />'
+                    + '  <span>' + escapeHtml(b.label) + '</span>'
+                    + '</label>';
+            }).join('');
+
+        var libRowsHtml = eligibleViews.length > 0
+            ? eligibleViews.map(function (v) {
+                var norm = normalizeGuid(v.Id);
+                var on = Boolean(visibleLibMap[norm]);
+                var ct = String(v.CollectionType || '').toLowerCase();
+                var badge = ct === 'tvshows' ? 'TV' : (ct === 'movies' ? 'Movies' : (ct === 'boxsets' ? 'BoxSets' : 'Library'));
+                return ''
+                    + '<label class="bfx-nav-cust-chip">'
+                    + '  <input type="checkbox" data-nav-lib-id="' + escapeHtml(v.Id) + '"' + (on ? ' checked' : '') + ' />'
+                    + '  <span>' + escapeHtml(v.Name) + '</span><small>' + escapeHtml(badge) + '</small>'
+                    + '</label>';
+            }).join('')
+            : '<div class="streamflix-modal-text" style="margin:4px 0 0;">No accessible media libraries loaded yet.</div>';
+
+        var profName = (state.activeProfile && state.activeProfile.name) || 'this profile';
+        var m = openModal(''
+            + '<div class="bfx-cs-head">'
+            + '  <div class="bfx-cs-head-ico">' + icon('sliders') + '</div>'
+            + '  <div class="bfx-cs-head-copy">'
+            + '    <h2>Navigation Bar</h2>'
+            + '    <p class="streamflix-modal-text">Choose which built-in categories and Jellyfin libraries appear in the top bar for <strong>' + escapeHtml(profName) + '</strong>.</p>'
+            + '  </div>'
+            + '</div>'
+            + '<div class="bfx-nav-cust-section">'
+            + '  <div class="bfx-nav-cust-label">Built-In Tabs</div>'
+            + '  <div class="bfx-nav-cust-grid">' + builtInRowsHtml + '</div>'
+            + '</div>'
+            + '<div class="bfx-nav-cust-section">'
+            + '  <div class="bfx-nav-cust-label">Your Jellyfin Libraries</div>'
+            + '  <div class="bfx-nav-cust-grid">' + libRowsHtml + '</div>'
+            + '</div>'
+            + '<div class="streamflix-modal-actions" style="justify-content:space-between;">'
+            + (profPrefs
+                ? '  <button type="button" class="streamflix-ghost-btn" data-nav-act="reset">Use Server Default</button>'
+                : '  <span></span>')
+            + '  <div style="display:flex;gap:8px;">'
+            + '    <button type="button" class="streamflix-ghost-btn" data-nav-act="cancel">Cancel</button>'
+            + '    <button type="button" class="streamflix-btn-primary" data-nav-act="save">Save</button>'
+            + '  </div>'
+            + '</div>', { className: 'bfx-nav-customize-modal' });
+
+        var cancelBtn = m.modal.querySelector('[data-nav-act="cancel"]');
+        if (cancelBtn) {
+            cancelBtn.addEventListener('click', function () { m.close(false); });
+        }
+        var resetBtn = m.modal.querySelector('[data-nav-act="reset"]');
+        if (resetBtn) {
+            resetBtn.addEventListener('click', function () {
+                saveProfileNavPrefs(null);
+                m.close(true);
+                if (document.getElementById('streamflix-cinema-hub')) {
+                    renderCinemaHubContents();
+                }
+                showToast('Navigation bar reset to server defaults.', 'info');
+            });
+        }
+        var saveBtn = m.modal.querySelector('[data-nav-act="save"]');
+        if (saveBtn) {
+            saveBtn.addEventListener('click', function () {
+                var nextHidden = [];
+                Array.prototype.forEach.call(m.modal.querySelectorAll('input[data-nav-builtin]'), function (cb) {
+                    if (!cb.checked) {
+                        nextHidden.push(cb.getAttribute('data-nav-builtin'));
+                    }
+                });
+                var nextLibs = [];
+                Array.prototype.forEach.call(m.modal.querySelectorAll('input[data-nav-lib-id]:checked'), function (cb) {
+                    var lid = cb.getAttribute('data-nav-lib-id');
+                    if (lid) {
+                        nextLibs.push(lid);
+                    }
+                });
+                saveProfileNavPrefs({
+                    customized: true,
+                    hiddenBuiltIns: nextHidden,
+                    libraryIds: nextLibs
+                });
+                m.close(true);
+                if (document.getElementById('streamflix-cinema-hub')) {
+                    renderCinemaHubContents();
+                }
+                showToast('Navigation bar updated.', 'success');
+            });
+        }
+        return m;
+    }
+
+    function findLibraryViewById(viewId) {
+        var norm = normalizeGuid(viewId);
+        if (!norm) {
+            return null;
+        }
+        var views = getEligibleUserLibraryViews(state.hubData);
+        for (var i = 0; i < views.length; i++) {
+            if (normalizeGuid(views[i].Id) === norm) {
+                return views[i];
+            }
+        }
+        return null;
+    }
+
+    function resolveItemTypesForLibraryView(view) {
+        var ct = String((view && view.CollectionType) || '').toLowerCase();
+        if (ct === 'movies') {
+            return 'Movie';
+        }
+        if (ct === 'tvshows') {
+            return 'Series';
+        }
+        if (ct === 'boxsets') {
+            return 'BoxSet';
+        }
+        return 'Movie,Series,BoxSet,Video';
+    }
+
+    function ensureLibraryCategoryLoaded(view) {
+        if (!view || !view.Id) {
+            return null;
+        }
+        var norm = normalizeGuid(view.Id);
+        if (!state.libraryViewData) {
+            state.libraryViewData = {};
+        }
+        var existing = state.libraryViewData[norm];
+        if (existing && (existing.loaded || existing.loading)) {
+            return existing;
+        }
+        var auth = getJellyfinAuthContext();
+        if (!auth || !auth.userId) {
+            return null;
+        }
+        var entry = {
+            id: view.Id,
+            name: view.Name || 'Library',
+            collectionType: String(view.CollectionType || '').toLowerCase(),
+            itemTypes: resolveItemTypesForLibraryView(view),
+            loading: true,
+            loaded: false,
+            items: [],
+            recentItems: [],
+            topRatedItems: [],
+            heroItems: [],
+            totalCount: 0
+        };
+        state.libraryViewData[norm] = entry;
+
+        var uid = encodeURIComponent(auth.userId);
+        var pid = encodeURIComponent(view.Id);
+        var fields = 'Overview,Genres,PrimaryImageAspectRatio,DateCreated,ChildCount';
+        var itemTypes = entry.itemTypes;
+
+        var pRecent = fetchUserItems(uid, 'ParentId=' + pid + '&Recursive=true&IncludeItemTypes=' + encodeURIComponent(itemTypes) + '&Limit=60&SortBy=DateCreated,SortName&SortOrder=Descending&Fields=' + fields);
+        var pRated = fetchUserItems(uid, 'ParentId=' + pid + '&Recursive=true&IncludeItemTypes=' + encodeURIComponent(itemTypes) + '&Limit=24&SortBy=CommunityRating,DateCreated&SortOrder=Descending&Fields=' + fields)
+            .catch(function () { return { Items: [] }; });
+
+        Promise.all([pRecent, pRated]).then(function (resList) {
+            var kFilter = typeof filterItemsForKidsMode === 'function' ? filterItemsForKidsMode : function (arr) { return arr || []; };
+            var kidsActive = typeof isKidsProfileActive === 'function' && isKidsProfileActive();
+            var recentItems = kFilter((resList[0] && resList[0].Items) || []);
+            var ratedItems = kFilter((resList[1] && resList[1].Items) || []).filter(function (it) {
+                return (Number(it.CommunityRating) || 0) >= 6.8;
+            });
+            var rawTotal = Number(resList[0] && resList[0].TotalRecordCount) || 0;
+
+            entry.items = dedupeMediaItems(recentItems.concat(ratedItems));
+            entry.recentItems = recentItems.slice(0, 24);
+            entry.topRatedItems = ratedItems.slice(0, 20);
+            entry.heroItems = recentItems.filter(function (it) {
+                return (Array.isArray(it.BackdropImageTags) && it.BackdropImageTags.length > 0)
+                    || (it.ImageTags && it.ImageTags.Primary);
+            }).slice(0, 12);
+            entry.totalCount = kidsActive ? recentItems.length : Math.max(rawTotal, recentItems.length);
+            entry.loading = false;
+            entry.loaded = true;
+            if (document.getElementById('streamflix-cinema-hub') && state.activeCategory === ('lib:' + view.Id)) {
+                renderCinemaHubContents();
+            }
+        }).catch(function () {
+            entry.loading = false;
+            entry.loaded = true;
+            if (document.getElementById('streamflix-cinema-hub') && state.activeCategory === ('lib:' + view.Id)) {
+                renderCinemaHubContents();
+            }
+        });
+
+        return entry;
+    }
+
+    function disconnectLibraryBrowserObserver() {
+        if (state.libraryBrowserObserver) {
+            try { state.libraryBrowserObserver.disconnect(); } catch (eObs) {}
+            state.libraryBrowserObserver = null;
+        }
+    }
+
+    function getLibraryBrowserSortSpec(sortKey) {
+        for (var i = 0; i < LIBRARY_BROWSER_SORTS.length; i++) {
+            if (LIBRARY_BROWSER_SORTS[i].key === sortKey) {
+                return LIBRARY_BROWSER_SORTS[i];
+            }
+        }
+        return LIBRARY_BROWSER_SORTS[0];
+    }
+
+    function openLibraryBrowser(opts) {
+        opts = opts || {};
+        disconnectLibraryBrowserObserver();
+        state.browseFilter = null;
+        state.libraryBrowser = {
+            active: true,
+            scopeKey: String(opts.scopeKey || 'movies'),
+            title: String(opts.title || 'Library'),
+            parentId: String(opts.parentId || ''),
+            itemTypes: String(opts.itemTypes || 'Movie,Series'),
+            sortKey: String(opts.initialSort || 'alpha_asc'),
+            genre: String(opts.initialGenre || ''),
+            yearFilter: '',
+            watchState: 'all',
+            officialRating: '',
+            studioId: '',
+            startLetter: '',
+            items: [],
+            totalCount: 0,
+            startIndex: 0,
+            hasMore: false,
+            loading: true,
+            loadingMore: false,
+            facetsLoaded: false,
+            genres: [],
+            years: [],
+            decades: [],
+            officialRatings: [],
+            studios: []
+        };
+        renderCinemaHubContents();
+        loadLibraryBrowserFacets();
+        fetchLibraryBrowserPage(true);
+        try {
+            var hubEl = document.getElementById('streamflix-cinema-hub');
+            if (hubEl) {
+                hubEl.scrollIntoView({ behavior: prefersReducedMotion() ? 'auto' : 'smooth', block: 'start' });
+            }
+        } catch (eSc) {}
+    }
+
+    function closeLibraryBrowser() {
+        disconnectLibraryBrowserObserver();
+        state.libraryBrowser = null;
+        renderCinemaHubContents();
+    }
+
+    function loadLibraryBrowserFacets() {
+        var lb = state.libraryBrowser;
+        var auth = getJellyfinAuthContext();
+        if (!lb || !auth || !auth.userId) {
+            return;
+        }
+        var uid = encodeURIComponent(auth.userId);
+        var qsBase = 'userId=' + uid
+            + (lb.parentId ? ('&parentId=' + encodeURIComponent(lb.parentId)) : '')
+            + (lb.itemTypes ? ('&includeItemTypes=' + encodeURIComponent(lb.itemTypes)) : '');
+
+        var pFilters = apiFetch('/Items/Filters?' + qsBase).catch(function () { return null; });
+        var pStudios = apiFetch('/Studios?userId=' + uid
+            + (lb.parentId ? ('&parentId=' + encodeURIComponent(lb.parentId)) : '')
+            + (lb.itemTypes ? ('&includeItemTypes=' + encodeURIComponent(lb.itemTypes)) : '')
+            + '&Recursive=true&SortBy=SortName&SortOrder=Ascending&Limit=100')
+            .catch(function () { return null; });
+
+        Promise.all([pFilters, pStudios]).then(function (resArr) {
+            if (!state.libraryBrowser || state.libraryBrowser !== lb) {
+                return;
+            }
+            var fData = resArr[0] || {};
+            var sData = resArr[1] || {};
+
+            var genres = Array.isArray(fData.Genres) ? fData.Genres.filter(Boolean) : [];
+            if (!genres.length) {
+                var gSeen = {};
+                var d = state.hubData || {};
+                [].concat(d.allMovies || [], d.allSeries || []).forEach(function (it) {
+                    (it.Genres || []).forEach(function (g) {
+                        var gc = String(g || '').trim();
+                        if (gc && !gSeen[gc]) {
+                            gSeen[gc] = true;
+                            genres.push(gc);
+                        }
+                    });
+                });
+                genres.sort();
+            }
+
+            var rawYears = Array.isArray(fData.Years)
+                ? fData.Years.map(function (y) { return Number(y); }).filter(function (y) { return y > 1880 && y < 2100; })
+                : [];
+            rawYears.sort(function (a, b) { return b - a; });
+            var decSeen = {};
+            var decades = [];
+            rawYears.forEach(function (y) {
+                var dec = Math.floor(y / 10) * 10;
+                if (!decSeen[dec]) {
+                    decSeen[dec] = true;
+                    decades.push(dec);
+                }
+            });
+
+            var ratings = Array.isArray(fData.OfficialRatings) ? fData.OfficialRatings.filter(Boolean) : [];
+            var studios = Array.isArray(sData.Items)
+                ? sData.Items.filter(function (st) { return st && st.Id && st.Name; }).map(function (st) {
+                    return { id: String(st.Id), name: String(st.Name) };
+                })
+                : [];
+
+            lb.genres = genres;
+            lb.years = rawYears;
+            lb.decades = decades;
+            lb.officialRatings = ratings;
+            lb.studios = studios;
+            lb.facetsLoaded = true;
+            syncLibraryBrowserSelectOptionsInPlace();
+        });
+    }
+
+    function expandYearFilterToCsv(yearFilter) {
+        var val = String(yearFilter || '').trim();
+        if (!val) {
+            return '';
+        }
+        if (val.indexOf('decade:') === 0) {
+            var start = parseInt(val.slice(7), 10);
+            if (!isNaN(start) && start >= 1900 && start <= 2100) {
+                var yrs = [];
+                for (var y = start; y < start + 10; y++) {
+                    yrs.push(String(y));
+                }
+                return yrs.join(',');
+            }
+            return '';
+        }
+        return /^\d{4}$/.test(val) ? val : '';
+    }
+
+    function fetchLibraryBrowserPage(reset) {
+        var lb = state.libraryBrowser;
+        if (!lb || !lb.active) {
+            return;
+        }
+        var auth = getJellyfinAuthContext();
+        if (!auth || !auth.userId) {
+            lb.loading = false;
+            lb.loadingMore = false;
+            renderCinemaHubContents();
+            return;
+        }
+        if (!reset && (lb.loading || lb.loadingMore || !lb.hasMore)) {
+            return;
+        }
+
+        var reqId = (state.libraryBrowserSeq = (state.libraryBrowserSeq || 0) + 1);
+        var startIdx = reset ? 0 : lb.startIndex;
+        if (reset) {
+            disconnectLibraryBrowserObserver();
+            lb.loading = true;
+            lb.loadingMore = false;
+            lb.items = [];
+            lb.startIndex = 0;
+            lb.hasMore = false;
+            renderCinemaHubContents();
+        } else {
+            lb.loadingMore = true;
+            updateLibraryBrowserFooterInPlace();
+        }
+
+        var uid = encodeURIComponent(auth.userId);
+        var sortSpec = getLibraryBrowserSortSpec(lb.sortKey);
+        var fields = 'Overview,Genres,PrimaryImageAspectRatio,DateCreated,ChildCount,OfficialRating,RunTimeTicks,ProductionYear,CommunityRating';
+        var params = [
+            'Recursive=true',
+            'StartIndex=' + startIdx,
+            'Limit=' + LIBRARY_BROWSER_PAGE_SIZE,
+            'SortBy=' + encodeURIComponent(sortSpec.sortBy),
+            'SortOrder=' + encodeURIComponent(sortSpec.sortOrder),
+            'Fields=' + fields
+        ];
+        if (lb.parentId) {
+            params.push('ParentId=' + encodeURIComponent(lb.parentId));
+        }
+        if (lb.itemTypes) {
+            params.push('IncludeItemTypes=' + encodeURIComponent(lb.itemTypes));
+        }
+        if (lb.genre) {
+            params.push('Genres=' + encodeURIComponent(lb.genre));
+        }
+        var yearsCsv = expandYearFilterToCsv(lb.yearFilter);
+        if (yearsCsv) {
+            params.push('Years=' + encodeURIComponent(yearsCsv));
+        }
+        var jfFilters = [];
+        if (lb.watchState === 'unplayed') {
+            jfFilters.push('IsUnplayed');
+        } else if (lb.watchState === 'played') {
+            jfFilters.push('IsPlayed');
+        } else if (lb.watchState === 'favorites') {
+            jfFilters.push('IsFavorite');
+        } else if (lb.watchState === 'resumable') {
+            jfFilters.push('IsResumable');
+        }
+        if (jfFilters.length > 0) {
+            params.push('Filters=' + jfFilters.join(','));
+        }
+        if (lb.officialRating) {
+            params.push('OfficialRatings=' + encodeURIComponent(lb.officialRating));
+        }
+        if (lb.studioId) {
+            params.push('StudioIds=' + encodeURIComponent(lb.studioId));
+        }
+        if (lb.startLetter === '#') {
+            params.push('NameLessThan=A');
+        } else if (/^[A-Z]$/.test(lb.startLetter)) {
+            params.push('NameStartsWith=' + lb.startLetter);
+        }
+
+        fetchUserItems(uid, params.join('&')).then(function (res) {
+            if (state.libraryBrowserSeq !== reqId || state.libraryBrowser !== lb) {
+                return;
+            }
+            var rawPage = (res && Array.isArray(res.Items)) ? res.Items : [];
+            var kFilter = typeof filterItemsForKidsMode === 'function' ? filterItemsForKidsMode : function (arr) { return arr || []; };
+            var kidsActive = typeof isKidsProfileActive === 'function' && isKidsProfileActive();
+            var filteredPage = kFilter(rawPage);
+            var apiTotal = Number(res && res.TotalRecordCount) || 0;
+
+            lb.startIndex = startIdx + rawPage.length;
+            lb.loading = false;
+            lb.loadingMore = false;
+
+            if (reset) {
+                lb.items = filteredPage;
+            } else {
+                var existingSeen = {};
+                lb.items.forEach(function (it) {
+                    if (it && it.Id) {
+                        existingSeen[normalizeGuid(it.Id)] = true;
+                    }
+                });
+                var newlyAdded = [];
+                filteredPage.forEach(function (it) {
+                    if (it && it.Id && !existingSeen[normalizeGuid(it.Id)]) {
+                        existingSeen[normalizeGuid(it.Id)] = true;
+                        lb.items.push(it);
+                        newlyAdded.push(it);
+                    }
+                });
+                lb.totalCount = kidsActive
+                    ? (rawPage.length < LIBRARY_BROWSER_PAGE_SIZE ? lb.items.length : Math.max(apiTotal, lb.items.length))
+                    : Math.max(apiTotal, lb.items.length);
+                lb.hasMore = rawPage.length >= LIBRARY_BROWSER_PAGE_SIZE && lb.startIndex < Math.max(apiTotal, lb.startIndex);
+                appendLibraryBrowserCardsInPlace(newlyAdded);
+                return;
+            }
+
+            lb.totalCount = kidsActive
+                ? (rawPage.length < LIBRARY_BROWSER_PAGE_SIZE ? lb.items.length : Math.max(apiTotal, lb.items.length))
+                : Math.max(apiTotal, lb.items.length);
+            lb.hasMore = rawPage.length >= LIBRARY_BROWSER_PAGE_SIZE && lb.startIndex < Math.max(apiTotal, lb.startIndex);
+            renderCinemaHubContents();
+        }).catch(function () {
+            if (state.libraryBrowserSeq !== reqId || state.libraryBrowser !== lb) {
+                return;
+            }
+            lb.loading = false;
+            lb.loadingMore = false;
+            lb.hasMore = false;
+            if (reset) {
+                renderCinemaHubContents();
+            } else {
+                updateLibraryBrowserFooterInPlace();
+            }
+        });
+    }
+
+    function hasActiveLibraryBrowserFilter(lb) {
+        if (!lb) {
+            return false;
+        }
+        return Boolean(lb.genre || lb.yearFilter || (lb.watchState && lb.watchState !== 'all') || lb.officialRating || lb.studioId || lb.startLetter);
+    }
+
+    function buildLibraryBrowserSelectOptionsHtml(lb) {
+        var genreOpts = '<option value="">All Genres</option>' + (lb.genres || []).map(function (g) {
+            return '<option value="' + escapeHtml(g) + '"' + (lb.genre === g ? ' selected' : '') + '>' + escapeHtml(g) + '</option>';
+        }).join('');
+
+        var yearOpts = '<option value="">Any Year</option>';
+        if (lb.decades && lb.decades.length > 0) {
+            yearOpts += '<optgroup label="Decades">' + lb.decades.map(function (dec) {
+                var dVal = 'decade:' + dec;
+                return '<option value="' + dVal + '"' + (lb.yearFilter === dVal ? ' selected' : '') + '>' + dec + 's</option>';
+            }).join('') + '</optgroup>';
+        }
+        if (lb.years && lb.years.length > 0) {
+            yearOpts += '<optgroup label="Release Year">' + lb.years.map(function (yr) {
+                var yVal = String(yr);
+                return '<option value="' + yVal + '"' + (lb.yearFilter === yVal ? ' selected' : '') + '>' + yVal + '</option>';
+            }).join('') + '</optgroup>';
+        }
+
+        var ratingOpts = '<option value="">Any Rating</option>' + (lb.officialRatings || []).map(function (r) {
+            return '<option value="' + escapeHtml(r) + '"' + (lb.officialRating === r ? ' selected' : '') + '>' + escapeHtml(r) + '</option>';
+        }).join('');
+
+        var studioOpts = '<option value="">All Studios</option>' + (lb.studios || []).map(function (st) {
+            return '<option value="' + escapeHtml(st.id) + '"' + (lb.studioId === st.id ? ' selected' : '') + '>' + escapeHtml(st.name) + '</option>';
+        }).join('');
+
+        return {
+            genreOpts: genreOpts,
+            yearOpts: yearOpts,
+            ratingOpts: ratingOpts,
+            studioOpts: studioOpts
+        };
+    }
+
+    function syncLibraryBrowserSelectOptionsInPlace() {
+        var lb = state.libraryBrowser;
+        if (!lb) {
+            return;
+        }
+        var built = buildLibraryBrowserSelectOptionsHtml(lb);
+        var gSel = document.getElementById('bfx-lb-genre');
+        if (gSel) { gSel.innerHTML = built.genreOpts; }
+        var ySel = document.getElementById('bfx-lb-year');
+        if (ySel) { ySel.innerHTML = built.yearOpts; }
+        var rSel = document.getElementById('bfx-lb-rating');
+        if (rSel) { rSel.innerHTML = built.ratingOpts; }
+        var stSel = document.getElementById('bfx-lb-studio');
+        if (stSel) {
+            stSel.innerHTML = built.studioOpts;
+            stSel.style.display = (lb.studios && lb.studios.length > 0) ? '' : 'none';
+        }
+    }
+
+    function buildLibraryBrowserFooterHtml(lb) {
+        if (!lb || lb.loading || !lb.items.length) {
+            return '';
+        }
+        var shown = lb.items.length;
+        var total = Math.max(lb.totalCount || 0, shown);
+        return ''
+            + '<div class="bfx-lb-footer" id="bfx-lb-footer">'
+            + '  <div class="bfx-lb-progress-text" id="bfx-lb-status">Showing <strong>' + shown + '</strong> of <strong>' + total + '</strong> titles</div>'
+            + (lb.hasMore
+                ? ('  <button type="button" class="streamflix-ghost-btn bfx-lb-more-btn" id="bfx-lb-more-btn"' + (lb.loadingMore ? ' disabled' : '') + '>'
+                    + (lb.loadingMore ? '<span class="bfx-mini-ring"></span><span>Loading more…</span>' : '<span>Load More Titles</span>')
+                    + '</button>'
+                    + '  <div class="bfx-lb-sentinel" id="bfx-lb-sentinel" aria-hidden="true"></div>')
+                : '')
+            + '</div>';
+    }
+
+    function updateLibraryBrowserFooterInPlace() {
+        var lb = state.libraryBrowser;
+        var host = document.getElementById('bfx-lb-footer-wrap');
+        if (!lb || !host) {
+            return;
+        }
+        host.innerHTML = buildLibraryBrowserFooterHtml(lb);
+        var moreBtn = document.getElementById('bfx-lb-more-btn');
+        if (moreBtn) {
+            moreBtn.addEventListener('click', function () {
+                fetchLibraryBrowserPage(false);
+            });
+        }
+        connectLibraryBrowserInfiniteScroll();
+    }
+
+    function appendLibraryBrowserCardsInPlace(newItems) {
+        var lb = state.libraryBrowser;
+        var grid = document.getElementById('bfx-lb-grid');
+        if (!lb || !grid) {
+            renderCinemaHubContents();
+            return;
+        }
+        if (newItems && newItems.length > 0) {
+            var tempWrap = document.createElement('div');
+            tempWrap.innerHTML = newItems.map(buildPosterCardHtml).join('');
+            bindInteractiveCardsInContainer(tempWrap, newItems, null);
+            while (tempWrap.firstChild) {
+                grid.appendChild(tempWrap.firstChild);
+            }
+        }
+        var countBadge = document.getElementById('bfx-lb-total-badge');
+        if (countBadge) {
+            countBadge.textContent = String(lb.totalCount || lb.items.length);
+        }
+        updateLibraryBrowserFooterInPlace();
+    }
+
+    function connectLibraryBrowserInfiniteScroll() {
+        disconnectLibraryBrowserObserver();
+        var lb = state.libraryBrowser;
+        if (!lb || !lb.hasMore || lb.loading || lb.loadingMore || typeof IntersectionObserver === 'undefined') {
+            return;
+        }
+        var sentinel = document.getElementById('bfx-lb-sentinel');
+        if (!sentinel) {
+            return;
+        }
+        state.libraryBrowserObserver = new IntersectionObserver(function (entries) {
+            for (var i = 0; i < entries.length; i++) {
+                if (entries[i].isIntersecting) {
+                    fetchLibraryBrowserPage(false);
+                    break;
+                }
+            }
+        }, { rootMargin: '650px 0px' });
+        state.libraryBrowserObserver.observe(sentinel);
+    }
+
+    function buildLibraryBrowserHtml(lb) {
+        var sortOpts = LIBRARY_BROWSER_SORTS.map(function (s) {
+            return '<option value="' + s.key + '"' + (lb.sortKey === s.key ? ' selected' : '') + '>' + escapeHtml(s.label) + '</option>';
+        }).join('');
+        var watchOpts = [
+            { val: 'all', label: 'All Watch States' },
+            { val: 'unplayed', label: 'Unwatched' },
+            { val: 'played', label: 'Watched' },
+            { val: 'favorites', label: 'Favorites (My List)' },
+            { val: 'resumable', label: 'Continue Watching' }
+        ].map(function (w) {
+            return '<option value="' + w.val + '"' + (lb.watchState === w.val ? ' selected' : '') + '>' + w.label + '</option>';
+        }).join('');
+
+        var selHtml = buildLibraryBrowserSelectOptionsHtml(lb);
+        var letters = [''].concat(['#'], 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split(''));
+        var alphaHtml = letters.map(function (ch) {
+            var label = ch === '' ? 'All' : ch;
+            var active = lb.startLetter === ch;
+            return '<button type="button" class="bfx-lb-alpha-btn' + (active ? ' active' : '') + '" data-lb-letter="' + escapeHtml(ch) + '">' + escapeHtml(label) + '</button>';
+        }).join('');
+
+        var hasFilters = hasActiveLibraryBrowserFilter(lb);
+        var countVal = !lb.loading ? (lb.totalCount || lb.items.length) : null;
+
+        return ''
+            + '<section class="streamflix-row streamflix-row-grid bfx-lib-browser" data-row-id="library-browser">'
+            + '  <div class="bfx-lb-header">'
+            + '    <div class="bfx-lb-title-wrap">'
+            + '      <span class="streamflix-filter-kicker">Full Catalog Browser</span>'
+            + '      <h2 class="streamflix-row-title">' + escapeHtml(lb.title)
+            + (countVal !== null ? '<span class="streamflix-row-count" id="bfx-lb-total-badge">' + countVal + '</span>' : '')
+            + '      </h2>'
+            + '    </div>'
+            + '    <div class="bfx-lb-header-actions">'
+            + (hasFilters ? '<button type="button" class="streamflix-ghost-btn bfx-btn-xs" id="bfx-lb-reset-filters">' + icon('refresh') + '<span>Reset Filters</span></button>' : '')
+            + '      <button type="button" class="streamflix-ghost-btn streamflix-filter-clear-btn" id="bfx-lb-close-btn">' + icon('chevronLeft') + '<span>Back to Featured</span></button>'
+            + '    </div>'
+            + '  </div>'
+            + '  <div class="bfx-lb-toolbar" role="region" aria-label="Sort and filter library">'
+            + '    <label class="bfx-lb-control"><span class="bfx-lb-control-lbl">Sort</span><select id="bfx-lb-sort" class="bfx-lb-select">' + sortOpts + '</select></label>'
+            + '    <label class="bfx-lb-control"><span class="bfx-lb-control-lbl">Genre</span><select id="bfx-lb-genre" class="bfx-lb-select">' + selHtml.genreOpts + '</select></label>'
+            + '    <label class="bfx-lb-control"><span class="bfx-lb-control-lbl">Year</span><select id="bfx-lb-year" class="bfx-lb-select">' + selHtml.yearOpts + '</select></label>'
+            + '    <label class="bfx-lb-control"><span class="bfx-lb-control-lbl">Status</span><select id="bfx-lb-watch" class="bfx-lb-select">' + watchOpts + '</select></label>'
+            + '    <label class="bfx-lb-control"><span class="bfx-lb-control-lbl">Rating</span><select id="bfx-lb-rating" class="bfx-lb-select">' + selHtml.ratingOpts + '</select></label>'
+            + '    <label class="bfx-lb-control" id="bfx-lb-studio-wrap" style="' + ((lb.studios && lb.studios.length > 0) ? '' : 'display:none;') + '"><span class="bfx-lb-control-lbl">Studio</span><select id="bfx-lb-studio" class="bfx-lb-select">' + selHtml.studioOpts + '</select></label>'
+            + '  </div>'
+            + '  <div class="bfx-lb-alpha-bar" role="navigation" aria-label="Jump by first letter">' + alphaHtml + '</div>'
+            + (lb.loading
+                ? '  <div class="streamflix-filter-loading"><div class="streamflix-spinner-ring"></div><span>Loading catalog…</span></div>'
+                : (lb.items.length > 0
+                    ? '  <div class="streamflix-grid bfx-lib-browser-grid" id="bfx-lb-grid">' + lb.items.map(buildPosterCardHtml).join('') + '</div>'
+                    : buildEmptyStateHtml('film', 'No matching titles', hasFilters ? 'Try adjusting or resetting your active filters above.' : 'This library doesn\'t have any matching items yet.')))
+            + '  <div id="bfx-lb-footer-wrap">' + buildLibraryBrowserFooterHtml(lb) + '</div>'
+            + '</section>';
+    }
+
+    function bindLibraryBrowserInteractive(rowsScope) {
+        var lb = state.libraryBrowser;
+        if (!lb || !rowsScope) {
+            return;
+        }
+        var closeBtn = rowsScope.querySelector('#bfx-lb-close-btn');
+        if (closeBtn) {
+            closeBtn.addEventListener('click', closeLibraryBrowser);
+        }
+        var resetBtn = rowsScope.querySelector('#bfx-lb-reset-filters');
+        if (resetBtn) {
+            resetBtn.addEventListener('click', function () {
+                lb.genre = '';
+                lb.yearFilter = '';
+                lb.watchState = 'all';
+                lb.officialRating = '';
+                lb.studioId = '';
+                lb.startLetter = '';
+                fetchLibraryBrowserPage(true);
+            });
+        }
+        var bindSel = function (id, prop) {
+            var el = rowsScope.querySelector('#' + id);
+            if (el) {
+                el.addEventListener('change', function () {
+                    lb[prop] = el.value || '';
+                    fetchLibraryBrowserPage(true);
+                });
+            }
+        };
+        bindSel('bfx-lb-sort', 'sortKey');
+        bindSel('bfx-lb-genre', 'genre');
+        bindSel('bfx-lb-year', 'yearFilter');
+        bindSel('bfx-lb-watch', 'watchState');
+        bindSel('bfx-lb-rating', 'officialRating');
+        bindSel('bfx-lb-studio', 'studioId');
+
+        Array.prototype.forEach.call(rowsScope.querySelectorAll('[data-lb-letter]'), function (btn) {
+            btn.addEventListener('click', function () {
+                var picked = btn.getAttribute('data-lb-letter') || '';
+                lb.startLetter = (lb.startLetter === picked && picked !== '') ? '' : picked;
+                if (lb.startLetter && lb.sortKey.indexOf('alpha_') !== 0) {
+                    lb.sortKey = 'alpha_asc';
+                }
+                fetchLibraryBrowserPage(true);
+            });
+        });
+
+        var moreBtn = rowsScope.querySelector('#bfx-lb-more-btn');
+        if (moreBtn) {
+            moreBtn.addEventListener('click', function () {
+                fetchLibraryBrowserPage(false);
+            });
+        }
+        connectLibraryBrowserInfiniteScroll();
+    }
+
+    function buildBrowseCatalogBtnHtml(scopeKey, title, parentId, itemTypes, totalCount, isFooter) {
+        var countLabel = totalCount > 0 ? ('All ' + totalCount + ' ') : 'Full ';
+        var label = isFooter
+            ? ('Browse ' + countLabel + 'Titles with Sort & Filter')
+            : ('Browse All' + (totalCount > 0 ? (' (' + totalCount + ')') : '') + ' · Sort & Filter');
+        return '<button type="button" class="' + (isFooter ? 'streamflix-btn-primary bfx-browse-all-footer-btn' : 'streamflix-ghost-btn bfx-browse-all-hdr-btn') + '"'
+            + ' data-open-lib-browser="1"'
+            + ' data-lb-scope="' + escapeHtml(scopeKey) + '"'
+            + ' data-lb-title="' + escapeHtml(title) + '"'
+            + ' data-lb-parent="' + escapeHtml(parentId || '') + '"'
+            + ' data-lb-types="' + escapeHtml(itemTypes || 'Movie,Series') + '">'
+            + icon('sliders') + '<span>' + escapeHtml(label) + '</span>'
+            + '</button>';
+    }
+
     function renderCinemaHubContents() {
         var hub = document.getElementById('streamflix-cinema-hub');
         if (!hub) {
@@ -390,21 +1375,27 @@
         var profileName = (state.activeProfile && state.activeProfile.name) || 'You';
         var cat = state.activeCategory || 'all';
         var bf = (!state.searchQuery && state.browseFilter) ? state.browseFilter : null;
+        var lb = (!state.searchQuery && !bf && state.libraryBrowser && state.libraryBrowser.active) ? state.libraryBrowser : null;
+        if (!lb) {
+            disconnectLibraryBrowserObserver();
+        }
 
-        document.body.classList.toggle('streamflix-hub-filtered', Boolean(state.searchQuery) || Boolean(bf) || cat !== 'all');
+        document.body.classList.toggle('streamflix-hub-filtered', Boolean(state.searchQuery) || Boolean(bf) || Boolean(lb) || cat !== 'all');
 
-        var pills = [
-            { id: 'all', label: 'Home' },
-            { id: 'series', label: 'Shows', hide: !d.allSeries.length },
-            { id: 'movies', label: 'Movies', hide: !d.allMovies.length },
-            { id: 'collections', label: 'Collections', hide: !d.collectionsItems.length && !buildSmartCollections(d).length },
-            { id: 'top10', label: 'Top 10', hide: !d.top10Items.length },
-            { id: 'mylist', label: 'My List' }
-        ];
+        var pills = getConfiguredNavPills(d);
+        if (cat.indexOf('lib:') === 0 && !pills.some(function (p) { return p.id === cat; })) {
+            var activeLibView = findLibraryViewById(cat.slice(4));
+            if (activeLibView) {
+                pills.push({ id: cat, label: activeLibView.Name || 'Library', view: activeLibView, hide: false });
+            } else {
+                cat = 'all';
+                state.activeCategory = 'all';
+            }
+        }
 
         var pillsHtml = pills.filter(function (p) { return !p.hide || cat === p.id; }).map(function (p) {
             var isActive = !state.searchQuery && !bf && cat === p.id;
-            return '<button type="button" class="streamflix-pill' + (isActive ? ' active' : '') + '" data-cat-id="' + p.id + '"' + (isActive ? ' aria-current="page"' : '') + '>' + escapeHtml(p.label) + '</button>';
+            return '<button type="button" class="streamflix-pill' + (isActive ? ' active' : '') + '" data-cat-id="' + escapeHtml(p.id) + '"' + (isActive ? ' aria-current="page"' : '') + '>' + escapeHtml(p.label) + '</button>';
         }).join('');
 
         var canSurprise = (d.allMovies.length + d.allSeries.length) >= 2;
@@ -427,20 +1418,29 @@
             + '  </div>'
             + '</div>';
 
+        var activeLibForCat = cat.indexOf('lib:') === 0 ? findLibraryViewById(cat.slice(4)) : null;
+        var libCatEntry = activeLibForCat ? ensureLibraryCategoryLoaded(activeLibForCat) : null;
+
         var activeHeroItems = getActiveHeroItems();
-        var showHero = !state.searchQuery && !bf && activeHeroItems.length > 0;
+        var showHero = !state.searchQuery && !bf && !lb && activeHeroItems.length > 0;
         var heroHtml = '<div id="streamflix-hero-billboard" style="' + (showHero ? '' : 'display:none !important;') + '"></div>';
         var top10Cards = function () {
             return d.top10Items.map(function (it, idx) { return buildTop10CardHtml(it, idx + 1); }).join('');
         };
 
-        var kidsWorldStripHtml = (!state.searchQuery && !bf && cat === 'all' && typeof buildKidsWorldStripHtml === 'function')
+        var kidsWorldStripHtml = (!state.searchQuery && !bf && !lb && cat === 'all' && typeof buildKidsWorldStripHtml === 'function')
             ? buildKidsWorldStripHtml(d.allMovies.concat(d.allSeries))
             : '';
+
+        var totalMoviesCount = Math.max(d.totalMoviesCount || 0, d.allMovies.length);
+        var totalSeriesCount = Math.max(d.totalSeriesCount || 0, d.allSeries.length);
+        var totalColsCount = Math.max(d.totalCollectionsCount || 0, d.collectionsItems.length);
 
         var rowsHtml = '';
         if (state.searchQuery && (Array.isArray(state.searchResults) || Array.isArray(state.seerrSearchResults) || state.seerrSearchLoading)) {
             rowsHtml += buildSearchRowsHtml();
+        } else if (lb) {
+            rowsHtml += buildLibraryBrowserHtml(lb);
         } else if (bf) {
             var bfKicker = bf.kind === 'genre'
                 ? 'Genre'
@@ -460,6 +1460,31 @@
                         ? '  <div class="streamflix-grid">' + bf.items.map(buildPosterCardHtml).join('') + '</div>'
                         : buildEmptyStateHtml('film', 'No titles found for “' + bf.name + '”', 'Try another genre, cast member, or category.')))
                 + '</section>';
+        } else if (cat.indexOf('lib:') === 0 && activeLibForCat) {
+            if (!libCatEntry || libCatEntry.loading) {
+                rowsHtml += '<div class="streamflix-filter-loading"><div class="streamflix-spinner-ring"></div><span>Loading ' + escapeHtml(activeLibForCat.Name || 'library') + '…</span></div>';
+            } else if (libCatEntry.items.length === 0) {
+                rowsHtml += buildEmptyStateHtml('film', 'Nothing in ' + (activeLibForCat.Name || 'this library') + ' yet', 'Titles added to this Jellyfin library will appear here automatically.');
+            } else {
+                var libTitle = activeLibForCat.Name || 'Library';
+                var libTotal = Math.max(libCatEntry.totalCount || 0, libCatEntry.recentItems.length);
+                if (libCatEntry.recentItems.length > 0) {
+                    rowsHtml += buildRowHtml('lib-recent-' + activeLibForCat.Id, rowTitle('Recently Added in ' + libTitle), libCatEntry.recentItems.slice(0, 20).map(buildPosterCardHtml).join(''));
+                }
+                if (libCatEntry.topRatedItems.length >= 4) {
+                    rowsHtml += buildRowHtml('lib-rated-' + activeLibForCat.Id, rowTitle('Top Rated in ' + libTitle), libCatEntry.topRatedItems.map(buildPosterCardHtml).join(''));
+                }
+                rowsHtml += buildGenreCollectionRowsHtml(libCatEntry.items);
+                var libHdrBtn = buildBrowseCatalogBtnHtml('lib:' + activeLibForCat.Id, libTitle, activeLibForCat.Id, libCatEntry.itemTypes, libTotal, false);
+                var libFooter = libTotal > libCatEntry.recentItems.length
+                    ? ('<div class="bfx-grid-more-banner"><span>Showing the ' + libCatEntry.recentItems.length + ' most recently added of <strong>' + libTotal + '</strong> titles.</span>'
+                        + buildBrowseCatalogBtnHtml('lib:' + activeLibForCat.Id, libTitle, activeLibForCat.Id, libCatEntry.itemTypes, libTotal, true) + '</div>')
+                    : '';
+                rowsHtml += buildGridSectionHtml('lib-all-' + activeLibForCat.Id, rowTitle('All ' + libTitle, libTotal), libCatEntry.recentItems, {
+                    actionHtml: libHdrBtn,
+                    footerHtml: libFooter
+                });
+            }
         } else if (cat === 'movies') {
             if (d.recentMovies.length > 0) {
                 rowsHtml += buildRowHtml('movies-recent', rowTitle('New on ' + getBrandName()), d.recentMovies.map(buildPosterCardHtml).join(''));
@@ -467,7 +1492,15 @@
             rowsHtml += smartRowsHtml(['smart-acclaimed-movies', 'smart-short', 'smart-decade', 'smart-family']);
             rowsHtml += buildGenreCollectionRowsHtml(d.allMovies);
             if (d.allMovies.length > 0) {
-                rowsHtml += buildGridSectionHtml('movies-all', rowTitle('All Movies', d.allMovies.length), d.allMovies);
+                var movHdrBtn = buildBrowseCatalogBtnHtml('movies', 'All Movies', '', 'Movie', totalMoviesCount, false);
+                var movFooter = totalMoviesCount > d.allMovies.length
+                    ? ('<div class="bfx-grid-more-banner"><span>Showing the ' + d.allMovies.length + ' most recently added of <strong>' + totalMoviesCount + '</strong> movies.</span>'
+                        + buildBrowseCatalogBtnHtml('movies', 'All Movies', '', 'Movie', totalMoviesCount, true) + '</div>')
+                    : '';
+                rowsHtml += buildGridSectionHtml('movies-all', rowTitle('All Movies', totalMoviesCount), d.allMovies, {
+                    actionHtml: movHdrBtn,
+                    footerHtml: movFooter
+                });
             }
         } else if (cat === 'series') {
             if (d.nextUpItems.length > 0) {
@@ -479,12 +1512,23 @@
             rowsHtml += smartRowsHtml(['smart-binge', 'smart-acclaimed-shows']);
             rowsHtml += buildGenreCollectionRowsHtml(d.allSeries);
             if (d.allSeries.length > 0) {
-                rowsHtml += buildGridSectionHtml('series-all', rowTitle('All Shows', d.allSeries.length), d.allSeries);
+                var serHdrBtn = buildBrowseCatalogBtnHtml('series', 'All Shows', '', 'Series', totalSeriesCount, false);
+                var serFooter = totalSeriesCount > d.allSeries.length
+                    ? ('<div class="bfx-grid-more-banner"><span>Showing the ' + d.allSeries.length + ' most recently added of <strong>' + totalSeriesCount + '</strong> shows.</span>'
+                        + buildBrowseCatalogBtnHtml('series', 'All Shows', '', 'Series', totalSeriesCount, true) + '</div>')
+                    : '';
+                rowsHtml += buildGridSectionHtml('series-all', rowTitle('All Shows', totalSeriesCount), d.allSeries, {
+                    actionHtml: serHdrBtn,
+                    footerHtml: serFooter
+                });
             }
         } else if (cat === 'collections') {
             rowsHtml += smartRowsHtml(['smart-acclaimed', 'smart-gems', 'smart-binge', 'smart-short', 'smart-decade', 'smart-family']);
             if (d.collectionsItems.length > 0) {
-                rowsHtml += buildGridSectionHtml('collections-boxsets', rowTitle('Collections', d.collectionsItems.length), d.collectionsItems);
+                var colHdrBtn = buildBrowseCatalogBtnHtml('collections', 'Collections', '', 'BoxSet', totalColsCount, false);
+                rowsHtml += buildGridSectionHtml('collections-boxsets', rowTitle('Collections', totalColsCount), d.collectionsItems, {
+                    actionHtml: colHdrBtn
+                });
             }
             rowsHtml += buildGenreCollectionRowsHtml(d.allMovies.concat(d.allSeries));
         } else if (cat === 'mylist') {
@@ -567,9 +1611,10 @@
             Array.prototype.forEach.call(scopeNode.querySelectorAll('[data-cat-id]'), function (btn) {
                 btn.addEventListener('click', function () {
                     cancelPendingSearch();
+                    disconnectLibraryBrowserObserver();
                     var pickedCat = btn.getAttribute('data-cat-id') || 'all';
                     var isPhoneMode = Boolean(document.body && document.body.classList.contains('bfx-phone-mode'));
-                    if (isPhoneMode && pickedCat !== 'all' && !state.searchQuery && !state.browseFilter && state.activeCategory === pickedCat) {
+                    if (isPhoneMode && pickedCat !== 'all' && !state.searchQuery && !state.browseFilter && !state.libraryBrowser && state.activeCategory === pickedCat) {
                         pickedCat = 'all';
                     }
                     state.activeCategory = pickedCat;
@@ -580,6 +1625,7 @@
                     state.searchResults = null;
                     state.seerrSearchResults = null;
                     state.browseFilter = null;
+                    state.libraryBrowser = null;
                     renderCinemaHubContents();
                 });
             });
@@ -589,11 +1635,23 @@
             Array.prototype.forEach.call(rowsScope.querySelectorAll('[data-cat-link]'), function (btn) {
                 btn.addEventListener('click', function () {
                     cancelPendingSearch();
+                    disconnectLibraryBrowserObserver();
                     state.activeCategory = btn.getAttribute('data-cat-link') || 'all';
                     state.heroIndex = 0;
                     state.browseFilter = null;
+                    state.libraryBrowser = null;
                     renderCinemaHubContents();
                     try { hub.scrollIntoView({ behavior: prefersReducedMotion() ? 'auto' : 'smooth', block: 'start' }); } catch (e) {}
+                });
+            });
+            Array.prototype.forEach.call(rowsScope.querySelectorAll('[data-open-lib-browser="1"]'), function (btn) {
+                btn.addEventListener('click', function () {
+                    openLibraryBrowser({
+                        scopeKey: btn.getAttribute('data-lb-scope') || 'movies',
+                        title: btn.getAttribute('data-lb-title') || 'Library',
+                        parentId: btn.getAttribute('data-lb-parent') || '',
+                        itemTypes: btn.getAttribute('data-lb-types') || 'Movie,Series'
+                    });
                 });
             });
             var clearBrowseFilterBtn = rowsScope.querySelector('#streamflix-clear-browse-filter');
@@ -602,6 +1660,9 @@
                     state.browseFilter = null;
                     renderCinemaHubContents();
                 });
+            }
+            if (state.libraryBrowser && state.libraryBrowser.active) {
+                bindLibraryBrowserInteractive(rowsScope);
             }
             if (typeof bindKidsWorldStrip === 'function') {
                 bindKidsWorldStrip(rowsScope);

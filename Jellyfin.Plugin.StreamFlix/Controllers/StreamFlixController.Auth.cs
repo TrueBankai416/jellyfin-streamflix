@@ -683,12 +683,17 @@ public partial class StreamFlixController
 
         try
         {
-            var authUrl = await PrepareOidcAuthorizationSessionAsync(
+            var (authUrl, stateId, pollSecret) = await PrepareOidcAuthorizationSessionAsync(
                 config,
                 safeWebBase,
                 request?.LoginHint,
                 request?.PendingProfileId).ConfigureAwait(false);
-            return Ok(new { authorizeUrl = authUrl });
+            return Ok(new
+            {
+                authorizeUrl = authUrl,
+                stateId,
+                pollSecret,
+            });
         }
         catch (Exception ex)
         {
@@ -720,7 +725,7 @@ public partial class StreamFlixController
 
         try
         {
-            var authUrl = await PrepareOidcAuthorizationSessionAsync(
+            var (authUrl, _, _) = await PrepareOidcAuthorizationSessionAsync(
                 config,
                 safeWebBase,
                 loginHint,
@@ -734,14 +739,14 @@ public partial class StreamFlixController
         }
     }
 
-    private async Task<string> PrepareOidcAuthorizationSessionAsync(
+    private async Task<(string AuthUrl, string StateId, string PollSecret)> PrepareOidcAuthorizationSessionAsync(
         PluginConfiguration config,
         string safeWebBase,
         string? loginHint,
         string? pendingProfileId)
     {
         var callbackUri = BuildAbsoluteOidcCallbackUri();
-        var (authUrl, stateId, signedStateCookie) = await StreamFlixOidcService.CreateAuthorizationRedirectAsync(
+        var (authUrl, stateId, signedStateCookie, pollSecret) = await StreamFlixOidcService.CreateAuthorizationRedirectAsync(
             config,
             callbackUri,
             safeWebBase,
@@ -773,7 +778,7 @@ public partial class StreamFlixController
             signedStateCookie,
             BuildOidcCookieOptions(TimeSpan.FromMinutes(10)));
 
-        return authUrl;
+        return (authUrl, stateId, pollSecret);
     }
 
     [HttpGet("Oidc/Callback")]
@@ -806,10 +811,22 @@ public partial class StreamFlixController
             config,
             StreamFlixOidcService.StateTokenPurpose,
             rawStateCookie);
+        if (statePayload != null)
+        {
+            StreamFlixOidcService.MarkPendingStateConsumed(statePayload.StateId);
+        }
+        else
+        {
+            // Mobile WebView fallback (iOS WKWebView ITP / hardened Android WebView / external browser):
+            // recover the one-time pending PKCE state keyed by the cryptographic state parameter.
+            statePayload = StreamFlixOidcService.TryConsumePendingState(state);
+        }
+
         var safeWebBase = ResolveSafeRelativeWebPath(statePayload?.ReturnWebBase);
 
         if (!StreamFlixOidcService.IsConfigured(config))
         {
+            StreamFlixOidcService.StoreCompletedFlow(state, null, "OpenID Connect sign-in is disabled on this server.");
             return Redirect(BuildOidcReturnUrl(safeWebBase, errorMessage: "OpenID Connect sign-in is disabled on this server."));
         }
 
@@ -828,7 +845,8 @@ public partial class StreamFlixController
                 friendly = friendly.Substring(0, 220);
             }
 
-            return Redirect(BuildOidcReturnUrl(safeWebBase, errorMessage: friendly));
+            StreamFlixOidcService.StoreCompletedFlow(statePayload.StateId, null, friendly);
+            return Redirect(BuildOidcReturnUrl(safeWebBase, errorMessage: friendly, stateId: statePayload.StateId));
         }
 
         try
@@ -849,9 +867,9 @@ public partial class StreamFlixController
                 var who = !string.IsNullOrWhiteSpace(identity.Email)
                     ? identity.Email
                     : (!string.IsNullOrWhiteSpace(identity.Username) ? identity.Username : identity.Subject);
-                return Redirect(BuildOidcReturnUrl(
-                    safeWebBase,
-                    errorMessage: $"{who} isn't on the approved OIDC allowlist for this StreamFlix server. Ask the owner to add it in Dashboard → Plugins → StreamFlix."));
+                var denyMsg = $"{who} isn't on the approved OIDC allowlist for this StreamFlix server. Ask the owner to add it in Dashboard → Plugins → StreamFlix.";
+                StreamFlixOidcService.StoreCompletedFlow(statePayload.StateId, null, denyMsg);
+                return Redirect(BuildOidcReturnUrl(safeWebBase, errorMessage: denyMsg, stateId: statePayload.StateId));
             }
 
             var session = StreamFlixSessionService.IssueOidcSession(
@@ -872,6 +890,8 @@ public partial class StreamFlixController
                 ExpiresAt: session.ExpiresAt.ToString("O"),
                 PendingProfileId: statePayload.PendingProfileId ?? string.Empty);
 
+            StreamFlixOidcService.StoreCompletedFlow(statePayload.StateId, handoffPayload, errorMessage: null);
+
             var signedHandoff = StreamFlixSessionService.SignShortLivedPayload(
                 config,
                 StreamFlixOidcService.HandoffTokenPurpose,
@@ -888,19 +908,20 @@ public partial class StreamFlixController
                 signedHandoff,
                 BuildOidcCookieOptions(TimeSpan.FromSeconds(75)));
 
-            return Redirect(BuildOidcReturnUrl(safeWebBase, errorMessage: null));
+            return Redirect(BuildOidcReturnUrl(safeWebBase, errorMessage: null, stateId: statePayload.StateId));
         }
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "StreamFlix: OIDC callback verification failed.");
-            return Redirect(BuildOidcReturnUrl(safeWebBase, errorMessage: ex.Message));
+            StreamFlixOidcService.StoreCompletedFlow(statePayload.StateId, null, ex.Message);
+            return Redirect(BuildOidcReturnUrl(safeWebBase, errorMessage: ex.Message, stateId: statePayload.StateId));
         }
     }
 
     [HttpPost("Oidc/Complete")]
     [AllowAnonymous]
     [Produces(MediaTypeNames.Application.Json)]
-    public ActionResult<object> CompleteOidcHandoff()
+    public ActionResult<object> CompleteOidcHandoff([FromBody] CompleteOidcRequest? request = null)
     {
         Response.Headers["Cache-Control"] = "no-store";
         var config = Config;
@@ -913,6 +934,30 @@ public partial class StreamFlixController
             StreamFlixOidcService.HandoffTokenPurpose,
             rawHandoff);
 
+        // If cookies worked in this same WebView/browser AND the caller also supplied its pollSecret, retire the server-side entry too
+        if (handoff != null && !string.IsNullOrWhiteSpace(request?.StateId) && !string.IsNullOrWhiteSpace(request?.PollSecret))
+        {
+            _ = StreamFlixOidcService.PollOrClaimFlow(request.StateId, request.PollSecret);
+        }
+        else if (handoff == null && !string.IsNullOrWhiteSpace(request?.StateId) && !string.IsNullOrWhiteSpace(request?.PollSecret))
+        {
+            // Cookie-blocked mobile WebView fallback: verify one-time cryptographic pollSecret
+            var pollRes = StreamFlixOidcService.PollOrClaimFlow(request.StateId, request.PollSecret);
+            if (string.Equals(pollRes.Status, "complete", StringComparison.Ordinal))
+            {
+                handoff = pollRes.Handoff;
+            }
+            else if (string.Equals(pollRes.Status, "error", StringComparison.Ordinal) && !string.IsNullOrWhiteSpace(pollRes.ErrorMessage))
+            {
+                return StatusCode(401, new
+                {
+                    verified = false,
+                    code = "oidc_callback_error",
+                    message = pollRes.ErrorMessage,
+                });
+            }
+        }
+
         if (handoff == null || string.IsNullOrWhiteSpace(handoff.SessionToken))
         {
             return StatusCode(401, new
@@ -923,12 +968,57 @@ public partial class StreamFlixController
             });
         }
 
-        // Re-validate the minted session against current config before handing it to the browser
+        return BuildVerifiedOidcHandoffResult(config, handoff);
+    }
+
+    [HttpPost("Oidc/Poll")]
+    [AllowAnonymous]
+    [Produces(MediaTypeNames.Application.Json)]
+    public ActionResult<object> PollOidcHandoff([FromBody] CompleteOidcRequest? request)
+    {
+        Response.Headers["Cache-Control"] = "no-store";
+        if (request == null || string.IsNullOrWhiteSpace(request.StateId) || string.IsNullOrWhiteSpace(request.PollSecret))
+        {
+            return BadRequest(new { status = "invalid", verified = false, message = "Missing stateId or pollSecret." });
+        }
+
+        var config = Config;
+        var pollRes = StreamFlixOidcService.PollOrClaimFlow(request.StateId, request.PollSecret);
+        if (string.Equals(pollRes.Status, "pending", StringComparison.Ordinal))
+        {
+            return Ok(new { status = "pending", verified = false });
+        }
+
+        if (string.Equals(pollRes.Status, "error", StringComparison.Ordinal))
+        {
+            return Ok(new
+            {
+                status = "error",
+                verified = false,
+                message = pollRes.ErrorMessage ?? "OpenID Connect sign-in failed.",
+            });
+        }
+
+        if (string.Equals(pollRes.Status, "complete", StringComparison.Ordinal) && pollRes.Handoff != null)
+        {
+            return BuildVerifiedOidcHandoffResult(config, pollRes.Handoff, includeCompleteStatus: true);
+        }
+
+        return Ok(new { status = "expired", verified = false });
+    }
+
+    private ActionResult<object> BuildVerifiedOidcHandoffResult(
+        PluginConfiguration config,
+        StreamFlixOidcService.OidcHandoffPayload handoff,
+        bool includeCompleteStatus = false)
+    {
+        // Re-validate the minted session against current config before handing it to the client
         var validated = StreamFlixSessionService.Validate(config, handoff.SessionToken);
         if (validated == null)
         {
             return StatusCode(401, new
             {
+                status = "error",
                 verified = false,
                 code = "oidc_session_invalid",
                 message = "OpenID Connect session is no longer valid.",
@@ -937,6 +1027,7 @@ public partial class StreamFlixController
 
         return Ok(new
         {
+            status = includeCompleteStatus ? "complete" : null,
             verified = true,
             authKind = StreamFlixSessionService.AuthKindOidc,
             providerName = handoff.ProviderName,
@@ -1090,14 +1181,17 @@ public partial class StreamFlixController
         return trimmed;
     }
 
-    private static string BuildOidcReturnUrl(string safeRelativeWebPath, string? errorMessage)
+    private static string BuildOidcReturnUrl(string safeRelativeWebPath, string? errorMessage, string? stateId = null)
     {
+        var stateSuffix = !string.IsNullOrWhiteSpace(stateId)
+            ? $"&sf_state={Uri.EscapeDataString(stateId.Trim())}"
+            : string.Empty;
         if (string.IsNullOrWhiteSpace(errorMessage))
         {
-            return $"{safeRelativeWebPath}?sf_oidc=1#/home";
+            return $"{safeRelativeWebPath}?sf_oidc=1{stateSuffix}#/home";
         }
 
-        return $"{safeRelativeWebPath}?sf_oidc_error={Uri.EscapeDataString(errorMessage.Trim())}#/home";
+        return $"{safeRelativeWebPath}?sf_oidc_error={Uri.EscapeDataString(errorMessage.Trim())}{stateSuffix}#/home";
     }
 
     private bool IsEffectiveHttps()

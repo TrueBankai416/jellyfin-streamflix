@@ -128,7 +128,7 @@
                     return;
                 }
             }
-            if (isGateOpen() && hasHouseholdAccess() && getActiveToken()) {
+            if (isGateOpen() && !state.explicitPickerOpen && !state.manageMode && hasHouseholdAccess() && getActiveToken()) {
                 closeOverlayGate();
             }
             return;
@@ -137,6 +137,8 @@
         var onJellyfinLoginPage = isOnJellyfinLoginPage();
 
         if (!hasHouseholdAccess()) {
+            state.explicitPickerOpen = false;
+            state.openedDirectlyToManage = false;
             clearUserPreferencesEnhancements();
             var stage = document.getElementById('streamflix-stage');
             var view = stage ? String(stage.getAttribute('data-view') || '') : '';
@@ -149,7 +151,7 @@
             return;
         }
         // If upgrading from v5/v6.3, re-activate the previously selected profile on the server so it gets a fresh token
-        if (!state.activeProfile && state.legacyProfileToMigrate && getProfiles().length > 0) {
+        if (!state.activeProfile && state.legacyProfileToMigrate && getProfiles().length > 0 && !state.explicitPickerOpen) {
             var migTarget = findProfileById(state.legacyProfileToMigrate.id);
             state.legacyProfileToMigrate = null;
             if (migTarget && !migTarget.hasPin && !(migTarget.googleLocked && !migTarget.googleLockSatisfied)) {
@@ -175,7 +177,10 @@
                 state.activeProfile.kidsExitPinRequired = sp.kidsExitPinRequired !== false;
                 state.activeProfile.isAdmin = Boolean(sp.isAdmin);
                 state.activeProfile.jellyfinUsername = sp.jellyfinUsername || state.activeProfile.jellyfinUsername;
-                if (sp.jellyfinUserId
+                if (!state.explicitPickerOpen
+                    && !state.manageMode
+                    && !isGateOpen()
+                    && sp.jellyfinUserId
                     && normalizeGuid(sp.jellyfinUserId) !== normalizeGuid(state.activeProfile.jellyfinUserId)
                     && !sp.hasPin
                     && sp.googleLockSatisfied) {
@@ -351,12 +356,23 @@
                     renderGoogleAuthGate();
                 }
             }
+            if (typeof pollPendingOidcFlowIfActive === 'function') {
+                pollPendingOidcFlowIfActive();
+            }
             scheduleLifecycleTick(0);
         });
-        window.addEventListener('focus', function () { scheduleLifecycleTick(0); });
+        window.addEventListener('focus', function () {
+            if (typeof pollPendingOidcFlowIfActive === 'function') {
+                pollPendingOidcFlowIfActive();
+            }
+            scheduleLifecycleTick(0);
+        });
         document.addEventListener('viewshow', function () { scheduleLifecycleTick(0); }, true);
         document.addEventListener('visibilitychange', function () {
             if (!document.hidden) {
+                if (typeof pollPendingOidcFlowIfActive === 'function') {
+                    pollPendingOidcFlowIfActive();
+                }
                 scheduleLifecycleTick(0);
             }
         });
@@ -487,6 +503,16 @@
                         state.searchResults = null;
                         state.seerrSearchResults = null;
                         renderCinemaHubContents();
+                        return;
+                    }
+                    if (state.libraryBrowser && state.libraryBrowser.active) {
+                        ev.preventDefault();
+                        if (typeof closeLibraryBrowser === 'function') {
+                            closeLibraryBrowser();
+                        } else {
+                            state.libraryBrowser = null;
+                            renderCinemaHubContents();
+                        }
                         return;
                     }
                     if (state.browseFilter) {
@@ -1090,25 +1116,40 @@
     };
     window.__STREAMFLIX_OPEN_PROFILE_PICKER__ = function (manage) {
         closeAccountDropdown();
+        var wantManage = Boolean(manage);
         if (!isAdminConfigRoute() && typeof isKidsExitLockRequired === 'function' && isKidsExitLockRequired()) {
             return requestExitKidsVerification(null).then(function (res) {
                 if (!res || !res.verified) {
                     return null;
                 }
-                state.manageMode = Boolean(manage);
+                state.explicitPickerOpen = true;
+                state.openedDirectlyToManage = wantManage;
+                state.manageMode = wantManage;
+                if (hasHouseholdAccess()) {
+                    renderProfilePickerGate();
+                }
                 return fetchPublicConfig().then(function () {
                     if (hasHouseholdAccess()) {
-                        renderProfilePickerGate();
+                        if (state.explicitPickerOpen) {
+                            renderProfilePickerGate();
+                        }
                     } else {
                         renderGoogleAuthGate();
                     }
                 });
             });
         }
-        state.manageMode = Boolean(manage);
+        state.explicitPickerOpen = true;
+        state.openedDirectlyToManage = wantManage;
+        state.manageMode = wantManage;
+        if (hasHouseholdAccess()) {
+            renderProfilePickerGate();
+        }
         return fetchPublicConfig().then(function () {
             if (hasHouseholdAccess()) {
-                renderProfilePickerGate();
+                if (state.explicitPickerOpen) {
+                    renderProfilePickerGate();
+                }
             } else {
                 renderGoogleAuthGate();
             }
@@ -1159,10 +1200,13 @@
         } else if (oidcCb) {
             fetchPublicConfig().then(function () {
                 if (oidcCb.error) {
+                    if (typeof clearPendingOidcFlow === 'function') {
+                        clearPendingOidcFlow();
+                    }
                     takePendingProfileId();
                     renderGoogleAuthGate(null, oidcCb.error);
                 } else {
-                    completeOidcHandoff();
+                    completeOidcHandoff(oidcCb);
                 }
             });
         } else if (oauth) {
@@ -1180,6 +1224,9 @@
         } else {
             evaluateAuthAndProfileGate();
             fetchPublicConfig().then(function () {
+                if (!hasHouseholdAccess() && typeof pollPendingOidcFlowIfActive === 'function') {
+                    pollPendingOidcFlowIfActive();
+                }
                 rerenderPickerIfOpen();
                 evaluateAuthAndProfileGate();
             });
