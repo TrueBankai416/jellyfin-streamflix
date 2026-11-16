@@ -183,6 +183,20 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages
                         incoming.GuestPassManagerProfileIds = existing.GuestPassManagerProfileIds;
                     }
 
+                    if ((incoming.GuestPassTokenFingerprints == null || incoming.GuestPassTokenFingerprints.Count == 0)
+                        && existing.GuestPassTokenFingerprints != null
+                        && existing.GuestPassTokenFingerprints.Count > 0)
+                    {
+                        incoming.GuestPassTokenFingerprints = existing.GuestPassTokenFingerprints;
+                    }
+
+                    if ((incoming.ActiveProfileContexts == null || incoming.ActiveProfileContexts.Count == 0)
+                        && existing.ActiveProfileContexts != null
+                        && existing.ActiveProfileContexts.Count > 0)
+                    {
+                        incoming.ActiveProfileContexts = existing.ActiveProfileContexts;
+                    }
+
                     if (string.IsNullOrWhiteSpace(incoming.SessionSigningKey) && !string.IsNullOrWhiteSpace(existing.SessionSigningKey))
                     {
                         incoming.SessionSigningKey = existing.SessionSigningKey;
@@ -462,6 +476,8 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages
                 OidcRequireAllowlist = BoolVal(root, nameof(PluginConfiguration.OidcRequireAllowlist), false),
                 EnableGuestPasses = BoolVal(root, nameof(PluginConfiguration.EnableGuestPasses), true),
                 GuestPassManagerProfileIds = new List<string>(),
+                GuestPassTokenFingerprints = new List<StreamFlixGuestPassTokenFingerprint>(),
+                ActiveProfileContexts = new List<StreamFlixActiveProfileContext>(),
                 EnableWatchTogether = BoolVal(root, nameof(PluginConfiguration.EnableWatchTogether), true),
                 EnableSeerr = BoolVal(root, nameof(PluginConfiguration.EnableSeerr), false),
                 SeerrUrl = Val(root, nameof(PluginConfiguration.SeerrUrl)) ?? string.Empty,
@@ -487,6 +503,38 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages
                     .Select(x => (x.Value ?? string.Empty).Trim())
                     .Where(x => !string.IsNullOrEmpty(x))
                     .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .ToList();
+            }
+
+            var guestPassTokenFingerprintsEl = root.Elements().FirstOrDefault(e => string.Equals(e.Name.LocalName, nameof(PluginConfiguration.GuestPassTokenFingerprints), StringComparison.OrdinalIgnoreCase));
+            if (guestPassTokenFingerprintsEl != null)
+            {
+                cfg.GuestPassTokenFingerprints = guestPassTokenFingerprintsEl.Elements()
+                    .Select(e => new StreamFlixGuestPassTokenFingerprint
+                    {
+                        PassId = Val(e, nameof(StreamFlixGuestPassTokenFingerprint.PassId)) ?? string.Empty,
+                        TokenFingerprint = Val(e, nameof(StreamFlixGuestPassTokenFingerprint.TokenFingerprint)) ?? string.Empty,
+                    })
+                    .Where(x => !string.IsNullOrWhiteSpace(x.PassId) && !string.IsNullOrWhiteSpace(x.TokenFingerprint))
+                    .ToList();
+            }
+
+            var activeProfileContextsEl = root.Elements().FirstOrDefault(e => string.Equals(e.Name.LocalName, nameof(PluginConfiguration.ActiveProfileContexts), StringComparison.OrdinalIgnoreCase));
+            if (activeProfileContextsEl != null)
+            {
+                cfg.ActiveProfileContexts = activeProfileContextsEl.Elements()
+                    .Select(e => new StreamFlixActiveProfileContext
+                    {
+                        SessionFingerprint = Val(e, nameof(StreamFlixActiveProfileContext.SessionFingerprint)) ?? string.Empty,
+                        ProfileId = Val(e, nameof(StreamFlixActiveProfileContext.ProfileId)) ?? string.Empty,
+                        JellyfinUserId = Val(e, nameof(StreamFlixActiveProfileContext.JellyfinUserId)) ?? string.Empty,
+                        ProfileSecurityFingerprint = Val(e, nameof(StreamFlixActiveProfileContext.ProfileSecurityFingerprint)) ?? string.Empty,
+                        ExpiresAtUtc = Val(e, nameof(StreamFlixActiveProfileContext.ExpiresAtUtc)) ?? string.Empty,
+                    })
+                    .Where(x => !string.IsNullOrWhiteSpace(x.SessionFingerprint)
+                        && !string.IsNullOrWhiteSpace(x.ProfileId)
+                        && !string.IsNullOrWhiteSpace(x.JellyfinUserId)
+                        && !string.IsNullOrWhiteSpace(x.ProfileSecurityFingerprint))
                     .ToList();
             }
 
@@ -653,6 +701,18 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages
             if (cfg.GuestPassManagerProfileIds == null)
             {
                 cfg.GuestPassManagerProfileIds = new List<string>();
+                dirty = true;
+            }
+
+            if (cfg.GuestPassTokenFingerprints == null)
+            {
+                cfg.GuestPassTokenFingerprints = new List<StreamFlixGuestPassTokenFingerprint>();
+                dirty = true;
+            }
+
+            if (cfg.ActiveProfileContexts == null)
+            {
+                cfg.ActiveProfileContexts = new List<StreamFlixActiveProfileContext>();
                 dirty = true;
             }
 

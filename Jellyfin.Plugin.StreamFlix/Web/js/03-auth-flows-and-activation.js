@@ -360,6 +360,7 @@
     function applyGuestRedemptionResponse(res) {
         state.guestPassExpanded = false;
         state.adminLoginExpanded = false;
+        clearAdminAuth();
         var passLabel = res.guestPassLabel || 'Guest Pass';
         setHouseholdSession({
             token: res.sessionToken,
@@ -641,6 +642,8 @@
                     serverId: activated.serverId,
                     user: res.user || null
                 });
+            } else {
+                clearAdminAuth();
             }
 
             if (state.config) {

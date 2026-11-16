@@ -74,7 +74,11 @@ public partial class StreamFlixController
         }
         else
         {
-            var lockResult = CheckGoogleLock(config, profile, caller);
+            var lockResult = CheckGoogleLock(
+                config,
+                profile,
+                caller,
+                allowAdminBypass: IsProfileLinkedToAdmin(profile) && caller.IsVerifiedJellyfinAdmin);
             if (lockResult != null)
             {
                 return lockResult;
@@ -239,7 +243,11 @@ public partial class StreamFlixController
 
         if (isGuest && !string.IsNullOrWhiteSpace(caller.Session?.GuestPassId) && !string.IsNullOrWhiteSpace(authResult.AccessToken))
         {
-            TrackGuestAccessToken(caller.Session!.GuestPassId!, authResult.AccessToken);
+            await TrackGuestAccessTokenAsync(config, caller.Session!.GuestPassId!, authResult.AccessToken).ConfigureAwait(false);
+        }
+        else if (!string.IsNullOrWhiteSpace(authResult.AccessToken))
+        {
+            await RegisterActiveProfileContextAsync(config, caller, profile, user).ConfigureAwait(false);
         }
 
         return Ok(new
@@ -1022,9 +1030,69 @@ public partial class StreamFlixController
         return false;
     }
 
-    private ObjectResult? CheckGoogleLock(PluginConfiguration config, StreamFlixProfileConfig profile, CallerContext caller)
+    private async Task RegisterActiveProfileContextAsync(
+        PluginConfiguration config,
+        CallerContext caller,
+        StreamFlixProfileConfig profile,
+        JUser user)
     {
-        if (string.IsNullOrWhiteSpace(profile.GoogleAccountEmail) || caller.IsAdmin)
+        var sessionToken = Request.Headers[StreamFlixSessionService.HeaderName].FirstOrDefault()?.Trim();
+        if (caller.Session == null || IsGuestSession(caller) || string.IsNullOrWhiteSpace(sessionToken))
+        {
+            return;
+        }
+
+        var now = DateTimeOffset.UtcNow;
+        var sessionFingerprint = ComputeCredentialFingerprint(sessionToken);
+        var activeContext = new StreamFlixActiveProfileContext
+        {
+            SessionFingerprint = sessionFingerprint,
+            ProfileId = profile.Id,
+            JellyfinUserId = user.Id.ToString("N"),
+            ProfileSecurityFingerprint = ComputeProfileSecurityFingerprint(profile),
+            ExpiresAtUtc = caller.Session.ExpiresAt.ToString("O", CultureInfo.InvariantCulture),
+        };
+
+        await SyncLock.WaitAsync().ConfigureAwait(false);
+        try
+        {
+            lock (GuestPassAuthorizationStateLock)
+            {
+                config.ActiveProfileContexts ??= new List<StreamFlixActiveProfileContext>();
+                config.ActiveProfileContexts.RemoveAll(context =>
+                    string.Equals(context.SessionFingerprint, sessionFingerprint, StringComparison.Ordinal)
+                    || !DateTimeOffset.TryParse(context.ExpiresAtUtc, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var expiresAt)
+                    || expiresAt <= now);
+                config.ActiveProfileContexts.Add(activeContext);
+                Plugin.Instance?.SaveConfiguration();
+            }
+        }
+        finally
+        {
+            SyncLock.Release();
+        }
+    }
+
+    private static string ComputeProfileSecurityFingerprint(StreamFlixProfileConfig profile)
+    {
+        var profileSecurityState = string.Join(
+            "\0",
+            profile.Id,
+            profile.JellyfinUserId ?? string.Empty,
+            profile.IsKids ? "1" : "0",
+            profile.PinCode ?? string.Empty,
+            profile.GoogleAccountEmail ?? string.Empty,
+            profile.AccountLockKind ?? string.Empty);
+        return ComputeCredentialFingerprint(profileSecurityState);
+    }
+
+    private ObjectResult? CheckGoogleLock(
+        PluginConfiguration config,
+        StreamFlixProfileConfig profile,
+        CallerContext caller,
+        bool allowAdminBypass = true)
+    {
+        if (string.IsNullOrWhiteSpace(profile.GoogleAccountEmail) || (allowAdminBypass && caller.IsAdmin))
         {
             return null;
         }

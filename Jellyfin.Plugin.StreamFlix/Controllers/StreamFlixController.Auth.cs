@@ -480,7 +480,7 @@ public partial class StreamFlixController
     {
         var config = Config;
         var caller = await GetCallerAsync(config).ConfigureAwait(false);
-        if (!caller.IsAdmin)
+        if (!caller.IsVerifiedJellyfinAdmin)
         {
             return StatusCode(403, new { code = "admin_required", message = "Only a Jellyfin administrator can validate OAuth settings." });
         }
@@ -971,7 +971,7 @@ public partial class StreamFlixController
     {
         var config = Config;
         var caller = await GetCallerAsync(config).ConfigureAwait(false);
-        if (!caller.IsAdmin)
+        if (!caller.IsVerifiedJellyfinAdmin)
         {
             return StatusCode(403, new { code = "admin_required", message = "Only a Jellyfin administrator can validate OIDC settings." });
         }

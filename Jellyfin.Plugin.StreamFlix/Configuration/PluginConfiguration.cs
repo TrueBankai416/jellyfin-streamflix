@@ -89,9 +89,29 @@ public class StreamFlixGuestPass
     public string SecretNonce { get; set; } = string.Empty;
 }
 
+public class StreamFlixGuestPassTokenFingerprint
+{
+    public string PassId { get; set; } = string.Empty;
+
+    public string TokenFingerprint { get; set; } = string.Empty;
+}
+
+public class StreamFlixActiveProfileContext
+{
+    public string SessionFingerprint { get; set; } = string.Empty;
+
+    public string ProfileId { get; set; } = string.Empty;
+
+    public string JellyfinUserId { get; set; } = string.Empty;
+
+    public string ProfileSecurityFingerprint { get; set; } = string.Empty;
+
+    public string ExpiresAtUtc { get; set; } = string.Empty;
+}
+
 /// <summary>
 /// Plugin configuration stored directly on the Jellyfin Server (`plugins/configurations/Jellyfin.Plugin.StreamFlix.xml`).
-/// Persisted collections are initialized empty so .NET XmlSerializer does not re-add deleted default profiles.
+/// Persisted profile collections are initialized empty so .NET XmlSerializer does not re-add deleted default profiles.
 /// The optional Guest Pass manager list remains nullable to distinguish omitted updates from explicit revocation.
 /// </summary>
 public class PluginConfiguration : BasePluginConfiguration
@@ -131,6 +151,8 @@ public class PluginConfiguration : BasePluginConfiguration
         OidcRequireAllowlist = false;
         ApprovedOidcUsers = new List<string>();
         EnableGuestPasses = true;
+        GuestPassTokenFingerprints = new List<StreamFlixGuestPassTokenFingerprint>();
+        ActiveProfileContexts = new List<StreamFlixActiveProfileContext>();
         EnableWatchTogether = true;
         GuestPasses = new List<StreamFlixGuestPass>();
         EnableSeerr = false;
@@ -296,6 +318,10 @@ public class PluginConfiguration : BasePluginConfiguration
     /// Administrator profiles always retain access.
     /// </summary>
     public List<string>? GuestPassManagerProfileIds { get; set; }
+
+    public List<StreamFlixGuestPassTokenFingerprint>? GuestPassTokenFingerprints { get; set; }
+
+    public List<StreamFlixActiveProfileContext>? ActiveProfileContexts { get; set; }
 
     /// <summary>
     /// Gets or sets a value indicating whether StreamFlix Watch Together (SyncPlay rooms) is enabled for non-Kids profiles.
