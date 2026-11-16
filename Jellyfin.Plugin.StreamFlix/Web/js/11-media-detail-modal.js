@@ -31,8 +31,7 @@
         var community = item.CommunityRating ? Number(item.CommunityRating).toFixed(1) : '';
         var isFav = item.UserData && item.UserData.IsFavorite;
         var isPlayed = item.UserData && item.UserData.Played;
-        var canEditMetadata = typeof isHouseholdAdmin === 'function' && isHouseholdAdmin()
-            && !(state.activeProfile && state.activeProfile.isKids);
+        var canManageMedia = typeof canManageMediaItems === 'function' && canManageMediaItems();
         var hasResume = item.UserData && item.UserData.PlaybackPositionTicks && item.UserData.PlaybackPositionTicks > 0;
         var resumePct = hasResume && item.RunTimeTicks
             ? Math.min(100, Math.max(2, Math.round(item.UserData.PlaybackPositionTicks / item.RunTimeTicks * 100)))
@@ -115,8 +114,8 @@
             + ((typeof isWatchTogetherEnabled === 'function' && isWatchTogetherEnabled())
                 ? '          <button type="button" class="streamflix-hero-icon-btn' + ((typeof watchPartyState !== 'undefined' && watchPartyState.activeGroup) ? ' active is-live' : '') + '" id="streamflix-modal-watchparty-btn" title="Watch Together" aria-label="Watch Together">' + icon('party') + '</button>'
                 : '')
-            + (canEditMetadata
-                ? '          <button type="button" class="streamflix-hero-icon-btn" id="streamflix-modal-edit-btn" title="Edit metadata" aria-label="Edit metadata">' + icon('edit') + '</button>'
+            + (canManageMedia
+                ? '          <button type="button" class="streamflix-hero-icon-btn" id="streamflix-modal-manage-btn" title="Manage media" aria-label="Manage media">' + icon('edit') + '</button>'
                 : '')
             + '        </div>'
             + '      </div>'
@@ -258,15 +257,27 @@
             });
         }
 
-        var editMetaBtn = qModal('#streamflix-modal-edit-btn');
-        if (editMetaBtn) {
-            editMetaBtn.addEventListener('click', function () {
-                var editTargetId = (resolvedItem && resolvedItem.Id) || item.Id;
-                if (!editTargetId) {
-                    return;
-                }
-                closeModal(true);
-                openStreamFlixAdminRoute('#/metadata?id=' + encodeURIComponent(editTargetId));
+        var manageMediaBtn = qModal('#streamflix-modal-manage-btn');
+        if (manageMediaBtn) {
+            manageMediaBtn.addEventListener('click', function () {
+                openManageMediaMenu({
+                    item: resolvedItem || item,
+                    onItemEdited: function (updatedItem) {
+                        if (!updatedItem || !updatedItem.Id || modalClosed) {
+                            return;
+                        }
+                        if (updatedItem.Name && updatedItem.Type !== 'Episode') {
+                            var titleTextEl = qModal('.streamflix-detail-title-text');
+                            if (titleTextEl) {
+                                titleTextEl.textContent = updatedItem.Name;
+                            }
+                        }
+                        renderEnrichedDetails(updatedItem);
+                    },
+                    onItemDeleted: function () {
+                        closeModal(false);
+                    }
+                });
             });
         }
 
