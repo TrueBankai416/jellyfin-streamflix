@@ -961,19 +961,29 @@
                     if (serverId && !authPayload.user.ServerId) {
                         authPayload.user.ServerId = serverId;
                     }
-                    client._currentUser = authPayload.user;
-                    if (client === window.ApiClient) {
-                        try {
-                            if (typeof client.onAuthenticated === 'function') {
-                                client.onAuthenticated(client, {
-                                    User: authPayload.user,
-                                    SessionInfo: authPayload.sessionInfo || null,
-                                    AccessToken: authPayload.accessToken,
-                                    ServerId: serverId || (authPayload.user && authPayload.user.ServerId) || ''
-                                });
-                            }
-                        } catch (eOnAuth) {}
+                    if (!authPayload.user.Id && authPayload.user.id) {
+                        authPayload.user.Id = authPayload.user.id;
                     }
+                    if (!authPayload.user.Name && authPayload.user.name) {
+                        authPayload.user.Name = authPayload.user.name;
+                    }
+                    if (!authPayload.user.Policy && authPayload.user.policy) {
+                        authPayload.user.Policy = authPayload.user.policy;
+                    }
+                    if (authPayload.user.Policy && authPayload.user.Policy.IsAdministrator === undefined && authPayload.user.Policy.isAdministrator !== undefined) {
+                        authPayload.user.Policy.IsAdministrator = Boolean(authPayload.user.Policy.isAdministrator);
+                    }
+                    client._currentUser = authPayload.user;
+                    try {
+                        if (typeof client.onAuthenticated === 'function') {
+                            client.onAuthenticated(client, {
+                                User: authPayload.user,
+                                SessionInfo: authPayload.sessionInfo || null,
+                                AccessToken: authPayload.accessToken,
+                                ServerId: serverId || (authPayload.user && authPayload.user.ServerId) || ''
+                            });
+                        }
+                    } catch (eOnAuth) {}
                 } else if (client._currentUser && normalizeGuid(client._currentUser.Id) !== normalizeGuid(authPayload.userId)) {
                     client._currentUser = null;
                 }

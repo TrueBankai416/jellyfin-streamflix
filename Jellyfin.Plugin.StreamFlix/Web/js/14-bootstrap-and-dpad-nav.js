@@ -91,6 +91,22 @@
 
         if (isAdminConfigRoute()) {
             clearUserPreferencesEnhancements();
+            var existingHubOnAdmin = document.getElementById('streamflix-cinema-hub');
+            if (existingHubOnAdmin) {
+                existingHubOnAdmin.style.display = 'none';
+            }
+            if (document.body) {
+                document.body.classList.remove('streamflix-hub-filtered', 'streamflix-hub-active');
+            }
+            if (!isGuestPassSession()
+                && isHouseholdAdmin()
+                && typeof isCurrentJellyfinClientAdmin === 'function'
+                && !isCurrentJellyfinClientAdmin()
+                && (!state.lastAutoAdminElevateAt || Date.now() - state.lastAutoAdminElevateAt > 8000)) {
+                state.lastAutoAdminElevateAt = Date.now();
+                openStreamFlixAdminRoute(window.location.hash || '#/dashboard');
+                return;
+            }
             if (isGateOpen() && hasHouseholdAccess() && getActiveToken()) {
                 closeOverlayGate();
             }

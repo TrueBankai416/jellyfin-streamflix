@@ -230,10 +230,10 @@ public partial class StreamFlixController
             user.Username,
             out var sessionToken);
 
-        string? jellyfinAccessToken = null;
+        AuthenticationResult? adminAuth = null;
         if (isAdmin)
         {
-            jellyfinAccessToken = await TryMintAdminJellyfinTokenAsync(user, request, remoteIp).ConfigureAwait(false);
+            adminAuth = await TryMintAdminJellyfinAuthAsync(user, request, remoteIp).ConfigureAwait(false);
         }
 
         return Ok(new
@@ -246,7 +246,9 @@ public partial class StreamFlixController
             isAdmin,
             sessionToken,
             expiresAt = session.ExpiresAt,
-            jellyfinAccessToken,
+            jellyfinAccessToken = adminAuth?.AccessToken,
+            user = adminAuth?.User,
+            sessionInfo = adminAuth?.SessionInfo,
             serverId = _appHost.SystemId,
         });
     }
@@ -333,6 +335,7 @@ public partial class StreamFlixController
         }
 
         StreamFlixSessionService.ResetLoginFailures(lockKey);
+        await SyncProfilesAsync(config, force: true).ConfigureAwait(false);
         var session = StreamFlixSessionService.IssueJellyfinSession(
             config,
             StreamFlixSessionService.AuthKindJellyfinAdmin,
@@ -340,7 +343,7 @@ public partial class StreamFlixController
             user.Username,
             out var sessionToken);
 
-        var jellyfinAccessToken = await TryMintAdminJellyfinTokenAsync(user, request, remoteIp).ConfigureAwait(false);
+        var adminAuth = await TryMintAdminJellyfinAuthAsync(user, request, remoteIp).ConfigureAwait(false);
 
         return Ok(new
         {
@@ -352,8 +355,107 @@ public partial class StreamFlixController
             isAdmin = true,
             sessionToken,
             expiresAt = session.ExpiresAt,
-            jellyfinAccessToken,
+            jellyfinAccessToken = adminAuth?.AccessToken,
+            user = adminAuth?.User,
+            sessionInfo = adminAuth?.SessionInfo,
             serverId = _appHost.SystemId,
+        });
+    }
+
+    [HttpPost("Auth/ElevateAdmin")]
+    [AllowAnonymous]
+    [Produces(MediaTypeNames.Application.Json)]
+    public async Task<ActionResult<object>> ElevateAdminForDashboard([FromBody] ElevateAdminRequest? request)
+    {
+        SetNoStoreSecurityHeaders();
+        var config = Config;
+        var caller = await GetCallerAsync(config).ConfigureAwait(false);
+        if (!HasHouseholdAccess(config, caller) || IsGuestSession(caller))
+        {
+            return StatusCode(403, new { code = "admin_required", message = "Sign in as a Jellyfin Administrator first." });
+        }
+
+        await SyncProfilesAsync(config, force: true).ConfigureAwait(false);
+
+        var ownerProfile = (config.Profiles ?? new List<StreamFlixProfileConfig>())
+            .FirstOrDefault(p => StreamFlixStartupTask.IsOwnerProfile(p) || IsProfileLinkedToAdmin(p));
+
+        if (!caller.IsAdmin)
+        {
+            if (ownerProfile == null)
+            {
+                return StatusCode(403, new { code = "admin_required", message = "Administrator privileges are required to open Plugin Settings." });
+            }
+
+            var lockRes = CheckGoogleLock(config, ownerProfile, caller);
+            if (lockRes != null)
+            {
+                return lockRes;
+            }
+
+            var pinRes = CheckPin(ownerProfile, request?.Pin ?? string.Empty);
+            if (pinRes != null)
+            {
+                return pinRes;
+            }
+        }
+
+        JUser? adminUser = null;
+        if (caller.Session != null && Guid.TryParse(caller.Session.JellyfinUserId, out var sessUid))
+        {
+            var candidate = _userManager.GetUserById(sessUid);
+            if (candidate != null && !StreamFlixStartupTask.IsUserDisabledCompat(candidate) && StreamFlixStartupTask.IsUserAdminCompat(candidate))
+            {
+                adminUser = candidate;
+            }
+        }
+
+        if (adminUser == null && caller.JellyfinUser != null && !StreamFlixStartupTask.IsUserDisabledCompat(caller.JellyfinUser) && StreamFlixStartupTask.IsUserAdminCompat(caller.JellyfinUser))
+        {
+            adminUser = caller.JellyfinUser;
+        }
+
+        if (adminUser == null && ownerProfile != null && Guid.TryParse(ownerProfile.JellyfinUserId, out var ownUid))
+        {
+            var ownCandidate = _userManager.GetUserById(ownUid);
+            if (ownCandidate != null && !StreamFlixStartupTask.IsUserDisabledCompat(ownCandidate) && StreamFlixStartupTask.IsUserAdminCompat(ownCandidate))
+            {
+                adminUser = ownCandidate;
+            }
+        }
+
+        adminUser ??= StreamFlixStartupTask.GetPrimaryAdminUserCompat(_userManager);
+        if (adminUser == null || StreamFlixStartupTask.IsUserDisabledCompat(adminUser) || !StreamFlixStartupTask.IsUserAdminCompat(adminUser))
+        {
+            return StatusCode(403, new { code = "admin_not_found", message = "No active Jellyfin Administrator account was found." });
+        }
+
+        var remoteIp = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "127.0.0.1";
+        var pwdReq = new PasswordLoginRequest
+        {
+            AppName = request?.AppName,
+            AppVersion = request?.AppVersion,
+            DeviceId = request?.DeviceId,
+            DeviceName = request?.DeviceName,
+        };
+        var authRes = await TryMintAdminJellyfinAuthAsync(adminUser, pwdReq, remoteIp).ConfigureAwait(false);
+        if (authRes == null || string.IsNullOrWhiteSpace(authRes.AccessToken))
+        {
+            return StatusCode(500, new { code = "admin_token_failed", message = "Could not mint Jellyfin Administrator session." });
+        }
+
+        return Ok(new
+        {
+            ok = true,
+            userId = adminUser.Id.ToString("N"),
+            userName = adminUser.Username,
+            jellyfinUsername = adminUser.Username,
+            accessToken = authRes.AccessToken,
+            serverId = _appHost.SystemId,
+            serverName = _appHost.FriendlyName,
+            user = authRes.User,
+            sessionInfo = authRes.SessionInfo,
+            profile = ownerProfile != null ? MapProfilePublic(config, ownerProfile, caller) : null,
         });
     }
 
@@ -894,22 +996,27 @@ public partial class StreamFlixController
         });
     }
 
-    private async Task<string?> TryMintAdminJellyfinTokenAsync(JUser user, PasswordLoginRequest? request, string remoteIp)
+    private async Task<AuthenticationResult?> TryMintAdminJellyfinAuthAsync(JUser user, PasswordLoginRequest? request, string remoteIp)
     {
         try
         {
+            var appName = !string.IsNullOrWhiteSpace(request?.AppName)
+                ? request!.AppName!.Trim()
+                : (!string.IsNullOrWhiteSpace(request?.ClientName) ? request!.ClientName!.Trim() : "Jellyfin Web");
+            var appVer = !string.IsNullOrWhiteSpace(request?.AppVersion)
+                ? request!.AppVersion!.Trim()
+                : (!string.IsNullOrWhiteSpace(request?.ClientVersion) ? request!.ClientVersion!.Trim() : "10.11.0");
             var authReq = new AuthenticationRequest
             {
-                App = !string.IsNullOrWhiteSpace(request?.AppName) ? request!.AppName!.Trim() : "Jellyfin Web",
-                AppVersion = !string.IsNullOrWhiteSpace(request?.AppVersion) ? request!.AppVersion!.Trim() : "10.11.0",
+                App = appName,
+                AppVersion = appVer,
                 DeviceId = !string.IsNullOrWhiteSpace(request?.DeviceId) ? request!.DeviceId!.Trim() : $"streamflix-admin-{user.Id:N}",
                 DeviceName = !string.IsNullOrWhiteSpace(request?.DeviceName) ? request!.DeviceName!.Trim() : $"StreamFlix Admin ({user.Username})",
                 UserId = user.Id,
                 Username = user.Username,
                 RemoteEndPoint = remoteIp,
             };
-            var res = await _sessionManager.AuthenticateDirect(authReq).ConfigureAwait(false);
-            return res?.AccessToken;
+            return await _sessionManager.AuthenticateDirect(authReq).ConfigureAwait(false);
         }
         catch (Exception ex)
         {

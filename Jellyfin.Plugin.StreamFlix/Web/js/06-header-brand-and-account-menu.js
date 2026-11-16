@@ -875,7 +875,7 @@
             window.location.hash = '#/mypreferencesmenu';
         });
         bind('streamflix-dd-dashboard', function () {
-            window.location.hash = '#/dashboard';
+            openStreamFlixAdminRoute('#/dashboard');
         });
         bind('streamflix-dd-signout', function () {
             var signoutMsg = isGuest

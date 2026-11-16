@@ -314,6 +314,15 @@
                 continue;
             }
 
+            if (rowKind === 'dashboard' && row.getAttribute('data-bfx-dash-bound') !== '1') {
+                row.setAttribute('data-bfx-dash-bound', '1');
+                row.addEventListener('click', function (ev) {
+                    ev.preventDefault();
+                    ev.stopPropagation();
+                    openStreamFlixAdminRoute('#/dashboard');
+                }, true);
+            }
+
             if (rowKind === 'logout' && row.getAttribute('data-bfx-logout-bound') !== '1') {
                 row.setAttribute('data-bfx-logout-bound', '1');
                 row.addEventListener('click', function (ev) {
@@ -532,11 +541,19 @@
                                 + '    <div class="bfx-prefs-feature-desc">Inspect active TVs, phones &amp; browsers, sign out individual devices, and configure Guest Passes, SSO &amp; Seerr.</div>'
                                 + '  </div>'
                                 + '  <div class="bfx-prefs-admin-actions">'
-                                + '    <a href="#/configurationpage?name=StreamFlix&tab=devices" class="bfx-prefs-pill-btn is-accent">' + icon('smartphone') + '<span>Active Devices</span></a>'
-                                + '    <a href="#/configurationpage?name=StreamFlix" class="bfx-prefs-pill-btn">' + icon('gear') + '<span>Plugin Settings</span></a>'
+                                + '    <a href="#/configurationpage?name=StreamFlix&tab=devices" class="bfx-prefs-pill-btn is-accent" data-bfx-admin-route="#/configurationpage?name=StreamFlix&tab=devices">' + icon('smartphone') + '<span>Active Devices</span></a>'
+                                + '    <a href="#/configurationpage?name=StreamFlix" class="bfx-prefs-pill-btn" data-bfx-admin-route="#/configurationpage?name=StreamFlix">' + icon('gear') + '<span>Plugin Settings</span></a>'
                                 + '  </div>'
                                 + '</div>')
                             : '');
+
+                    Array.prototype.forEach.call(existingHero.querySelectorAll('[data-bfx-admin-route]'), function (admBtn) {
+                        admBtn.addEventListener('click', function (ev) {
+                            ev.preventDefault();
+                            ev.stopPropagation();
+                            openStreamFlixAdminRoute(admBtn.getAttribute('data-bfx-admin-route') || '#/configurationpage?name=StreamFlix');
+                        });
+                    });
 
                     var homeBtn = existingHero.querySelector('[data-bfx-prefs-home="1"]');
                     if (homeBtn) {

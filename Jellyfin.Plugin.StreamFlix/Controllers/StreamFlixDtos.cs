@@ -34,6 +34,23 @@ public class PasswordLoginRequest
     public string? AppName { get; set; }
 
     public string? AppVersion { get; set; }
+
+    public string? ClientName { get; set; }
+
+    public string? ClientVersion { get; set; }
+}
+
+public class ElevateAdminRequest
+{
+    public string? DeviceId { get; set; }
+
+    public string? DeviceName { get; set; }
+
+    public string? AppName { get; set; }
+
+    public string? AppVersion { get; set; }
+
+    public string? Pin { get; set; }
 }
 
 public class TestOAuthConfigRequest

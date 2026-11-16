@@ -634,7 +634,8 @@
             saveJson(LEGACY_PROFILE_KEY, activated);
 
             if (state.config) {
-                state.config.isAdmin = Boolean(activated.isAdmin) && !isGuestPassSession();
+                var sessionHasAdmin = Boolean(state.googleUser && (state.googleUser.isAdmin || state.googleUser.authKind === 'jellyfin_admin'));
+                state.config.isAdmin = (Boolean(activated.isAdmin) || sessionHasAdmin) && !isGuestPassSession();
                 if (!state.config.isAdmin) {
                     state.config.serverUsers = [];
                     state.config.approvedGoogleAccounts = [];
@@ -733,5 +734,149 @@
         }).catch(function (err) {
             state.activatingProfileId = null;
             throw err;
+        });
+    }
+
+    function isCurrentJellyfinClientAdmin() {
+        try {
+            if (!state.activeProfile || !state.activeProfile.isAdmin || !state.activeProfile.accessToken) {
+                return false;
+            }
+            var client = null;
+            if (window.ServerConnections && typeof window.ServerConnections.currentApiClient === 'function') {
+                client = window.ServerConnections.currentApiClient();
+            }
+            client = client || window.ApiClient;
+            if (!client || !client._currentUser) {
+                return false;
+            }
+            var u = client._currentUser;
+            var pol = u.Policy || u.policy;
+            var isAdm = Boolean(pol && (pol.IsAdministrator === true || pol.isAdministrator === true));
+            return isAdm && normalizeGuid(u.Id || u.id) === normalizeGuid(state.activeProfile.jellyfinUserId);
+        } catch (e) {
+            return false;
+        }
+    }
+
+    function navigateDirectAdminTarget(targetHash) {
+        var raw = String(targetHash || '#/dashboard').trim();
+        var cleanRoute = raw.replace(/^#!?\/?/, '').replace(/^\/+/, '') || 'dashboard';
+        var hashDest = '#/' + cleanRoute;
+        state.manageMode = false;
+        closeAccountDropdown();
+        closeOverlayGate();
+        var existingHub = document.getElementById('streamflix-cinema-hub');
+        if (existingHub) {
+            existingHub.style.display = 'none';
+        }
+        if (document.body) {
+            document.body.classList.remove('streamflix-hub-filtered', 'streamflix-hub-active');
+        }
+        try {
+            if (window.Dashboard && typeof window.Dashboard.navigate === 'function') {
+                window.Dashboard.navigate(cleanRoute);
+                return;
+            }
+        } catch (eNav) {}
+        window.location.hash = hashDest;
+    }
+
+    var adminElevationInFlight = false;
+    function openStreamFlixAdminRoute(targetHash, suppliedPin) {
+        var dest = String(targetHash || '#/configurationpage?name=StreamFlix').trim();
+        if (isCurrentJellyfinClientAdmin()) {
+            navigateDirectAdminTarget(dest);
+            return;
+        }
+        if (adminElevationInFlight) {
+            return;
+        }
+        adminElevationInFlight = true;
+        var dev = getJellyfinDeviceInfo();
+        apiFetch('/StreamFlix/Auth/ElevateAdmin', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                deviceId: dev.deviceId,
+                deviceName: dev.deviceName,
+                appName: dev.appName,
+                appVersion: dev.appVersion,
+                pin: suppliedPin || ''
+            })
+        }).then(function (res) {
+            adminElevationInFlight = false;
+            if (!res || !res.accessToken || !res.userId) {
+                throw new Error('Could not activate Administrator session.');
+            }
+            var adminUserDto = res.user || {
+                Id: res.userId,
+                Name: res.userName || 'Administrator',
+                Policy: { IsAdministrator: true }
+            };
+            if (!adminUserDto.Policy && adminUserDto.policy) {
+                adminUserDto.Policy = adminUserDto.policy;
+            }
+            if (!adminUserDto.Policy) {
+                adminUserDto.Policy = { IsAdministrator: true };
+            } else {
+                adminUserDto.Policy.IsAdministrator = true;
+            }
+
+            var baseProf = res.profile || {
+                id: 'streamflix_owner',
+                name: res.userName || 'Owner',
+                avatarEmoji: '👑',
+                avatarColorHex: '#E50914',
+                isAdmin: true,
+                isOwner: true
+            };
+            var activated = normalizeProfileModel(baseProf, 0);
+            activated.isAdmin = true;
+            activated.jellyfinUserId = res.userId;
+            activated.jellyfinUsername = res.userName || activated.jellyfinUsername;
+            activated.accessToken = res.accessToken;
+            activated.serverId = res.serverId || (state.config && state.config.serverId) || '';
+
+            state.activeProfile = activated;
+            saveJson(PROFILE_KEY, activated);
+            saveJson(LEGACY_PROFILE_KEY, activated);
+
+            if (state.config) {
+                state.config.isAdmin = true;
+                if (res.serverId) {
+                    state.config.serverId = res.serverId;
+                }
+                saveJson(CACHED_CONFIG_KEY, state.config);
+            }
+
+            applyJellyfinServerCredentials({
+                serverId: activated.serverId,
+                userId: activated.jellyfinUserId,
+                accessToken: activated.accessToken,
+                user: adminUserDto,
+                sessionInfo: res.sessionInfo || null
+            });
+
+            fetchPublicConfig().catch(function () {});
+            navigateDirectAdminTarget(dest);
+        }).catch(function (err) {
+            adminElevationInFlight = false;
+            var code = err && err.code;
+            if ((code === 'pin_required' || code === 'pin_invalid') && typeof openPinPad === 'function') {
+                var ownerProf = getProfiles().filter(function (p) { return p.isOwner || p.isAdmin; })[0] || { name: 'Administrator', icon: '👑', color: '#E50914' };
+                openPinPad({
+                    profile: ownerProf,
+                    title: 'Administrator PIN',
+                    subtitleHtml: 'Enter the PIN for <strong>' + escapeHtml(ownerProf.name) + '</strong> to open settings.',
+                    initialError: code === 'pin_invalid' ? err.message : '',
+                    submit: function (pin) {
+                        openStreamFlixAdminRoute(dest, pin);
+                        return Promise.resolve();
+                    }
+                });
+                return;
+            }
+            showToast((err && err.message) || 'Administrator access is required to open Plugin Settings.', 'error');
         });
     }

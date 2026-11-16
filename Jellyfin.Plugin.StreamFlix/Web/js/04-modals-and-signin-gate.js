@@ -790,7 +790,9 @@
                     applyJellyfinServerCredentials({
                         serverId: res.serverId || (state.config && state.config.serverId),
                         userId: res.userId,
-                        accessToken: res.jellyfinAccessToken
+                        accessToken: res.jellyfinAccessToken,
+                        user: res.user || null,
+                        sessionInfo: res.sessionInfo || null
                     });
                 }
 

@@ -17,7 +17,13 @@
     }
 
     function isHouseholdAdmin() {
-        return Boolean(state.config && state.config.isAdmin);
+        if (isGuestPassSession()) {
+            return false;
+        }
+        return Boolean(
+            (state.config && state.config.isAdmin)
+            || (state.googleUser && (state.googleUser.isAdmin || state.googleUser.authKind === 'jellyfin_admin'))
+        );
     }
 
     function isGateOpen() {
@@ -198,7 +204,7 @@
             + '</div>');
 
         var hasSessionToken = Boolean(state.googleUser && state.googleUser.token);
-        var canOpenPluginSettings = Boolean(isAdmin && getActiveToken());
+        var canOpenPluginSettings = Boolean(isAdmin);
         var actionsHtml = buildAccountChipHtml()
             + (canOpenPluginSettings
                 ? '<button type="button" class="streamflix-ghost-btn" id="streamflix-open-plugin-cfg-btn" title="Open StreamFlix Plugin Settings">' + icon('gear') + '<span>Plugin Settings</span></button>'
@@ -377,16 +383,12 @@
                 if (typeof isKidsExitLockRequired === 'function' && isKidsExitLockRequired()) {
                     requestExitKidsVerification(null).then(function (res) {
                         if (res && res.verified) {
-                            state.manageMode = false;
-                            closeOverlayGate();
-                            window.location.hash = '#/configurationpage?name=StreamFlix';
+                            openStreamFlixAdminRoute('#/configurationpage?name=StreamFlix');
                         }
                     });
                     return;
                 }
-                state.manageMode = false;
-                closeOverlayGate();
-                window.location.hash = '#/configurationpage?name=StreamFlix';
+                openStreamFlixAdminRoute('#/configurationpage?name=StreamFlix');
             });
         }
 

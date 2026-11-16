@@ -638,6 +638,51 @@ public class StreamFlixStartupTask : IScheduledTask
                 config.Profiles = ordered;
             }
 
+            // Ensure fresh installs (and existing installs where no profile was linked to an Administrator and streamflix_owner
+            // was not explicitly deleted) always have an Administrator Owner profile so Plugin Settings / Dashboard never bounce to Home.
+            var hasAnyAdminLinkedProfile = config.Profiles.Any(p =>
+                IsOwnerProfile(p)
+                || (!string.IsNullOrWhiteSpace(p.JellyfinUserId)
+                    && Guid.TryParse(p.JellyfinUserId, out var pGuid)
+                    && userManager.GetUserById(pGuid) is var pUsr
+                    && pUsr != null
+                    && IsUserAdminCompat(pUsr)));
+
+            if (primaryAdmin != null
+                && IsUserAdminCompat(primaryAdmin)
+                && !hasAnyAdminLinkedProfile
+                && (!config.ProfilesSeeded || !deletedSet.Contains("streamflix_owner")))
+            {
+                var baseOwnerName = string.IsNullOrWhiteSpace(primaryAdmin.Username) ? "Owner" : primaryAdmin.Username.Trim();
+                var nameConflict = config.Profiles.Any(p => string.Equals(p.Name?.Trim(), baseOwnerName, StringComparison.OrdinalIgnoreCase));
+                var ownerDisplayName = nameConflict ? $"{baseOwnerName} (Admin)" : baseOwnerName;
+                if (ownerDisplayName.Length > 40)
+                {
+                    ownerDisplayName = ownerDisplayName.Substring(0, 40).TrimEnd();
+                }
+
+                config.Profiles.Insert(0, new StreamFlixProfileConfig
+                {
+                    Id = "streamflix_owner",
+                    Name = ownerDisplayName,
+                    AvatarColorHex = "#E50914",
+                    AvatarEmoji = "👑",
+                    IsKids = false,
+                    MaturityRating = "TV-MA / R (All Maturity Levels)",
+                    AutoplayNextEpisode = true,
+                    AutoplayPreviews = true,
+                    JellyfinUserId = primaryAdmin.Id.ToString("N"),
+                    JellyfinUsername = primaryAdmin.Username,
+                    IsPluginCreatedJellyfinUser = false,
+                });
+                config.ProfilesSeeded = true;
+                Plugin.Instance?.SaveConfiguration(config);
+            }
+            else if (!config.ProfilesSeeded && config.Profiles.Count > 0)
+            {
+                config.ProfilesSeeded = true;
+            }
+
             for (var i = 0; i < config.Profiles.Count; i++)
             {
                 var profile = config.Profiles[i];
