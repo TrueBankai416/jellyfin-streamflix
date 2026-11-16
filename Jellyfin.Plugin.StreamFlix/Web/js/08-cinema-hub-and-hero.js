@@ -550,6 +550,9 @@
 
         resolvePlayableItem(itemObj || targetId).then(function (playableItem) {
             var playableId = (playableItem && playableItem.Id) || targetId;
+            state.lastPlayNormId = normalizeGuid(playableId);
+            state.lastPlayRawTarget = playableItem || playableId;
+            state.lastPlayTimestamp = Date.now();
             if (typeof syncAutomaticWebGpuPlayerPreference === 'function') {
                 syncAutomaticWebGpuPlayerPreference(null, playableId);
             }
@@ -562,6 +565,7 @@
                     effectiveForcedTicks = wpTicks;
                 }
             }
+            state.lastPlayForcedTicks = effectiveForcedTicks;
             var hasForcedStart = typeof effectiveForcedTicks === 'number' && isFinite(effectiveForcedTicks) && effectiveForcedTicks >= 0;
             var forceFromBeginning = hasForcedStart && Math.floor(effectiveForcedTicks) === 0;
             var detailBtnSelector = forceFromBeginning

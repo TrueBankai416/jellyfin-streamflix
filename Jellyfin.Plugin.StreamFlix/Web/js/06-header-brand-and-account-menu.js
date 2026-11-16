@@ -152,7 +152,7 @@
                 var liveLink = document.createElement('link');
                 liveLink.id = wantedLinkId;
                 liveLink.rel = 'stylesheet';
-                liveLink.href = '/StreamFlix/ClientStyles?v=' + encodeURIComponent(assetVer);
+                liveLink.href = apiBase() + '/StreamFlix/ClientStyles?v=' + encodeURIComponent(assetVer);
                 document.head.appendChild(liveLink);
             }
         } catch (e) {}

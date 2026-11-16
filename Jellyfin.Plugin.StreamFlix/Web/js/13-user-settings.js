@@ -713,13 +713,16 @@
                         });
                     }
                     patchJellyfinApiClientMethods();
+                    if (typeof syncAutomaticWebGpuPlayerPreference === 'function') {
+                        syncAutomaticWebGpuPlayerPreference(null, state.lastPlayNormId);
+                    }
                     showPlaybackLoader('Starting playback…');
                     var detailPollStart = Date.now();
                     if (state.shortcutPollTimer) {
                         clearInterval(state.shortcutPollTimer);
                     }
                     state.shortcutPollTimer = setInterval(function () {
-                        if (isVideoPlayerActive() || document.querySelector('.dialogContainer .dialog:not(.hide)') || (Date.now() - detailPollStart > 6500)) {
+                        if (isVideoPlayerActive() || document.querySelector('.dialogContainer:not([data-bfx-dismissing="true"]) .dialog:not(.hide)') || (Date.now() - detailPollStart > 6500)) {
                             hidePlaybackLoader();
                         }
                     }, 100);

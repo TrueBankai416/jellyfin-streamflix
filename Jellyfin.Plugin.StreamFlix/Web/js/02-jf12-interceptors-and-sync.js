@@ -176,8 +176,14 @@
                     var authVal = getEmbyAuthHeader(token);
                     init = Object.assign({}, init || {});
                     if (typeof Headers !== 'undefined') {
-                        var baseHdrs = init.headers || (typeof input !== 'string' && input && input.headers ? input.headers : undefined);
-                        var mergedHeaders = new Headers(baseHdrs || undefined);
+                        var mergedHeaders = new Headers(
+                            typeof input !== 'string' && input && input.headers ? input.headers : undefined
+                        );
+                        if (init.headers) {
+                            new Headers(init.headers).forEach(function (v, k) {
+                                mergedHeaders.set(k, v);
+                            });
+                        }
                         mergedHeaders.set('Authorization', authVal);
                         mergedHeaders.set('X-Emby-Authorization', authVal);
                         mergedHeaders.set('X-Emby-Token', token);
@@ -543,10 +549,15 @@
                 }
                 if (clickedId) {
                     var normClicked = normalizeGuid(clickedId);
-                    if (!state.lastPlayNormId || state.lastPlayNormId !== normClicked) {
-                        state.lastPlayNormId = normClicked;
+                    state.lastPlayNormId = normClicked;
+                    state.lastPlayTimestamp = Date.now();
+                    if (ev.isTrusted) {
                         state.lastPlayRawTarget = clickedId;
-                        state.lastPlayTimestamp = Date.now();
+                        state.lastPlayAudioIndex = null;
+                        state.lastPlaySubtitleIndex = null;
+                        state.lastPlayForcedTicks = undefined;
+                    } else if (!state.lastPlayRawTarget) {
+                        state.lastPlayRawTarget = clickedId;
                     }
                     syncAutomaticWebGpuPlayerPreference(null, normClicked);
                 }

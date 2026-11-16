@@ -160,6 +160,14 @@ public class StreamFlixStartupFilter : IStartupFilter
             buffer.Seek(0, SeekOrigin.Begin);
             using var reader = new StreamReader(buffer, Encoding.UTF8, detectEncodingFromByteOrderMarks: true, bufferSize: 1024, leaveOpen: true);
             html = await reader.ReadToEndAsync().ConfigureAwait(false);
+            if (string.IsNullOrEmpty(context.Response.ContentType)
+                && !html.Contains("</body>", StringComparison.OrdinalIgnoreCase)
+                && !html.Contains("<html", StringComparison.OrdinalIgnoreCase))
+            {
+                buffer.Seek(0, SeekOrigin.Begin);
+                await buffer.CopyToAsync(originalBody).ConfigureAwait(false);
+                return;
+            }
         }
 
         if (string.IsNullOrEmpty(html))

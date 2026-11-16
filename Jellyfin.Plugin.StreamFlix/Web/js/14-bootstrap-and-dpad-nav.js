@@ -238,7 +238,7 @@
 
     var OWN_UI_SELECTOR = '#streamflix-overlay-root, #streamflix-overlay-root-closing, #streamflix-cinema-hub, #streamflix-account-dropdown, '
         + '#streamflix-header-profile-btn, #bfx-exit-kids-btn, #bfx-kids-brand-pill, #streamflix-mobile-dock, #streamflix-toast-host, .streamflix-modal-backdrop, #streamflix-library-page-fallback, #bfx-hover-preview, '
-        + '#streamflix-osd-episodes, #streamflix-osd-tracks, #streamflix-osd-upnext, #streamflix-osd-paused, #streamflix-osd-flash';
+        + '#streamflix-osd-episodes, #streamflix-osd-tracks, #streamflix-osd-upnext, #streamflix-osd-paused, #streamflix-osd-flash, #bfx-wp-osd-banner, #bfx-wp-autoplay-unlock';
 
     function isOwnNode(node) {
         if (!node) {
@@ -632,7 +632,7 @@
         if (!el) {
             return;
         }
-        var modalScroll = el.closest ? el.closest('.streamflix-detail-scroll, .streamflix-modal-editor, .bfx-gp-modal, .bfx-mn-modal, .bfx-seerr-modal, #streamflix-account-dropdown') : null;
+        var modalScroll = el.closest ? el.closest('.streamflix-detail-scroll, .streamflix-modal-editor, .bfx-gp-modal, .bfx-mn-modal, .bfx-seerr-modal, .bfx-wp-modal, .bfx-kids-exit-modal, #streamflix-account-dropdown') : null;
         if (modalScroll && modalScroll.scrollHeight > modalScroll.clientHeight + 8) {
             var mr = modalScroll.getBoundingClientRect();
             var er = el.getBoundingClientRect();
@@ -689,7 +689,7 @@
         if (modals.length > 0) {
             return { kind: 'modal', roots: [modals[modals.length - 1]] };
         }
-        if (document.querySelector('.dialogContainer .dialog:not(.hide), .actionSheet:not(.hide)')) {
+        if (document.querySelector('.dialogContainer .dialog:not(.hide), .actionSheet:not(.hide), .webgpuSettingsWindows .webgpuWindow:not([hidden]), .webgpuFailureDialog:not(.hide)')) {
             return null;
         }
         var dd = document.getElementById('streamflix-account-dropdown');

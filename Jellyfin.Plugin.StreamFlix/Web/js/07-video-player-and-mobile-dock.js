@@ -1116,9 +1116,18 @@
             hideOsdUpNextCard();
             return;
         }
-        var dur = Number(v.duration) || ((Number(curIt.RunTimeTicks) || 0) / 10000000);
+        var rawDur = Number(v.duration);
+        var itemDur = (Number(curIt.RunTimeTicks) || 0) / 10000000;
+        var hasFiniteVideoDur = isFinite(rawDur) && rawDur > 0;
+        var dur = hasFiniteVideoDur ? rawDur : itemDur;
         var cur = Number(v.currentTime) || 0;
-        if (!dur || dur < 60 || isNaN(cur)) {
+        if (itemDur > 60 && (!hasFiniteVideoDur || rawDur < itemDur * 0.85)) {
+            dur = itemDur;
+            if (typeof getEffectiveVideoPositionSec === 'function') {
+                cur = getEffectiveVideoPositionSec(v);
+            }
+        }
+        if (!dur || !isFinite(dur) || dur < 60 || !isFinite(cur)) {
             return;
         }
         var rem = dur - cur;
