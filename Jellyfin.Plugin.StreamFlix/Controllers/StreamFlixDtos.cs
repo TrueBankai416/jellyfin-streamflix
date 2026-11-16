@@ -292,7 +292,19 @@ public class SubmitSeerrMediaRequest
     public string? ProfileId { get; set; }
 
     [JsonPropertyName("is4k")]
-    public bool Is4k { get; set; }
+    public bool? Is4k { get; set; }
+
+    [JsonPropertyName("serverId")]
+    public int? ServerId { get; set; }
+}
+
+public class CancelSeerrMediaRequest
+{
+    [JsonPropertyName("requestId")]
+    public int RequestId { get; set; }
+
+    [JsonPropertyName("profileId")]
+    public string? ProfileId { get; set; }
 }
 
 public class RevokeDeviceRequest

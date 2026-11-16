@@ -90,8 +90,8 @@
     -webkit-box-orient: vertical;
     overflow: hidden;
 }
-body.bfx-hover-previews .streamflix-poster-card:hover:not(:focus-visible) .streamflix-card-hover-overlay,
-body.bfx-hover-previews .streamflix-top10-card:hover:not(:focus-visible) .streamflix-card-hover-overlay { opacity: 0; }
+body.bfx-hover-previews .streamflix-poster-card:not(.bfx-seerr-card):hover:not(:focus-visible) .streamflix-card-hover-overlay,
+body.bfx-hover-previews .streamflix-top10-card:hover:not(:focus-visible) .streamflix-card-hover-overlay { opacity: 0; pointer-events: none; }
 
 /* ---------- Accent colour follows the active profile ---------- */
 .streamflix-progress-fill,

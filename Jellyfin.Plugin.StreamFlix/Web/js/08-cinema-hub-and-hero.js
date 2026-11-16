@@ -1524,21 +1524,29 @@
             ? icon('download')
             : (isPending ? icon('clock') : icon('seerrIcon'));
 
-        var qbtnIcon = isSubmitting
-            ? '<span class="bfx-qbtn-mini-spin"></span>'
-            : (isDownloading ? icon('download') : (isPending ? icon('check') : icon('plus')));
+        var ctaAct = (!isTv && status === 1 && !isPending) ? 'quick-request' : 'open-modal';
+        var ctaInner = isSubmitting
+            ? '<span class="bfx-qbtn-mini-spin"></span><span>Sending…</span>'
+            : (isDownloading
+                ? (icon('download') + '<span>' + (rawDl !== null && rawDl > 0 ? (rawDl + '%') : 'Downloading') + '</span>')
+                : (isPending
+                    ? (icon('check') + '<span>Requested</span>')
+                    : (icon('plus') + '<span>' + (isTv && isPartial ? 'Seasons' : 'Request') + '</span>')));
 
-        var qbtnTitle = isSubmitting
-            ? 'Requesting…'
+        var ctaTitle = isSubmitting
+            ? 'Submitting request to Seerr…'
             : (isPending
-                ? cornerTitle
-                : (isTv ? 'Select Seasons to Request' : 'Request Movie'));
+                ? (cornerTitle + ' — click for details')
+                : (isTv ? 'Choose seasons to request' : '1-click request via Seerr'));
 
-        var qbtnAct = (!isTv && status === 1 && !isPending) ? 'quick-request' : 'open-modal';
+        var subTagText = isDownloading
+            ? (rawDl !== null && rawDl > 0 ? ('DL ' + rawDl + '%') : 'Downloading')
+            : (isPending ? 'Requested' : (isPartial ? 'Partial' : 'Request'));
+
         var typeLabel = isTv ? 'Series' : 'Movie';
         var metaText = [sItem.year ? String(sItem.year) : '', typeLabel].filter(Boolean).join(' · ');
         var rating = sItem.rating ? Number(sItem.rating).toFixed(1) : '';
-        var subLeft = [sItem.year ? String(sItem.year) : '', isTv ? 'Series' : ''].filter(Boolean).join(' · ') || typeLabel;
+        var subLeft = [sItem.year ? String(sItem.year) : '', isTv ? 'TV' : 'Movie'].filter(Boolean).join(' · ');
 
         return ''
             + '<div class="streamflix-poster-card bfx-seerr-card" data-seerr-key="' + escapeHtml(key) + '" tabindex="0" role="button" aria-label="' + escapeHtml(sItem.title + ' (' + cornerTitle + ')') + '">'
@@ -1559,17 +1567,73 @@
             + '<span>' + escapeHtml(metaText) + '</span></div>'
             + (sItem.overview ? '<div class="bfx-seerr-overview">' + escapeHtml(sItem.overview) + '</div>' : '')
             + '      </div>'
-            + '      <div class="streamflix-card-quick-btns">'
-            + '        <button type="button" class="streamflix-qbtn bfx-qbtn-seerr ' + statusCls + (isSubmitting ? ' is-busy' : '') + '" data-seerr-act="' + qbtnAct + '" title="' + escapeHtml(qbtnTitle) + '" aria-label="' + escapeHtml(qbtnTitle) + '"' + (isSubmitting ? ' disabled' : '') + '>' + qbtnIcon + '</button>'
-            + '        <button type="button" class="streamflix-qbtn streamflix-qbtn-end" data-seerr-act="open-modal" title="Details &amp; Request Options" aria-label="Details">' + icon('chevronDown') + '</button>'
+            + '      <div class="streamflix-card-quick-btns bfx-seerr-quick-btns">'
+            + '        <button type="button" class="bfx-seerr-card-cta ' + statusCls + (isSubmitting ? ' is-busy' : '') + '" data-seerr-act="' + ctaAct + '" title="' + escapeHtml(ctaTitle) + '" aria-label="' + escapeHtml(ctaTitle) + '"' + (isSubmitting ? ' disabled' : '') + '>' + ctaInner + '</button>'
+            + '        <button type="button" class="streamflix-qbtn streamflix-qbtn-end" data-seerr-act="open-modal" title="Details &amp; Options" aria-label="Details">' + icon('chevronDown') + '</button>'
             + '      </div>'
             + '    </div>'
             + '  </div>'
             + '  <div class="streamflix-poster-footer">'
             + '    <div class="streamflix-poster-name">' + escapeHtml(sItem.title) + '</div>'
-            + '    <div class="streamflix-poster-sub"><span>' + escapeHtml(subLeft) + '</span>' + (rating ? '<span class="streamflix-card-rating">' + icon('star') + escapeHtml(rating) + '</span>' : '') + '</div>'
+            + '    <div class="streamflix-poster-sub"><span>' + escapeHtml(subLeft) + '</span><span class="bfx-seerr-sub-tag ' + statusCls + '">' + escapeHtml(subTagText) + '</span></div>'
             + '  </div>'
             + '</div>';
+    }
+
+    function bindSingleSeerrCard(card, sItem) {
+        if (!card || !sItem || card.__bfxSeerrBound) {
+            return;
+        }
+        card.__bfxSeerrBound = true;
+        card.addEventListener('click', function (ev) {
+            ev.stopPropagation();
+            var actBtn = ev.target && ev.target.closest ? ev.target.closest('[data-seerr-act]') : null;
+            var act = actBtn ? actBtn.getAttribute('data-seerr-act') : 'open-modal';
+            if (act === 'quick-request' && typeof quickRequestSeerrMovie === 'function') {
+                ev.preventDefault();
+                quickRequestSeerrMovie(sItem);
+                return;
+            }
+            openSeerrRequestModal(sItem);
+        });
+        card.addEventListener('keydown', function (ev) {
+            if ((ev.key === 'Enter' || ev.key === ' ') && ev.target === card) {
+                ev.preventDefault();
+                openSeerrRequestModal(sItem);
+            }
+        });
+    }
+
+    function refreshSingleSeerrCardDom(tmdbId, isTv) {
+        var key = (isTv ? 'tv' : 'movie') + ':' + Number(tmdbId);
+        var matchItem = null;
+        (state.seerrSearchResults || []).forEach(function (s) {
+            if (s && Number(s.tmdbId) === Number(tmdbId) && (String(s.mediaType || '').toLowerCase() === 'tv') === Boolean(isTv)) {
+                matchItem = s;
+            }
+        });
+        if (!matchItem) {
+            return false;
+        }
+        var existingCards = document.querySelectorAll('[data-seerr-key="' + key + '"]');
+        if (!existingCards || !existingCards.length) {
+            return false;
+        }
+        Array.prototype.forEach.call(existingCards, function (oldCard) {
+            var parent = oldCard.parentNode;
+            if (!parent) {
+                return;
+            }
+            var wrap = document.createElement('div');
+            wrap.innerHTML = buildSeerrCardHtml(matchItem);
+            var freshCard = wrap.firstElementChild;
+            if (freshCard) {
+                parent.replaceChild(freshCard, oldCard);
+                bindSingleSeerrCard(freshCard, matchItem);
+                hydrateCompleteImages(freshCard);
+            }
+        });
+        return true;
     }
 
     function buildSearchRowsHtml() {
@@ -1614,6 +1678,10 @@
             return;
         }
         Array.prototype.forEach.call(containerEl.querySelectorAll('[data-open-seerr-requests]'), function (btn) {
+            if (btn.__bfxReqBtnBound) {
+                return;
+            }
+            btn.__bfxReqBtnBound = true;
             btn.addEventListener('click', function (ev) {
                 ev.stopPropagation();
                 openSeerrRequestsModal();
@@ -1629,25 +1697,9 @@
         Array.prototype.forEach.call(containerEl.querySelectorAll('[data-seerr-key]'), function (card) {
             var key = card.getAttribute('data-seerr-key');
             var sItem = map[key];
-            if (!sItem) {
-                return;
+            if (sItem) {
+                bindSingleSeerrCard(card, sItem);
             }
-            card.addEventListener('click', function (ev) {
-                ev.stopPropagation();
-                var actBtn = ev.target && ev.target.closest ? ev.target.closest('[data-seerr-act]') : null;
-                var act = actBtn ? actBtn.getAttribute('data-seerr-act') : 'open-modal';
-                if (act === 'quick-request' && typeof quickRequestSeerrMovie === 'function') {
-                    quickRequestSeerrMovie(sItem);
-                    return;
-                }
-                openSeerrRequestModal(sItem);
-            });
-            card.addEventListener('keydown', function (ev) {
-                if ((ev.key === 'Enter' || ev.key === ' ') && ev.target === card) {
-                    ev.preventDefault();
-                    openSeerrRequestModal(sItem);
-                }
-            });
         });
         hydrateCompleteImages(containerEl);
     }

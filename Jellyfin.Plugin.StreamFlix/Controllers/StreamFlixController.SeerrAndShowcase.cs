@@ -104,7 +104,7 @@ public partial class StreamFlixController
         SetNoStoreSecurityHeaders();
         var config = Config;
         var caller = await GetCallerAsync(config).ConfigureAwait(false);
-        var (allowed, isKids, denyReason) = await EvaluateSeerrPermissionAsync(config, caller, profileId).ConfigureAwait(false);
+        var (allowed, isKids, _, denyReason) = await EvaluateSeerrPermissionAsync(config, caller, profileId).ConfigureAwait(false);
         if (!allowed)
         {
             return StatusCode(403, new { code = "seerr_forbidden", message = denyReason });
@@ -136,7 +136,7 @@ public partial class StreamFlixController
                     mediaStatus = i.MediaStatus,
                     statusLabel = i.StatusLabel,
                     downloadProgress = i.DownloadProgress,
-                    jellyfinMediaId = i.JellyfinMediaId,
+                    jellyfinMediaId = VerifyLocalJellyfinMediaId(i.JellyfinMediaId),
                 }).ToList(),
             });
         }
@@ -155,57 +155,55 @@ public partial class StreamFlixController
         }
     }
 
-    [HttpGet("Seerr/Tv/{tmdbId:int}")]
+    [HttpGet("Seerr/Details/{mediaType}/{tmdbId:int}")]
     [AllowAnonymous]
     [Produces(MediaTypeNames.Application.Json)]
-    public async Task<ActionResult<object>> GetSeerrTvDetails(
+    public async Task<ActionResult<object>> GetSeerrMediaDetails(
+        [FromRoute] string mediaType,
         [FromRoute] int tmdbId,
         [FromQuery] string? profileId = null)
     {
         SetNoStoreSecurityHeaders();
         var config = Config;
         var caller = await GetCallerAsync(config).ConfigureAwait(false);
-        var (allowed, _, denyReason) = await EvaluateSeerrPermissionAsync(config, caller, profileId).ConfigureAwait(false);
+        var (allowed, _, _, denyReason) = await EvaluateSeerrPermissionAsync(config, caller, profileId).ConfigureAwait(false);
         if (!allowed)
         {
             return StatusCode(403, new { code = "seerr_forbidden", message = denyReason });
+        }
+
+        var cleanType = (mediaType ?? string.Empty).Trim().ToLowerInvariant();
+        if (cleanType is not ("movie" or "tv") || tmdbId <= 0)
+        {
+            return BadRequest(new { code = "invalid_media", message = "Specify 'movie' or 'tv' and a valid TMDB ID." });
         }
 
         try
         {
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(HttpContext.RequestAborted);
             cts.CancelAfter(TimeSpan.FromSeconds(10));
-            var tv = await StreamFlixSeerrService.GetTvDetailsAsync(config, tmdbId, cts.Token).ConfigureAwait(false);
-            return Ok(new
-            {
-                tmdbId = tv.TmdbId,
-                title = tv.Title,
-                year = tv.Year,
-                overview = tv.Overview,
-                backdropUrl = tv.BackdropUrl,
-                mediaStatus = tv.MediaStatus,
-                statusLabel = tv.StatusLabel,
-                downloadProgress = tv.DownloadProgress,
-                seasons = tv.Seasons.Select(s => new
-                {
-                    seasonNumber = s.SeasonNumber,
-                    name = s.Name,
-                    episodeCount = s.EpisodeCount,
-                    year = s.Year,
-                    status = s.Status,
-                    statusLabel = s.StatusLabel,
-                }).ToList(),
-            });
+            var detail = await StreamFlixSeerrService.GetMediaDetailsAsync(config, cleanType, tmdbId, cts.Token).ConfigureAwait(false);
+            return Ok(SerializeSeerrDetail(detail));
         }
         catch (OperationCanceledException) when (!HttpContext.RequestAborted.IsCancellationRequested)
         {
-            return StatusCode(504, new { code = "seerr_timeout", message = "Loading seasons from Seerr timed out. Check your Seerr URL and TMDB connectivity." });
+            return StatusCode(504, new { code = "seerr_timeout", message = "Loading details from Seerr timed out. Check your Seerr URL and TMDB connectivity." });
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "StreamFlix: Seerr TV detail lookup failed for TMDB {TmdbId}.", tmdbId);
+            _logger.LogWarning(ex, "StreamFlix: Seerr detail lookup failed for {MediaType} TMDB {TmdbId}.", cleanType, tmdbId);
             return StatusCode(502, new { code = "seerr_unreachable", message = ex.Message });
         }
+    }
+
+    [HttpGet("Seerr/Tv/{tmdbId:int}")]
+    [AllowAnonymous]
+    [Produces(MediaTypeNames.Application.Json)]
+    public Task<ActionResult<object>> GetSeerrTvDetails(
+        [FromRoute] int tmdbId,
+        [FromQuery] string? profileId = null)
+    {
+        return GetSeerrMediaDetails("tv", tmdbId, profileId);
     }
 
     [HttpGet("Seerr/Requests")]
@@ -216,7 +214,7 @@ public partial class StreamFlixController
         SetNoStoreSecurityHeaders();
         var config = Config;
         var caller = await GetCallerAsync(config).ConfigureAwait(false);
-        var (allowed, isKids, denyReason) = await EvaluateSeerrPermissionAsync(config, caller, profileId).ConfigureAwait(false);
+        var (allowed, isKids, _, denyReason) = await EvaluateSeerrPermissionAsync(config, caller, profileId).ConfigureAwait(false);
         if (!allowed)
         {
             return StatusCode(403, new { code = "seerr_forbidden", message = denyReason });
@@ -245,7 +243,7 @@ public partial class StreamFlixController
                     downloadProgress = r.DownloadProgress,
                     seasons = r.Seasons,
                     createdAt = r.CreatedAt,
-                    jellyfinMediaId = r.JellyfinMediaId,
+                    jellyfinMediaId = VerifyLocalJellyfinMediaId(r.JellyfinMediaId),
                 }).ToList(),
             });
         }
@@ -277,7 +275,7 @@ public partial class StreamFlixController
 
         var config = Config;
         var caller = await GetCallerAsync(config).ConfigureAwait(false);
-        var (allowed, _, denyReason) = await EvaluateSeerrPermissionAsync(config, caller, request.ProfileId).ConfigureAwait(false);
+        var (allowed, _, resolvedProfile, denyReason) = await EvaluateSeerrPermissionAsync(config, caller, request.ProfileId).ConfigureAwait(false);
         if (!allowed)
         {
             return StatusCode(403, new { ok = false, code = "seerr_forbidden", message = denyReason });
@@ -293,19 +291,24 @@ public partial class StreamFlixController
         {
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(HttpContext.RequestAborted);
             cts.CancelAfter(TimeSpan.FromSeconds(25));
-            var (ok, mediaStatus, statusLabel, message) = await StreamFlixSeerrService.SubmitRequestAsync(
+            var res = await StreamFlixSeerrService.SubmitRequestAsync(
                 config,
                 request.TmdbId,
                 request.MediaType,
                 request.Seasons,
+                request.Is4k,
+                request.ServerId,
+                resolvedProfile,
+                caller.Session?.Email,
                 cts.Token).ConfigureAwait(false);
 
             return Ok(new
             {
-                ok,
-                mediaStatus,
-                statusLabel,
-                message,
+                ok = res.Ok,
+                requestId = res.RequestId,
+                mediaStatus = res.MediaStatus,
+                statusLabel = res.StatusLabel,
+                message = res.Message,
             });
         }
         catch (OperationCanceledException) when (!HttpContext.RequestAborted.IsCancellationRequested)
@@ -316,6 +319,43 @@ public partial class StreamFlixController
         {
             _logger.LogWarning(ex, "StreamFlix: Seerr request failed for TMDB {TmdbId}.", request.TmdbId);
             return StatusCode(502, new { ok = false, code = "seerr_request_failed", message = ex.Message });
+        }
+    }
+
+    [HttpPost("Seerr/Cancel")]
+    [AllowAnonymous]
+    [Produces(MediaTypeNames.Application.Json)]
+    public async Task<ActionResult<object>> CancelSeerrRequest([FromBody] CancelSeerrMediaRequest? request)
+    {
+        SetNoStoreSecurityHeaders();
+        if (request == null || request.RequestId <= 0)
+        {
+            return BadRequest(new { ok = false, message = "Invalid request ID." });
+        }
+
+        var config = Config;
+        var caller = await GetCallerAsync(config).ConfigureAwait(false);
+        var (allowed, _, _, denyReason) = await EvaluateSeerrPermissionAsync(config, caller, request.ProfileId).ConfigureAwait(false);
+        if (!allowed)
+        {
+            return StatusCode(403, new { ok = false, code = "seerr_forbidden", message = denyReason });
+        }
+
+        try
+        {
+            using var cts = CancellationTokenSource.CreateLinkedTokenSource(HttpContext.RequestAborted);
+            cts.CancelAfter(TimeSpan.FromSeconds(12));
+            var (ok, message) = await StreamFlixSeerrService.CancelRequestAsync(config, request.RequestId, cts.Token).ConfigureAwait(false);
+            return Ok(new { ok, message });
+        }
+        catch (OperationCanceledException) when (!HttpContext.RequestAborted.IsCancellationRequested)
+        {
+            return StatusCode(504, new { ok = false, code = "seerr_timeout", message = "Timed out while cancelling the request in Seerr." });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "StreamFlix: Seerr cancel failed for Request {RequestId}.", request.RequestId);
+            return StatusCode(502, new { ok = false, code = "seerr_cancel_failed", message = ex.Message });
         }
     }
 
@@ -742,25 +782,89 @@ public partial class StreamFlixController
         return result;
     }
 
-    private Task<(bool Allowed, bool IsKids, string DenyReason)> EvaluateSeerrPermissionAsync(
+    private object SerializeSeerrDetail(StreamFlixSeerrService.SeerrMediaDetail d)
+    {
+        return new
+        {
+            tmdbId = d.TmdbId,
+            mediaType = d.MediaType,
+            title = d.Title,
+            tagline = d.Tagline,
+            year = d.Year,
+            runtimeMinutes = d.RuntimeMinutes,
+            rating = d.Rating,
+            genres = d.Genres,
+            overview = d.Overview,
+            posterUrl = d.PosterUrl,
+            backdropUrl = d.BackdropUrl,
+            mediaStatus = d.MediaStatus,
+            mediaStatus4k = d.MediaStatus4k,
+            statusLabel = d.StatusLabel,
+            downloadProgress = d.DownloadProgress,
+            activeRequestId = d.ActiveRequestId,
+            jellyfinMediaId = VerifyLocalJellyfinMediaId(d.JellyfinMediaId),
+            partialRequestsEnabled = d.PartialRequestsEnabled,
+            seasons = d.Seasons.Select(s => new
+            {
+                seasonNumber = s.SeasonNumber,
+                name = s.Name,
+                episodeCount = s.EpisodeCount,
+                year = s.Year,
+                status = s.Status,
+                statusLabel = s.StatusLabel,
+            }).ToList(),
+            servers = d.Servers.Select(sv => new
+            {
+                id = sv.Id,
+                name = sv.Name,
+                is4k = sv.Is4k,
+                isDefault = sv.IsDefault,
+            }).ToList(),
+        };
+    }
+
+    private string? VerifyLocalJellyfinMediaId(string? rawId)
+    {
+        if (string.IsNullOrWhiteSpace(rawId))
+        {
+            return null;
+        }
+
+        if (!Guid.TryParse(rawId.Trim(), out var itemGuid) || itemGuid == Guid.Empty)
+        {
+            return null;
+        }
+
+        try
+        {
+            var existing = _libraryManager.GetItemById(itemGuid);
+            return existing != null ? itemGuid.ToString("N") : null;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private Task<(bool Allowed, bool IsKids, StreamFlixProfileConfig? Profile, string DenyReason)> EvaluateSeerrPermissionAsync(
         PluginConfiguration config,
         CallerContext caller,
         string? requestedProfileId)
     {
         if (!HasHouseholdAccess(config, caller))
         {
-            return Task.FromResult((false, false, "Sign in to StreamFlix first."));
+            return Task.FromResult<(bool, bool, StreamFlixProfileConfig?, string)>((false, false, null, "Sign in to StreamFlix first."));
         }
 
         if (!StreamFlixSeerrService.IsConfigured(config))
         {
-            return Task.FromResult((false, false, "Seerr / Jellyseerr integration is not enabled on this server."));
+            return Task.FromResult<(bool, bool, StreamFlixProfileConfig?, string)>((false, false, null, "Seerr / Jellyseerr integration is not enabled on this server."));
         }
 
         var isGuest = IsGuestSession(caller);
         if (isGuest && !config.SeerrAllowGuests)
         {
-            return Task.FromResult((false, false, "Media requests are disabled for Guest Pass sessions."));
+            return Task.FromResult<(bool, bool, StreamFlixProfileConfig?, string)>((false, false, null, "Media requests are disabled for Guest Pass sessions."));
         }
 
         var effectiveProfileId = isGuest ? caller.Session?.LockedProfileId : requestedProfileId;
@@ -775,10 +879,10 @@ public partial class StreamFlixController
         var isKids = profile?.IsKids == true;
         if (isKids && !config.SeerrAllowKids)
         {
-            return Task.FromResult((false, true, "Media requests are disabled for Kids profiles."));
+            return Task.FromResult<(bool, bool, StreamFlixProfileConfig?, string)>((false, true, profile, "Media requests are disabled for Kids profiles."));
         }
 
-        return Task.FromResult((true, isKids, string.Empty));
+        return Task.FromResult<(bool, bool, StreamFlixProfileConfig?, string)>((true, isKids, profile, string.Empty));
     }
 
     private static bool AllowSeerrSubmitRate(string key)

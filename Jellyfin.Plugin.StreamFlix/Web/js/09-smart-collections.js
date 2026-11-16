@@ -633,12 +633,16 @@
             }
         };
 
-        // In-place update when the user is actively typing in #streamflix-live-search-input so IME composition,
-        // mobile keyboard, and caret position are never disrupted!
+        // In-place update whenever search is active or focused so IME composition, mobile keyboard,
+        // caret position, and Search grid scroll position are never disrupted!
         var existingSearchInput = document.getElementById('streamflix-live-search-input');
         var existingRowsEl = hub.querySelector('.streamflix-rows');
         var existingPillsNav = hub.querySelector('.streamflix-FilterPills');
-        if (existingSearchInput && existingRowsEl && existingPillsNav && hub.contains(existingSearchInput) && document.activeElement === existingSearchInput) {
+        if (existingSearchInput && existingRowsEl && existingPillsNav && hub.contains(existingSearchInput)
+            && (document.activeElement === existingSearchInput || Boolean(state.searchQuery) || state.mobileSearchOpen)) {
+            if (document.activeElement !== existingSearchInput && existingSearchInput.value !== (state.searchQuery || '')) {
+                existingSearchInput.value = state.searchQuery || '';
+            }
             existingPillsNav.innerHTML = pillsHtml;
             bindCategoryPills(existingPillsNav);
             existingSearchInput.placeholder = searchPlaceholder;

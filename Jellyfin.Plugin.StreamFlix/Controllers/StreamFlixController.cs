@@ -370,7 +370,8 @@ public partial class StreamFlixController : ControllerBase
     {
         return (config.BypassLoginGateOnLan && caller.IsLocalLan)
             || caller.Session != null
-            || caller.IsAdmin;
+            || caller.IsAdmin
+            || (caller.IsJellyfinAuthenticated && (!config.RequireGoogleAuth || config.AllowStandardJellyfinLogin || IsGateUnconfigured(config)));
     }
 
     private ObjectResult GoogleRequired(PluginConfiguration? config = null)

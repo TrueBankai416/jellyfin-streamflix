@@ -622,9 +622,31 @@
                 if (it && Number(it.tmdbId) === Number(tmdbId) && (String(it.mediaType || '').toLowerCase() === 'tv') === Boolean(isTv)) {
                     it.mediaStatus = nextStatus;
                     it.statusLabel = nextLabel;
+                    if (nextStatus === 1) {
+                        it.downloadProgress = null;
+                    }
                 }
             });
         }
+        if (typeof refreshSingleSeerrCardDom === 'function' && refreshSingleSeerrCardDom(tmdbId, isTv)) {
+            return;
+        }
+        if (state.searchQuery) {
+            renderCinemaHubContents();
+        }
+    }
+
+    function formatSeerrMinutes(mins) {
+        var m = Number(mins || 0);
+        if (!m || m <= 0 || !isFinite(m)) {
+            return '';
+        }
+        var hrs = Math.floor(m / 60);
+        var rem = m % 60;
+        if (hrs > 0) {
+            return rem > 0 ? (hrs + 'h ' + rem + 'm') : (hrs + 'h');
+        }
+        return rem + 'm';
     }
 
     function quickRequestSeerrMovie(seerrItem) {
@@ -641,8 +663,8 @@
             return;
         }
         state.seerrSubmittingMap[key] = true;
-        if (state.searchQuery) {
-            renderCinemaHubContents();
+        if (typeof refreshSingleSeerrCardDom === 'function') {
+            refreshSingleSeerrCardDom(tmdbId, isTv);
         }
 
         var activeProfId = (state.activeProfile && state.activeProfile.id) || '';
@@ -653,7 +675,6 @@
                 tmdbId: tmdbId,
                 mediaType: isTv ? 'tv' : 'movie',
                 seasons: isTv ? [] : undefined,
-                is4k: false,
                 profileId: activeProfId
             })
         }).then(function (res) {
@@ -664,15 +685,12 @@
             seerrItem.statusLabel = nextLabel;
             applySeerrStatusUpdate(tmdbId, isTv, nextStatus, nextLabel);
             showToast((res && res.message) || ('Requested "' + (seerrItem.title || 'Title') + '"!'), 'success');
-            if (state.searchQuery) {
-                renderCinemaHubContents();
-            }
         }).catch(function (err) {
             delete state.seerrSubmittingMap[key];
-            showToast((err && err.message) || 'Request failed — check Seerr settings.', 'error');
-            if (state.searchQuery) {
-                renderCinemaHubContents();
+            if (typeof refreshSingleSeerrCardDom === 'function') {
+                refreshSingleSeerrCardDom(tmdbId, isTv);
             }
+            showToast((err && err.message) || 'Request failed — check Seerr settings.', 'error');
         });
     }
 
@@ -681,36 +699,51 @@
             return;
         }
         var isTv = String(seerrItem.mediaType || '').toLowerCase() === 'tv';
+        var mediaPath = isTv ? 'tv' : 'movie';
         var tmdbId = Number(seerrItem.tmdbId);
         var activeProfId = (state.activeProfile && state.activeProfile.id) || '';
         var rawArt = seerrItem.backdropUrl || seerrItem.posterUrl || '';
         var artUrl = /^https:\/\//i.test(rawArt) ? rawArt : '';
+        var posterThumbUrl = (typeof seerrItem.posterUrl === 'string' && /^https:\/\//i.test(seerrItem.posterUrl.trim())) ? seerrItem.posterUrl.trim() : '';
         var rawVote = Number(seerrItem.rating || seerrItem.voteAverage || 0);
         var rating = rawVote > 0 ? rawVote.toFixed(1) : '';
         if (Number(seerrItem.mediaStatus) === 7) {
             seerrItem.mediaStatus = 1;
         }
 
+        var tagline = typeof seerrItem.tagline === 'string' ? seerrItem.tagline : '';
+        var runtimeMinutes = Number(seerrItem.runtimeMinutes || 0);
+        var genres = Array.isArray(seerrItem.genres) ? seerrItem.genres.slice(0, 3) : [];
+        var mediaStatus4k = Number(seerrItem.mediaStatus4k || 1);
+        var activeRequestId = seerrItem.activeRequestId ? Number(seerrItem.activeRequestId) : 0;
+        var verifiedJfId = (typeof seerrItem.jellyfinMediaId === 'string' && /^[a-f0-9]{32}$/i.test(seerrItem.jellyfinMediaId.trim()))
+            ? seerrItem.jellyfinMediaId.trim()
+            : '';
+        var partialRequestsEnabled = seerrItem.partialRequestsEnabled !== false;
+        var servers = [];
+        var selectedServerId = null;
+
         var seasons = [];
         var selectedSeasons = {};
-        var loadingTv = isTv;
+        var loadingDetails = true;
         var submitting = false;
+        var cancelling = false;
         var errorMsg = '';
-        var tvAbort = (isTv && typeof AbortController === 'function') ? new AbortController() : null;
+        var detailAbort = typeof AbortController === 'function' ? new AbortController() : null;
 
         var m = openModal('<div id="bfx-seerr-modal-root"></div>', {
             className: 'streamflix-modal-md bfx-seerr-modal',
             onClose: function () {
-                if (tvAbort) {
-                    try { tvAbort.abort(); } catch (eAb) {}
-                    tvAbort = null;
+                if (detailAbort) {
+                    try { detailAbort.abort(); } catch (eAb) {}
+                    detailAbort = null;
                 }
             }
         });
 
         function statusPillInfo(statusNum, customLabel, dlPct) {
             var st = Number(statusNum || 1);
-            if (st === 7) { st = 1; }
+            if (st === 7 || st <= 0) { st = 1; }
             var hasDl = (typeof dlPct === 'number' && !isNaN(dlPct)) || /^downloading/i.test(String(customLabel || ''));
             if (hasDl && (st === 2 || st === 3)) {
                 return {
@@ -722,19 +755,58 @@
             if (st === 4) { return { cls: 'is-partial', text: customLabel || 'Partially Available' }; }
             if (st === 3) { return { cls: 'is-processing', text: customLabel || 'Processing' }; }
             if (st === 2) { return { cls: 'is-pending', text: customLabel || 'Requested' }; }
+            if (st === 6) { return { cls: 'is-declined', text: 'Unavailable' }; }
             return { cls: 'is-requestable', text: customLabel || 'Available to Request' };
         }
 
+        function getChosenServer() {
+            if (!servers.length) {
+                return null;
+            }
+            for (var i = 0; i < servers.length; i++) {
+                if (Number(servers[i].id) === Number(selectedServerId)) {
+                    return servers[i];
+                }
+            }
+            return servers[0];
+        }
+
+        function getEffectiveTierStatus() {
+            var sv = getChosenServer();
+            var raw = (sv && sv.is4k) ? mediaStatus4k : Number(seerrItem.mediaStatus || 1);
+            return (raw === 7 || raw <= 0) ? 1 : raw;
+        }
+
         function countSelectedSeasons() {
-            return Object.keys(selectedSeasons).filter(function (k) { return Boolean(selectedSeasons[k]); }).map(function (k) { return parseInt(k, 10); }).filter(function (n) { return n > 0; });
+            return Object.keys(selectedSeasons)
+                .filter(function (k) { return Boolean(selectedSeasons[k]); })
+                .map(function (k) { return parseInt(k, 10); })
+                .filter(function (n) { return n > 0; })
+                .sort(function (a, b) { return a - b; });
+        }
+
+        function applyDefaultSeasonSelection() {
+            selectedSeasons = {};
+            var airedReq = seasons.filter(function (s) {
+                var st = Number(s.status || 1);
+                return Number(s.episodeCount || 0) > 0 && (st === 1 || st === 4);
+            });
+            var targetList = (!partialRequestsEnabled || !airedReq.length)
+                ? seasons.filter(function (s) { var st = Number(s.status || 1); return st === 1 || st === 4; })
+                : airedReq;
+            targetList.forEach(function (s) {
+                if (Number(s.seasonNumber) > 0) {
+                    selectedSeasons[Number(s.seasonNumber)] = true;
+                }
+            });
         }
 
         function submitSeerrRequest() {
-            if (submitting) {
+            if (submitting || cancelling) {
                 return;
             }
             var chosenSeasons = isTv ? countSelectedSeasons() : [];
-            if (isTv && seasons.length > 0 && !chosenSeasons.length) {
+            if (isTv && !loadingDetails && seasons.length > 0 && !chosenSeasons.length) {
                 errorMsg = 'Select at least one season to request.';
                 render();
                 return;
@@ -743,31 +815,70 @@
             errorMsg = '';
             render();
 
+            var chosenSv = getChosenServer();
+            var payload = {
+                tmdbId: tmdbId,
+                mediaType: mediaPath,
+                seasons: isTv ? chosenSeasons : undefined,
+                is4k: chosenSv ? Boolean(chosenSv.is4k) : undefined,
+                serverId: (chosenSv && servers.length > 1) ? Number(chosenSv.id) : undefined,
+                profileId: activeProfId
+            };
+
             apiFetch('/StreamFlix/Seerr/Request', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    tmdbId: tmdbId,
-                    mediaType: isTv ? 'tv' : 'movie',
-                    seasons: isTv ? chosenSeasons : undefined,
-                    is4k: false,
-                    profileId: activeProfId
-                })
+                body: JSON.stringify(payload)
             }).then(function (res) {
                 submitting = false;
                 var nextStatus = (res && res.mediaStatus) ? Number(res.mediaStatus) : 2;
                 var nextLabel = (res && res.statusLabel) || 'Requested';
-                seerrItem.mediaStatus = nextStatus;
+                if (chosenSv && chosenSv.is4k) {
+                    mediaStatus4k = nextStatus;
+                } else {
+                    seerrItem.mediaStatus = nextStatus;
+                }
                 seerrItem.statusLabel = nextLabel;
-                applySeerrStatusUpdate(tmdbId, isTv, nextStatus, nextLabel);
+                if (res && res.requestId) {
+                    activeRequestId = Number(res.requestId);
+                }
+                applySeerrStatusUpdate(tmdbId, isTv, Number(seerrItem.mediaStatus || nextStatus), nextLabel);
                 showToast((res && res.message) || ('Requested "' + (seerrItem.title || 'Title') + '"!'), 'success');
                 m.close(true);
-                if (state.searchQuery) {
-                    renderCinemaHubContents();
-                }
             }).catch(function (err) {
                 submitting = false;
-                errorMsg = (err && err.message) || 'Request failed. Please check Seerr configuration.';
+                errorMsg = (err && err.message) || 'Request failed. Verify your Seerr URL, API Key, and Radarr/Sonarr server in Seerr.';
+                render();
+            });
+        }
+
+        function cancelActiveSeerrRequest() {
+            if (cancelling || submitting || !activeRequestId) {
+                return;
+            }
+            cancelling = true;
+            errorMsg = '';
+            render();
+
+            apiFetch('/StreamFlix/Seerr/Cancel', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    requestId: activeRequestId,
+                    profileId: activeProfId
+                })
+            }).then(function (res) {
+                cancelling = false;
+                activeRequestId = 0;
+                seerrItem.mediaStatus = 1;
+                seerrItem.statusLabel = 'Not Requested';
+                mediaStatus4k = 1;
+                applySeerrStatusUpdate(tmdbId, isTv, 1, 'Not Requested');
+                showToast((res && res.message) || 'Request cancelled.', 'info');
+                render();
+            }).catch(function (err) {
+                cancelling = false;
+                errorMsg = (err && err.message) || 'Could not cancel request in Seerr.';
                 render();
             });
         }
@@ -781,10 +892,17 @@
                 return;
             }
 
+            var chosenSv = getChosenServer();
+            var tierStatus = getEffectiveTierStatus();
             var dlNum = (typeof seerrItem.downloadProgress === 'number' && !isNaN(seerrItem.downloadProgress))
                 ? Math.max(0, Math.min(100, Math.round(seerrItem.downloadProgress)))
                 : null;
-            var stInfo = statusPillInfo(seerrItem.mediaStatus, seerrItem.statusLabel, dlNum);
+            var stInfo = statusPillInfo(
+                tierStatus,
+                (chosenSv && chosenSv.is4k && tierStatus === 1) ? '4K Available to Request' : seerrItem.statusLabel,
+                dlNum
+            );
+
             var dlCardHtml = '';
             if (dlNum !== null || stInfo.cls === 'is-downloading') {
                 var barWidth = dlNum !== null ? dlNum : 12;
@@ -798,24 +916,45 @@
                     + '</div>';
             }
 
+            var serverPickerHtml = '';
+            if (servers.length > 1) {
+                var svPills = servers.map(function (sv) {
+                    var isSel = chosenSv && Number(chosenSv.id) === Number(sv.id);
+                    var tierTag = sv.is4k ? '<span class="bfx-seerr-4k-tag">4K</span>' : '<span class="bfx-seerr-hd-tag">HD</span>';
+                    return '<button type="button" class="bfx-seerr-server-pill' + (isSel ? ' is-active' : '') + '" data-seerr-server="' + Number(sv.id) + '">'
+                        + tierTag + '<span>' + escapeHtml(sv.name || (sv.is4k ? '4K Server' : 'Standard')) + '</span>'
+                        + '</button>';
+                }).join('');
+                serverPickerHtml = ''
+                    + '<div class="bfx-seerr-server-section">'
+                    + '  <div class="bfx-seerr-seasons-head"><span>Quality / Target Server</span></div>'
+                    + '  <div class="bfx-seerr-server-pills">' + svPills + '</div>'
+                    + '</div>';
+            }
+
             var seasonsSectionHtml = '';
             var canSubmit = false;
-            var submitLabel = isTv ? 'Request Selected Seasons' : 'Request Movie';
+            var showSubmitBtn = false;
+            var submitLabel = isTv ? 'Request Seasons' : (chosenSv && chosenSv.is4k ? 'Request 4K Movie' : 'Request Movie');
 
             if (!isTv) {
-                var mSt = Number(seerrItem.mediaStatus || 1);
-                canSubmit = mSt === 1;
-                if (mSt !== 1 && !dlCardHtml) {
-                    seasonsSectionHtml = '<div class="bfx-seerr-status-note">This movie is currently <strong>' + escapeHtml(stInfo.text) + '</strong> in Seerr.</div>';
+                canSubmit = tierStatus === 1;
+                showSubmitBtn = canSubmit;
+                if (!canSubmit && !dlCardHtml) {
+                    seasonsSectionHtml = '<div class="bfx-seerr-status-note">Status in Seerr: <strong>' + escapeHtml(stInfo.text) + '</strong>'
+                        + (tierStatus === 2 ? ' — queued for Radarr download.' : (tierStatus === 3 ? ' — Radarr is processing this movie.' : '.'))
+                        + '</div>';
                 }
-            } else if (loadingTv) {
-                seasonsSectionHtml = '<div class="bfx-modal-loading" style="padding:20px 0;"><div class="streamflix-spinner-ring" style="width:32px;height:32px;border-width:3px;"></div><span>Loading seasons from Seerr…</span></div>';
+            } else if (loadingDetails) {
+                showSubmitBtn = true;
+                canSubmit = false;
+                submitLabel = 'Loading Seasons…';
+                seasonsSectionHtml = '<div class="bfx-modal-loading" style="padding:18px 0;"><div class="streamflix-spinner-ring" style="width:28px;height:28px;border-width:3px;"></div><span>Loading seasons from Seerr…</span></div>';
             } else if (!seasons.length) {
-                var tvSt = Number(seerrItem.mediaStatus || 1);
-                if (tvSt === 7) { tvSt = 1; }
-                canSubmit = tvSt === 1 || tvSt === 4;
-                submitLabel = 'Request Series';
-                seasonsSectionHtml = '<div class="bfx-seerr-status-note">All available seasons will be requested in Seerr.</div>';
+                canSubmit = tierStatus === 1 || tierStatus === 4;
+                showSubmitBtn = canSubmit;
+                submitLabel = chosenSv && chosenSv.is4k ? 'Request 4K Series' : 'Request Series';
+                seasonsSectionHtml = '<div class="bfx-seerr-status-note">All available seasons will be requested automatically in Seerr.</div>';
             } else {
                 var requestableCount = 0;
                 var rowsHtml = seasons.map(function (s) {
@@ -825,30 +964,47 @@
                     if (isReq) {
                         requestableCount += 1;
                     }
+                    var rowEditable = isReq && partialRequestsEnabled;
                     var sBadge = statusPillInfo(sSt, s.statusLabel, null);
                     var checked = Boolean(selectedSeasons[sNum]);
-                    var epCnt = s.episodeCount ? (s.episodeCount + ' ep' + (s.episodeCount === 1 ? '' : 's')) : '';
+                    var epCnt = Number(s.episodeCount || 0) > 0
+                        ? (s.episodeCount + ' ep' + (s.episodeCount === 1 ? '' : 's'))
+                        : 'TBA';
+                    var yrTxt = s.year ? String(s.year) : '';
                     return ''
-                        + '<label class="bfx-seerr-season-row' + (isReq ? ' is-selectable' : ' is-locked') + '">'
-                        + '  <input type="checkbox" data-seerr-season="' + sNum + '"' + (checked ? ' checked' : '') + (isReq ? '' : ' disabled') + ' />'
+                        + '<label class="bfx-seerr-season-row' + (rowEditable ? ' is-selectable' : ' is-locked') + (checked ? ' is-checked' : '') + '">'
+                        + '  <input type="checkbox" data-seerr-season="' + sNum + '"' + (checked ? ' checked' : '') + (rowEditable ? '' : ' disabled') + ' />'
                         + '  <span class="bfx-seerr-season-name">' + escapeHtml(s.name || ('Season ' + sNum)) + '</span>'
-                        + (epCnt ? '<span class="bfx-seerr-season-eps">' + escapeHtml(epCnt) + '</span>' : '')
+                        + (yrTxt ? '<span class="bfx-seerr-season-yr">' + escapeHtml(yrTxt) + '</span>' : '')
+                        + '  <span class="bfx-seerr-season-eps">' + escapeHtml(epCnt) + '</span>'
                         + '  <span class="bfx-seerr-badge ' + sBadge.cls + '">' + escapeHtml(sBadge.text) + '</span>'
                         + '</label>';
                 }).join('');
 
                 var selNums = countSelectedSeasons();
                 canSubmit = selNums.length > 0;
+                showSubmitBtn = requestableCount > 0;
                 if (selNums.length > 0) {
-                    submitLabel = 'Request ' + selNums.length + ' Season' + (selNums.length === 1 ? '' : 's');
+                    submitLabel = 'Request ' + selNums.length + (chosenSv && chosenSv.is4k ? ' 4K' : '') + ' Season' + (selNums.length === 1 ? '' : 's');
                 }
                 seasonsSectionHtml = ''
+                    + (!partialRequestsEnabled && requestableCount > 0
+                        ? '<div class="bfx-seerr-status-note" style="margin-bottom:10px;">Full-series mode is active in Seerr — all unrequested seasons are requested together.</div>'
+                        : '')
                     + '<div class="bfx-seerr-seasons-head">'
-                    + '  <span>Select Seasons to Request</span>'
-                    + (requestableCount > 1 ? '<button type="button" class="streamflix-ghost-btn bfx-btn-xs" id="bfx-seerr-toggle-all">' + (selNums.length === requestableCount ? 'Clear Selection' : 'Select All') + '</button>' : '')
+                    + '  <span>Seasons (' + seasons.length + ')</span>'
+                    + (partialRequestsEnabled && requestableCount > 1
+                        ? '<button type="button" class="streamflix-ghost-btn bfx-btn-xs" id="bfx-seerr-toggle-all">' + (selNums.length === requestableCount ? 'Clear' : 'Select All (' + requestableCount + ')') + '</button>'
+                        : '')
                     + '</div>'
                     + '<div class="bfx-seerr-seasons">' + rowsHtml + '</div>';
             }
+
+            var rtFormatted = formatSeerrMinutes(runtimeMinutes);
+            var genrePillsHtml = genres.length
+                ? genres.map(function (g) { return '<span class="bfx-seerr-genre-chip">' + escapeHtml(g) + '</span>'; }).join('')
+                : '';
+            var canCancel = activeRequestId > 0 && (tierStatus === 2 || /^pending/i.test(String(seerrItem.statusLabel || '')));
 
             root.innerHTML = ''
                 + '<div class="bfx-seerr-hero">'
@@ -856,31 +1012,44 @@
                 + '  <div class="bfx-seerr-hero-scrim"></div>'
                 + '  <button type="button" class="streamflix-detail-close" data-act="close" aria-label="Close">' + icon('close') + '</button>'
                 + '  <div class="bfx-seerr-hero-body">'
-                + '    <div class="bfx-seerr-badges-row">'
-                + '      <span class="bfx-seerr-type">' + (isTv ? 'SERIES' : 'MOVIE') + '</span>'
-                + '      <span class="bfx-seerr-badge ' + stInfo.cls + '">' + escapeHtml(stInfo.text) + '</span>'
-                + '    </div>'
-                + '    <h2 class="bfx-seerr-title">' + escapeHtml(seerrItem.title || 'Untitled') + '</h2>'
-                + '    <div class="streamflix-hero-meta-row">'
+                + (posterThumbUrl ? '    <img class="bfx-seerr-hero-poster" src="' + escapeHtml(posterThumbUrl) + '" alt="" referrerpolicy="no-referrer" data-bfx-img="fade" />' : '')
+                + '    <div class="bfx-seerr-hero-copy">'
+                + '      <div class="bfx-seerr-badges-row">'
+                + '        <span class="bfx-seerr-brand-pill">' + icon('seerrIcon') + '<span>SEERR</span></span>'
+                + '        <span class="bfx-seerr-type">' + (isTv ? 'SERIES' : 'MOVIE') + '</span>'
+                + '        <span class="bfx-seerr-badge ' + stInfo.cls + '">' + escapeHtml(stInfo.text) + '</span>'
+                + '      </div>'
+                + '      <h2 class="bfx-seerr-title">' + escapeHtml(seerrItem.title || 'Untitled') + '</h2>'
+                + '      <div class="streamflix-hero-meta-row">'
                 + (rating ? '<span class="streamflix-hero-rating">' + icon('star') + escapeHtml(rating) + '</span>' : '')
                 + (seerrItem.year ? '<span>' + escapeHtml(String(seerrItem.year)) + '</span>' : '')
-                + '      <span>TMDB #' + tmdbId + '</span>'
+                + (rtFormatted ? '<span>' + escapeHtml(rtFormatted) + '</span>' : '')
+                + genrePillsHtml
+                + '      </div>'
                 + '    </div>'
                 + '  </div>'
                 + '</div>'
                 + '<div class="bfx-seerr-body">'
                 + (errorMsg ? '<div class="streamflix-auth-alert streamflix-auth-alert-error" style="margin-bottom:12px;">' + escapeHtml(errorMsg) + '</div>' : '')
+                + (tagline ? '  <div class="bfx-seerr-tagline">“' + escapeHtml(tagline) + '”</div>' : '')
                 + '  <p class="bfx-seerr-modal-overview">' + escapeHtml(seerrItem.overview || 'No synopsis available on TMDB.') + '</p>'
                 + dlCardHtml
+                + serverPickerHtml
                 + seasonsSectionHtml
-                + '  <div class="streamflix-modal-actions streamflix-modal-actions-end" style="margin-top:18px; flex-wrap:wrap;">'
-                + '    <button type="button" class="streamflix-ghost-btn" id="bfx-seerr-view-all-reqs" style="margin-right:auto;">' + iconLabel('clock', 'All Requests') + '</button>'
+                + '  <div class="streamflix-modal-actions streamflix-modal-actions-end bfx-seerr-footer-actions">'
+                + '    <button type="button" class="streamflix-ghost-btn" id="bfx-seerr-view-all-reqs" style="margin-right:auto;">' + iconLabel('seerrIcon', 'Requests') + '</button>'
+                + (canCancel
+                    ? '    <button type="button" class="streamflix-ghost-btn bfx-seerr-cancel-btn" id="bfx-seerr-cancel-btn"' + (cancelling ? ' disabled' : '') + '>' + (cancelling ? 'Cancelling…' : 'Cancel Request') + '</button>'
+                    : '')
                 + '    <button type="button" class="streamflix-ghost-btn" data-act="close">Close</button>'
-                + (seerrItem.jellyfinMediaId
-                    ? '    <button type="button" class="streamflix-btn-primary" id="bfx-seerr-open-jf">' + iconLabel('play', 'Open in Library') + '</button>'
-                    : (canSubmit || (!loadingTv && Number(seerrItem.mediaStatus || 1) === 1)
-                        ? '    <button type="button" class="streamflix-btn-primary" id="bfx-seerr-submit-btn"' + ((!canSubmit || submitting) ? ' disabled' : '') + '>' + (submitting ? 'Submitting…' : iconLabel('plus', submitLabel)) + '</button>'
-                        : ''))
+                + (verifiedJfId
+                    ? '    <button type="button" class="' + (showSubmitBtn ? 'streamflix-ghost-btn' : 'streamflix-btn-primary') + '" id="bfx-seerr-open-jf">' + iconLabel('play', 'Open in Library') + '</button>'
+                    : '')
+                + (showSubmitBtn
+                    ? '    <button type="button" class="streamflix-btn-primary bfx-seerr-submit-primary" id="bfx-seerr-submit-btn"' + ((!canSubmit || submitting) ? ' disabled' : '') + '>'
+                        + (submitting ? '<span class="bfx-qbtn-mini-spin"></span><span>Requesting…</span>' : iconLabel('plus', submitLabel))
+                        + '</button>'
+                    : '')
                 + '  </div>'
                 + '</div>';
 
@@ -897,17 +1066,32 @@
                 });
             }
 
+            var cancelReqBtn = root.querySelector('#bfx-seerr-cancel-btn');
+            if (cancelReqBtn) {
+                cancelReqBtn.addEventListener('click', cancelActiveSeerrRequest);
+            }
+
             var openJfBtn = root.querySelector('#bfx-seerr-open-jf');
             if (openJfBtn) {
                 openJfBtn.addEventListener('click', function () {
-                    var jfId = seerrItem.jellyfinMediaId;
+                    var jfId = verifiedJfId;
                     m.close(true);
                     openHeroDetailModalById(jfId);
                 });
             }
 
+            Array.prototype.forEach.call(root.querySelectorAll('[data-seerr-server]'), function (pill) {
+                pill.addEventListener('click', function () {
+                    selectedServerId = parseInt(pill.getAttribute('data-seerr-server'), 10);
+                    render();
+                });
+            });
+
             Array.prototype.forEach.call(root.querySelectorAll('[data-seerr-season]'), function (cb) {
                 cb.addEventListener('change', function () {
+                    if (!partialRequestsEnabled) {
+                        return;
+                    }
                     var sNum = parseInt(cb.getAttribute('data-seerr-season'), 10);
                     if (sNum > 0) {
                         selectedSeasons[sNum] = Boolean(cb.checked);
@@ -941,51 +1125,76 @@
 
         render();
 
-        if (isTv) {
-            apiFetch(
-                '/StreamFlix/Seerr/Tv/' + encodeURIComponent(String(tmdbId)) + '?profileId=' + encodeURIComponent(activeProfId),
-                tvAbort ? { signal: tvAbort.signal } : {}
-            )
-                .then(function (res) {
-                    tvAbort = null;
-                    loadingTv = false;
-                    var rawSeasons = (res && Array.isArray(res.seasons)) ? res.seasons : [];
-                    seasons = rawSeasons.filter(function (s) { return s && Number(s.seasonNumber) >= 1; });
-                    seasons.forEach(function (s) {
-                        var st = Number(s.status || 1);
-                        if (st === 7) { st = 1; }
-                        s.status = st;
-                        if (st === 1 || st === 4) {
-                            selectedSeasons[Number(s.seasonNumber)] = true;
+        apiFetch(
+            '/StreamFlix/Seerr/Details/' + encodeURIComponent(mediaPath) + '/' + encodeURIComponent(String(tmdbId)) + '?profileId=' + encodeURIComponent(activeProfId),
+            detailAbort ? { signal: detailAbort.signal } : {}
+        )
+            .then(function (res) {
+                detailAbort = null;
+                loadingDetails = false;
+                if (res) {
+                    if (res.title) { seerrItem.title = res.title; }
+                    if (res.year) { seerrItem.year = res.year; }
+                    if (res.overview) { seerrItem.overview = res.overview; }
+                    if (res.tagline) { tagline = res.tagline; }
+                    if (res.runtimeMinutes) { runtimeMinutes = Number(res.runtimeMinutes); }
+                    if (res.rating) { rating = Number(res.rating).toFixed(1); }
+                    if (Array.isArray(res.genres) && res.genres.length) { genres = res.genres.slice(0, 3); }
+                    if (res.posterUrl && /^https:\/\//i.test(res.posterUrl)) { posterThumbUrl = res.posterUrl; }
+                    if (res.backdropUrl && /^https:\/\//i.test(res.backdropUrl)) { artUrl = res.backdropUrl; }
+                    if (res.mediaStatus) {
+                        seerrItem.mediaStatus = Number(res.mediaStatus) === 7 ? 1 : Number(res.mediaStatus);
+                    }
+                    if (res.mediaStatus4k) {
+                        mediaStatus4k = Number(res.mediaStatus4k) === 7 ? 1 : Number(res.mediaStatus4k);
+                    }
+                    if (res.statusLabel) { seerrItem.statusLabel = res.statusLabel; }
+                    if (typeof res.downloadProgress === 'number') { seerrItem.downloadProgress = res.downloadProgress; }
+                    activeRequestId = res.activeRequestId ? Number(res.activeRequestId) : 0;
+                    verifiedJfId = (typeof res.jellyfinMediaId === 'string' && /^[a-f0-9]{32}$/i.test(res.jellyfinMediaId.trim()))
+                        ? res.jellyfinMediaId.trim()
+                        : '';
+                    seerrItem.jellyfinMediaId = verifiedJfId || null;
+                    partialRequestsEnabled = res.partialRequestsEnabled !== false;
+
+                    if (Array.isArray(res.servers) && res.servers.length) {
+                        servers = res.servers;
+                        var defSv = null;
+                        if (!isTv && Number(seerrItem.mediaStatus) === 5 && mediaStatus4k === 1) {
+                            defSv = servers.filter(function (s) { return s.is4k; })[0] || null;
                         }
-                    });
-                    if (res && res.mediaStatus) {
-                        seerrItem.mediaStatus = Number(res.mediaStatus) === 7 ? 1 : res.mediaStatus;
+                        if (!defSv) {
+                            defSv = servers.filter(function (s) { return s.isDefault && !s.is4k; })[0]
+                                || servers.filter(function (s) { return !s.is4k; })[0]
+                                || servers.filter(function (s) { return s.isDefault; })[0]
+                                || servers[0];
+                        }
+                        selectedServerId = defSv ? Number(defSv.id) : null;
                     }
-                    if (res && res.statusLabel) {
-                        seerrItem.statusLabel = res.statusLabel;
+
+                    if (isTv) {
+                        var rawSeasons = Array.isArray(res.seasons) ? res.seasons : [];
+                        seasons = rawSeasons.filter(function (s) { return s && Number(s.seasonNumber) >= 1; });
+                        seasons.forEach(function (s) {
+                            var st = Number(s.status || 1);
+                            s.status = (st === 7 || st <= 0) ? 1 : st;
+                        });
+                        applyDefaultSeasonSelection();
                     }
-                    if (res && typeof res.downloadProgress === 'number') {
-                        seerrItem.downloadProgress = res.downloadProgress;
-                    }
-                    if (res && res.overview && !seerrItem.overview) {
-                        seerrItem.overview = res.overview;
-                    }
-                    if (res && res.backdropUrl && !artUrl && /^https:\/\//i.test(res.backdropUrl)) {
-                        artUrl = res.backdropUrl;
-                    }
-                    render();
-                })
-                .catch(function (err) {
-                    if (err && err.name === 'AbortError') {
-                        return;
-                    }
-                    tvAbort = null;
-                    loadingTv = false;
+                }
+                render();
+            })
+            .catch(function (err) {
+                if (err && err.name === 'AbortError') {
+                    return;
+                }
+                detailAbort = null;
+                loadingDetails = false;
+                if (isTv) {
                     errorMsg = (err && err.message) || 'Could not load season details from Seerr.';
-                    render();
-                });
-        }
+                }
+                render();
+            });
     }
 
     function openSeerrRequestsModal() {
@@ -997,6 +1206,7 @@
         var requests = [];
         var filterKey = 'all';
         var loading = true;
+        var cancellingId = 0;
 
         var reqsAbort = null;
 
@@ -1034,8 +1244,8 @@
             if (k === 'partial') {
                 return { cls: 'is-partial', ico: 'check', label: r.statusLabel || 'Partially Available' };
             }
-            if (k === 'declined') {
-                return { cls: 'is-declined', ico: 'close', label: r.statusLabel || 'Declined' };
+            if (k === 'declined' || k === 'failed') {
+                return { cls: 'is-declined', ico: 'close', label: r.statusLabel || (k === 'failed' ? 'Failed' : 'Declined') };
             }
             if (k === 'processing' || k === 'approved') {
                 return { cls: 'is-processing', ico: 'clock', label: r.statusLabel || 'Processing' };
@@ -1048,7 +1258,7 @@
                 return '';
             }
             var jfId = typeof r.jellyfinMediaId === 'string' ? r.jellyfinMediaId.trim() : '';
-            if (jfId && /^[a-f0-9-]{16,40}$/i.test(jfId)) {
+            if (jfId && /^[a-f0-9]{32}$/i.test(jfId)) {
                 return jfId;
             }
             var stKey = String(r.statusKey || '').toLowerCase();
@@ -1151,6 +1361,7 @@
                         ? Math.max(0, Math.min(100, Math.round(r.downloadProgress)))
                         : null;
                     var jfId = resolveLocalLibraryId(r);
+                    var isPendingCancelable = Number(r.requestId) > 0 && String(r.statusKey || '').toLowerCase() === 'pending';
 
                     return ''
                         + '<div class="bfx-req-row">'
@@ -1176,7 +1387,10 @@
                             : '')
                         + '  </div>'
                         + '  <div class="bfx-req-actions">'
-                        + (jfId
+                        + (isPendingCancelable
+                            ? '    <button type="button" class="streamflix-ghost-btn bfx-btn-xs bfx-seerr-cancel-btn" data-req-cancel="' + vIdx + '"' + (cancellingId === Number(r.requestId) ? ' disabled' : '') + '>' + (cancellingId === Number(r.requestId) ? '…' : 'Cancel') + '</button>'
+                            : '')
+                        + (jfId && (!isTvReq || Number(r.mediaStatus) === 5)
                             ? '    <button type="button" class="streamflix-btn-primary bfx-btn-xs" data-req-open-jf="' + escapeHtml(jfId) + '">' + iconLabel('play', 'Open') + '</button>'
                             : (r.tmdbId > 0
                                 ? '    <button type="button" class="streamflix-ghost-btn bfx-btn-xs" data-req-inspect="' + vIdx + '">' + (isTvReq ? 'Seasons' : 'Details') + '</button>'
@@ -1221,6 +1435,36 @@
                 });
             });
 
+            Array.prototype.forEach.call(bodyEl.querySelectorAll('[data-req-cancel]'), function (btn) {
+                btn.addEventListener('click', function () {
+                    var idx = parseInt(btn.getAttribute('data-req-cancel'), 10);
+                    var r = visible[idx];
+                    if (!r || !r.requestId || cancellingId) {
+                        return;
+                    }
+                    cancellingId = Number(r.requestId);
+                    renderBody();
+                    apiFetch('/StreamFlix/Seerr/Cancel', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            requestId: Number(r.requestId),
+                            profileId: activeProfId
+                        })
+                    }).then(function () {
+                        cancellingId = 0;
+                        requests = requests.filter(function (x) { return Number(x.requestId) !== Number(r.requestId); });
+                        applySeerrStatusUpdate(r.tmdbId, String(r.mediaType || '').toLowerCase() === 'tv', 1, 'Not Requested');
+                        showToast('Cancelled request for "' + (r.title || 'Title') + '".', 'info');
+                        renderBody();
+                    }).catch(function (err) {
+                        cancellingId = 0;
+                        showToast((err && err.message) || 'Could not cancel request.', 'error');
+                        renderBody();
+                    });
+                });
+            });
+
             Array.prototype.forEach.call(bodyEl.querySelectorAll('[data-req-inspect]'), function (btn) {
                 btn.addEventListener('click', function () {
                     var idx = parseInt(btn.getAttribute('data-req-inspect'), 10);
@@ -1237,6 +1481,7 @@
                             mediaStatus: r.mediaStatus,
                             statusLabel: r.statusLabel,
                             downloadProgress: r.downloadProgress,
+                            activeRequestId: r.requestId,
                             jellyfinMediaId: r.jellyfinMediaId
                         });
                     }
