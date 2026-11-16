@@ -304,31 +304,40 @@ public partial class StreamFlixController
 
     private bool CanManageGuestPasses(PluginConfiguration config, CallerContext caller)
     {
-        if (IsGuestSession(caller))
+        if (!HasHouseholdAccess(config, caller) || IsGuestSession(caller))
         {
             return false;
+        }
+
+        if (caller.IsVerifiedJellyfinAdmin)
+        {
+            return true;
         }
 
         var user = caller.JellyfinUser;
         if (user == null)
         {
-            return caller.IsAdmin && caller.IsJellyfinAuthenticated;
-        }
-
-        if (StreamFlixStartupTask.IsUserAdminCompat(user))
-        {
-            return true;
+            return false;
         }
 
         var userId = user.Id;
         var allowedProfileIds = new HashSet<string>(
             config.GuestPassManagerProfileIds ?? new List<string>(),
             StringComparer.OrdinalIgnoreCase);
-        return (config.Profiles ?? new List<StreamFlixProfileConfig>()).Any(profile =>
-            !profile.IsKids
-            && Guid.TryParse(profile.JellyfinUserId, out var profileUserId)
-            && profileUserId == userId
-            && (IsProfileLinkedToAdmin(profile) || allowedProfileIds.Contains(profile.Id)));
+        var matchingProfiles = (config.Profiles ?? new List<StreamFlixProfileConfig>())
+            .Where(profile =>
+                Guid.TryParse(profile.JellyfinUserId, out var profileUserId)
+                && profileUserId == userId)
+            .Take(2)
+            .ToList();
+        if (matchingProfiles.Count != 1)
+        {
+            return false;
+        }
+
+        var profile = matchingProfiles[0];
+        return !profile.IsKids
+            && (IsProfileLinkedToAdmin(profile) || allowedProfileIds.Contains(profile.Id));
     }
 
     private ObjectResult GuestPassManagerForbidden()
@@ -501,9 +510,9 @@ public partial class StreamFlixController
 
     private static bool IsGuestSession(CallerContext caller)
     {
-        return !caller.IsAdmin
-            && caller.Session != null
-            && string.Equals(caller.Session.AuthKind, StreamFlixSessionService.AuthKindGuestPass, StringComparison.Ordinal);
+        return caller.IsGuestPassToken
+            || (caller.Session != null
+                && string.Equals(caller.Session.AuthKind, StreamFlixSessionService.AuthKindGuestPass, StringComparison.Ordinal));
     }
 
     private static string GetGuestPassStatus(StreamFlixGuestPass pass)
@@ -643,7 +652,38 @@ public partial class StreamFlixController
             suffix = Convert.ToHexString(RandomNumberGenerator.GetBytes(6)).ToLowerInvariant();
         }
 
-        return $"streamflix-guest-{passId}-{suffix}";
+        return $"{GuestDeviceIdPrefix}{passId}-{suffix}";
+    }
+
+    private static bool TryGetGuestPassIdFromJellyfinAuthorization(string? deviceId, string? token, out string passId)
+    {
+        passId = string.Empty;
+        if (!string.IsNullOrWhiteSpace(token))
+        {
+            foreach (var guestTokens in ActiveGuestTokens)
+            {
+                if (guestTokens.Value.Any(activeToken => string.Equals(activeToken, token, StringComparison.Ordinal)))
+                {
+                    passId = guestTokens.Key;
+                    return true;
+                }
+            }
+        }
+
+        if (string.IsNullOrWhiteSpace(deviceId)
+            || !deviceId.StartsWith(GuestDeviceIdPrefix, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        var passIdStart = GuestDeviceIdPrefix.Length;
+        var passIdEnd = deviceId.IndexOf('-', passIdStart);
+        if (passIdEnd > passIdStart)
+        {
+            passId = deviceId.Substring(passIdStart, passIdEnd - passIdStart);
+        }
+
+        return true;
     }
 
     private static void TrackGuestAccessToken(string passId, string accessToken)

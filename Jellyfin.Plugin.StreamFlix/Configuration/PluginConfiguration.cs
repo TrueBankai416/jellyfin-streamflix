@@ -91,8 +91,8 @@ public class StreamFlixGuestPass
 
 /// <summary>
 /// Plugin configuration stored directly on the Jellyfin Server (`plugins/configurations/Jellyfin.Plugin.StreamFlix.xml`).
-/// Lists are initialized empty in the parameterless constructor so .NET XmlSerializer does not re-add deleted
-/// default profiles when deserializing configuration from disk.
+/// Persisted collections are initialized empty so .NET XmlSerializer does not re-add deleted default profiles.
+/// The optional Guest Pass manager list remains nullable to distinguish omitted updates from explicit revocation.
 /// </summary>
 public class PluginConfiguration : BasePluginConfiguration
 {
@@ -131,7 +131,6 @@ public class PluginConfiguration : BasePluginConfiguration
         OidcRequireAllowlist = false;
         ApprovedOidcUsers = new List<string>();
         EnableGuestPasses = true;
-        GuestPassManagerProfileIds = new List<string>();
         EnableWatchTogether = true;
         GuestPasses = new List<StreamFlixGuestPass>();
         EnableSeerr = false;
@@ -296,7 +295,7 @@ public class PluginConfiguration : BasePluginConfiguration
     /// Gets or sets non-administrator adult profiles allowed to manage Guest Passes.
     /// Administrator profiles always retain access.
     /// </summary>
-    public List<string> GuestPassManagerProfileIds { get; set; }
+    public List<string>? GuestPassManagerProfileIds { get; set; }
 
     /// <summary>
     /// Gets or sets a value indicating whether StreamFlix Watch Together (SyncPlay rooms) is enabled for non-Kids profiles.

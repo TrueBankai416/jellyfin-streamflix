@@ -1274,6 +1274,9 @@
             hasAccess: resolvedAccess,
             isAdmin: Boolean(cfg.isAdmin),
             enableGuestPasses: cfg.enableGuestPasses !== false,
+            guestPassManagerProfileIds: Array.isArray(cfg.guestPassManagerProfileIds)
+                ? cfg.guestPassManagerProfileIds.map(function (id) { return String(id || '').trim(); }).filter(Boolean)
+                : [],
             enableWatchTogether: cfg.enableWatchTogether !== false,
             hasAnyAdultPin: Boolean(cfg.hasAnyAdultPin),
             isGuestPass: Boolean(cfg.isGuestPass),

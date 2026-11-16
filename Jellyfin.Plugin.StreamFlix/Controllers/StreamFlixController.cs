@@ -56,6 +56,7 @@ public partial class StreamFlixController : ControllerBase
     private const int MaxProfilesCount = 24;
     private const int MaxStoredGuestPasses = 100;
     private const int MaxActiveGuestPasses = 50;
+    private const string GuestDeviceIdPrefix = "streamflix-guest-";
 
     private static readonly HttpClient HttpClient = new() { Timeout = TimeSpan.FromSeconds(8) };
 
@@ -150,7 +151,7 @@ public partial class StreamFlixController : ControllerBase
         SetNoStoreSecurityHeaders();
         var config = Config;
         var caller = await GetCallerAsync(config).ConfigureAwait(false);
-        if (!caller.IsAdmin)
+        if (!caller.IsVerifiedJellyfinAdmin)
         {
             return StatusCode(403, new { code = "admin_required", message = "Only a Jellyfin administrator can read StreamFlix admin configuration." });
         }
@@ -171,7 +172,7 @@ public partial class StreamFlixController : ControllerBase
 
         var config = Config;
         var caller = await GetCallerAsync(config).ConfigureAwait(false);
-        if (!caller.IsAdmin)
+        if (!caller.IsVerifiedJellyfinAdmin)
         {
             return StatusCode(403, new { code = "admin_required", message = "Only a Jellyfin administrator can update StreamFlix settings." });
         }
@@ -408,8 +409,6 @@ public partial class StreamFlixController : ControllerBase
         var isLocalLan = StreamFlixSessionService.IsLocalLanRequest(HttpContext);
         var token = Request.Headers[StreamFlixSessionService.HeaderName].FirstOrDefault();
         var session = StreamFlixSessionService.Validate(config, token);
-        var sessionIsAdmin = false;
-
         if (session != null)
         {
             if (string.Equals(session.AuthKind, StreamFlixSessionService.AuthKindGoogle, StringComparison.Ordinal))
@@ -443,10 +442,6 @@ public partial class StreamFlixController : ControllerBase
                     {
                         session = null;
                     }
-                    else
-                    {
-                        sessionIsAdmin = true;
-                    }
                 }
             }
             else if (string.Equals(session.AuthKind, StreamFlixSessionService.AuthKindJellyfin, StringComparison.Ordinal))
@@ -461,10 +456,6 @@ public partial class StreamFlixController : ControllerBase
                     if (u == null || StreamFlixStartupTask.IsUserDisabledCompat(u))
                     {
                         session = null;
-                    }
-                    else if (StreamFlixStartupTask.IsUserAdminCompat(u))
-                    {
-                        sessionIsAdmin = true;
                     }
                 }
             }
@@ -495,17 +486,27 @@ public partial class StreamFlixController : ControllerBase
         }
 
         var isAuthenticated = false;
-        var isAdmin = sessionIsAdmin;
+        var isAdmin = false;
+        var isVerifiedJellyfinAdmin = false;
+        var isGuestPassToken = false;
         JUser? jellyfinAuthUser = null;
         try
         {
             var info = await _authContext.GetAuthorizationInfo(HttpContext).ConfigureAwait(false);
             if (info != null && info.IsAuthenticated && (info.IsApiKey || !StreamFlixStartupTask.IsUserDisabledCompat(info.User)))
             {
-                var isOrphanGuestDevice = !info.IsApiKey
-                    && session == null
-                    && !string.IsNullOrEmpty(info.DeviceId)
-                    && info.DeviceId.StartsWith("streamflix-guest-", StringComparison.OrdinalIgnoreCase);
+                var guestPassId = string.Empty;
+                isGuestPassToken = !info.IsApiKey
+                    && TryGetGuestPassIdFromJellyfinAuthorization(info.DeviceId, info.Token, out guestPassId);
+                if (isGuestPassToken
+                    && (session == null
+                        || !string.Equals(session.AuthKind, StreamFlixSessionService.AuthKindGuestPass, StringComparison.Ordinal)
+                        || !string.Equals(session.GuestPassId, guestPassId, StringComparison.Ordinal)))
+                {
+                    session = null;
+                }
+
+                var isOrphanGuestDevice = isGuestPassToken && session == null;
                 if (isOrphanGuestDevice)
                 {
                     if (!string.IsNullOrWhiteSpace(info.Token))
@@ -517,7 +518,9 @@ public partial class StreamFlixController : ControllerBase
                 {
                     isAuthenticated = true;
                     jellyfinAuthUser = info.User;
-                    isAdmin = isAdmin || info.IsApiKey || StreamFlixStartupTask.IsUserAdminCompat(info.User);
+                    isVerifiedJellyfinAdmin = info.IsApiKey
+                        || (!isGuestPassToken && info.User != null && StreamFlixStartupTask.IsUserAdminCompat(info.User));
+                    isAdmin = isVerifiedJellyfinAdmin;
                 }
             }
         }
@@ -526,7 +529,7 @@ public partial class StreamFlixController : ControllerBase
             _logger.LogDebug(ex, "StreamFlix: could not read Jellyfin authorization info.");
         }
 
-        return new CallerContext(session, isAuthenticated, isAdmin, isLocalLan, jellyfinAuthUser);
+        return new CallerContext(session, isAuthenticated, isAdmin, isLocalLan, jellyfinAuthUser, isVerifiedJellyfinAdmin, isGuestPassToken);
     }
 
     private object BuildPublicState(PluginConfiguration config, CallerContext caller)
@@ -720,5 +723,7 @@ public partial class StreamFlixController : ControllerBase
         bool IsJellyfinAuthenticated,
         bool IsAdmin,
         bool IsLocalLan = false,
-        JUser? JellyfinUser = null);
+        JUser? JellyfinUser = null,
+        bool IsVerifiedJellyfinAdmin = false,
+        bool IsGuestPassToken = false);
 }

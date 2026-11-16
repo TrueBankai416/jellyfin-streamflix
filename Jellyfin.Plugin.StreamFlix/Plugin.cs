@@ -176,7 +176,7 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages
                         incoming.GuestPasses = existing.GuestPasses;
                     }
 
-                    if ((incoming.GuestPassManagerProfileIds == null || incoming.GuestPassManagerProfileIds.Count == 0)
+                    if (incoming.GuestPassManagerProfileIds == null
                         && existing.GuestPassManagerProfileIds != null
                         && existing.GuestPassManagerProfileIds.Count > 0)
                     {

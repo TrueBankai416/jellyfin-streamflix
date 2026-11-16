@@ -35,8 +35,7 @@
 
         var canPhoneShare = typeof canUsePhoneNativeShare === 'function' && canUsePhoneNativeShare();
         var isGuest = isGuestPassSession();
-        var isAdmin = !isGuest && (isHouseholdAdmin() || Boolean(state.activeProfile && state.activeProfile.isAdmin));
-        var canCreateGuestCombo = isAdmin && areGuestPassesEnabled();
+        var canCreateGuestCombo = !isGuest && canActiveProfileManageGuestPasses() && areGuestPassesEnabled();
 
         function getEligibleGuestProfiles() {
             return getProfiles().filter(function (p) {

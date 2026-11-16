@@ -380,11 +380,20 @@ public partial class StreamFlixController
         var ownerProfile = (config.Profiles ?? new List<StreamFlixProfileConfig>())
             .FirstOrDefault(p => StreamFlixStartupTask.IsOwnerProfile(p) || IsProfileLinkedToAdmin(p));
 
-        if (!caller.IsAdmin)
+        if (!caller.IsVerifiedJellyfinAdmin)
         {
             if (ownerProfile == null)
             {
                 return StatusCode(403, new { code = "admin_required", message = "Administrator privileges are required to open Plugin Settings." });
+            }
+
+            if (string.IsNullOrWhiteSpace(ownerProfile.PinCode))
+            {
+                return StatusCode(403, new
+                {
+                    code = "admin_reauthentication_required",
+                    message = "Sign in with a Jellyfin administrator account or set a PIN on the administrator profile before elevating.",
+                });
             }
 
             var lockRes = CheckGoogleLock(config, ownerProfile, caller);
@@ -401,6 +410,11 @@ public partial class StreamFlixController
         }
 
         JUser? adminUser = null;
+        if (caller.IsVerifiedJellyfinAdmin && caller.JellyfinUser != null)
+        {
+            adminUser = caller.JellyfinUser;
+        }
+
         if (caller.Session != null && Guid.TryParse(caller.Session.JellyfinUserId, out var sessUid))
         {
             var candidate = _userManager.GetUserById(sessUid);
