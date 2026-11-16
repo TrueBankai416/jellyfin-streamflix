@@ -3,9 +3,13 @@
        5. Merged Top-Right Profile & Account Dropdown Menu + STREAMFLIX Brand
        ---------------------------------------------------------------------- */
     function isAdminConfigRoute() {
+        // Keep in sync with isAdminRouteHash() so native admin pages
+        // (Dashboard, plugin config, Metadata Manager) render without StreamFlix chrome.
         var h = (window.location.hash || '').toLowerCase();
         return h.indexOf('configurationpage') !== -1
-            || h.indexOf('dashboard') !== -1;
+            || h.indexOf('dashboard') !== -1
+            || h.indexOf('#/metadata') === 0
+            || h.indexOf('#!/metadata') === 0;
     }
 
     function setCinemaHubEnabled(nextEnabled, silent) {

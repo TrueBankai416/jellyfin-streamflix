@@ -31,6 +31,7 @@
         var community = item.CommunityRating ? Number(item.CommunityRating).toFixed(1) : '';
         var isFav = item.UserData && item.UserData.IsFavorite;
         var isPlayed = item.UserData && item.UserData.Played;
+        var canEditMetadata = typeof isHouseholdAdmin === 'function' && isHouseholdAdmin();
         var hasResume = item.UserData && item.UserData.PlaybackPositionTicks && item.UserData.PlaybackPositionTicks > 0;
         var resumePct = hasResume && item.RunTimeTicks
             ? Math.min(100, Math.max(2, Math.round(item.UserData.PlaybackPositionTicks / item.RunTimeTicks * 100)))
@@ -112,6 +113,9 @@
             + '          <button type="button" class="streamflix-hero-icon-btn' + (isPlayed ? ' active' : '') + '" id="streamflix-modal-watched-btn" title="' + (isPlayed ? 'Mark unwatched' : 'Mark watched') + '" aria-label="Watched">' + icon('eye') + '</button>'
             + ((typeof isWatchTogetherEnabled === 'function' && isWatchTogetherEnabled())
                 ? '          <button type="button" class="streamflix-hero-icon-btn' + ((typeof watchPartyState !== 'undefined' && watchPartyState.activeGroup) ? ' active is-live' : '') + '" id="streamflix-modal-watchparty-btn" title="Watch Together" aria-label="Watch Together">' + icon('party') + '</button>'
+                : '')
+            + (canEditMetadata
+                ? '          <button type="button" class="streamflix-hero-icon-btn" id="streamflix-modal-edit-btn" title="Edit metadata" aria-label="Edit metadata">' + icon('edit') + '</button>'
                 : '')
             + '        </div>'
             + '      </div>'
@@ -250,6 +254,18 @@
                         playableTarget: firstPlayableTarget || resolvedItem || item
                     });
                 }
+            });
+        }
+
+        var editMetaBtn = qModal('#streamflix-modal-edit-btn');
+        if (editMetaBtn) {
+            editMetaBtn.addEventListener('click', function () {
+                var editTargetId = (resolvedItem && resolvedItem.Id) || item.Id;
+                if (!editTargetId) {
+                    return;
+                }
+                closeModal(true);
+                openStreamFlixAdminRoute('#/metadata?id=' + encodeURIComponent(editTargetId));
             });
         }
 
