@@ -31,7 +31,8 @@
         var community = item.CommunityRating ? Number(item.CommunityRating).toFixed(1) : '';
         var isFav = item.UserData && item.UserData.IsFavorite;
         var isPlayed = item.UserData && item.UserData.Played;
-        var canEditMetadata = typeof isHouseholdAdmin === 'function' && isHouseholdAdmin();
+        var canEditMetadata = typeof isHouseholdAdmin === 'function' && isHouseholdAdmin()
+            && !(state.activeProfile && state.activeProfile.isKids);
         var hasResume = item.UserData && item.UserData.PlaybackPositionTicks && item.UserData.PlaybackPositionTicks > 0;
         var resumePct = hasResume && item.RunTimeTicks
             ? Math.min(100, Math.max(2, Math.round(item.UserData.PlaybackPositionTicks / item.RunTimeTicks * 100)))
