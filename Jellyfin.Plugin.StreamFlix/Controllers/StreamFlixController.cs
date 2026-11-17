@@ -501,12 +501,20 @@ public partial class StreamFlixController : ControllerBase
                 {
                     session = null;
                 }
+                else if (IsVerifiedSsoAdminOwner(config, session))
+                {
+                    sessionIsAdmin = true;
+                }
             }
             else if (string.Equals(session.AuthKind, StreamFlixSessionService.AuthKindOidc, StringComparison.Ordinal))
             {
                 if (!StreamFlixOidcService.IsConfigured(config))
                 {
                     session = null;
+                }
+                else if (IsVerifiedSsoAdminOwner(config, session))
+                {
+                    sessionIsAdmin = true;
                 }
             }
             else if (string.Equals(session.AuthKind, StreamFlixSessionService.AuthKindJellyfinAdmin, StringComparison.Ordinal))

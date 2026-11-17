@@ -1459,7 +1459,7 @@
             + '  <nav class="streamflix-FilterPills" aria-label="Browse">' + pillsHtml + '</nav>'
             + '  <div class="streamflix-subnav-right">'
             + (canSurprise
-                ? '    <button type="button" id="streamflix-surprise-btn" class="streamflix-surprise-btn" aria-label="Surprise Me">' + icon('shuffle') + '<span>Surprise Me</span></button>'
+                ? '    <button type="button" id="streamflix-surprise-btn" class="streamflix-surprise-btn" title="Surprise Me" aria-label="Surprise Me">' + icon('shuffle') + '<span>Surprise Me</span></button>'
                 : '')
             + '    <div class="streamflix-search-box' + (state.searchQuery ? ' has-value' : '') + '">'
             + '      <span class="streamflix-search-icon">' + icon('search') + '</span>'
@@ -1822,6 +1822,9 @@
         // The StreamFlix hub replaces Jellyfin's stock home sections (My Media, Continue Watching, Recently Added…)
         document.body.classList.add('streamflix-hub-active');
         syncHeroBleed(hub);
+        if (window.requestAnimationFrame) {
+            window.requestAnimationFrame(function () { syncHeroBleed(hub); });
+        }
 
         if (!hub.classList.contains('streamflix-hub-ready')) {
             hub.classList.add('streamflix-hub-ready');
@@ -2228,7 +2231,7 @@
         }, HERO_TICK_MS);
     }
 
-    // Let the hero billboard bleed up underneath Jellyfin's fixed header for an edge-to-edge look
+        // Let the hero billboard bleed up underneath Jellyfin's fixed header for an edge-to-edge look
     function syncHeroBleed(hub) {
         hub = hub || document.getElementById('streamflix-cinema-hub');
         if (!hub) {
@@ -2236,6 +2239,8 @@
         }
         if (!hub.classList.contains('streamflix-has-hero')) {
             hub.style.removeProperty('--bfx-bleed');
+            hub.style.removeProperty('--bfx-subnav-top');
+            hub.style.removeProperty('--bfx-hero-pad-top');
             return;
         }
         var offset = 0;
@@ -2251,6 +2256,15 @@
         }
         offset = Math.max(0, Math.min(220, Math.round(offset)));
         hub.style.setProperty('--bfx-bleed', offset + 'px');
+
+        var headerH = (window.innerWidth || 1024) <= 600 ? 56 : 64;
+        var subnavTop = Math.max(0, headerH - offset);
+        hub.style.setProperty('--bfx-subnav-top', subnavTop + 'px');
+        var topAnchor = Math.max(offset, headerH);
+        var subnav = hub.querySelector('.streamflix-subnav');
+        var subnavH = (subnav && subnav.offsetHeight) ? subnav.offsetHeight : 62;
+        var padTop = Math.round(topAnchor + subnavH + 20);
+        hub.style.setProperty('--bfx-hero-pad-top', padTop + 'px');
     }
 
     function heroHardPaused() {
