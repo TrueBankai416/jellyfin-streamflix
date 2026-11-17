@@ -96,6 +96,15 @@ public class StreamFlixGuestPassTokenFingerprint
     public string TokenFingerprint { get; set; } = string.Empty;
 }
 
+public class StreamFlixProfileTokenFingerprint
+{
+    public string ProfileId { get; set; } = string.Empty;
+
+    public string JellyfinUserId { get; set; } = string.Empty;
+
+    public string TokenFingerprint { get; set; } = string.Empty;
+}
+
 public class StreamFlixActiveProfileContext
 {
     public string SessionFingerprint { get; set; } = string.Empty;
@@ -154,7 +163,10 @@ public class PluginConfiguration : BasePluginConfiguration
         ApprovedOidcUsers = new List<string>();
         EnableGuestPasses = true;
         GuestPassTokenFingerprints = new List<StreamFlixGuestPassTokenFingerprint>();
+        ProfileIssuedJellyfinTokenFingerprints = new List<StreamFlixProfileTokenFingerprint>();
+        ProfileLinkedJellyfinUserIds = new List<string>();
         GuestPassTokenIssuanceCount = 0;
+        LegacyGuestPassTokenRevokedUserIds = new List<string>();
         LegacyGuestPassTokensRevoked = false;
         ActiveProfileContexts = new List<StreamFlixActiveProfileContext>();
         EnableWatchTogether = true;
@@ -325,7 +337,13 @@ public class PluginConfiguration : BasePluginConfiguration
 
     public List<StreamFlixGuestPassTokenFingerprint>? GuestPassTokenFingerprints { get; set; }
 
+    public List<StreamFlixProfileTokenFingerprint>? ProfileIssuedJellyfinTokenFingerprints { get; set; }
+
+    public List<string>? ProfileLinkedJellyfinUserIds { get; set; }
+
     public int GuestPassTokenIssuanceCount { get; set; }
+
+    public List<string>? LegacyGuestPassTokenRevokedUserIds { get; set; }
 
     public bool LegacyGuestPassTokensRevoked { get; set; }
 

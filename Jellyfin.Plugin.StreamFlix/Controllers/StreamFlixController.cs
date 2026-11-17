@@ -57,6 +57,7 @@ public partial class StreamFlixController : ControllerBase
     private const int MaxStoredGuestPasses = 100;
     private const int MaxActiveGuestPasses = 50;
     private const int MaxGuestPassTokenFingerprints = 8192;
+    private const int MaxProfileIssuedJellyfinTokenFingerprints = 8192;
     private const string GuestDeviceIdPrefix = "streamflix-guest-";
 
     private static readonly HttpClient HttpClient = new() { Timeout = TimeSpan.FromSeconds(8) };
@@ -69,9 +70,12 @@ public partial class StreamFlixController : ControllerBase
     private static PluginConfiguration? GuestPassTokenFingerprintIndexConfiguration;
     private static List<StreamFlixGuestPassTokenFingerprint>? GuestPassTokenFingerprintIndexRecords;
     private static int GuestPassTokenFingerprintIndexCount = -1;
+    private static long GuestPassTokenFingerprintMutationVersion;
+    private static long GuestPassTokenFingerprintIndexVersion = -1;
 
     private static readonly ConcurrentDictionary<string, ConcurrentBag<string>> ActiveGuestTokens = new(StringComparer.Ordinal);
-    private static int LegacyGuestPassTokenMigrationCompleted;
+    private static int LegacyGuestPassTokenMigrationAttempted;
+    private static HashSet<Guid> LegacyGuestPassTokenMigrationPendingUserIds = new();
     private static readonly ConcurrentDictionary<string, (int Count, DateTimeOffset WindowReset)> SeerrRequestRateMap = new(StringComparer.OrdinalIgnoreCase);
 
     private static readonly Regex EmailRegex = new(@"^[^@\s]+@[^@\s]+\.[^@\s]+$", RegexOptions.Compiled);
@@ -522,8 +526,7 @@ public partial class StreamFlixController : ControllerBase
             {
                 var guestPassId = string.Empty;
                 isGuestPassToken = !info.IsApiKey
-                    && ((info.User != null && legacyGuestPassUserIds.Contains(info.User.Id))
-                        || TryGetGuestPassIdFromJellyfinAuthorization(config, info.DeviceId, info.Token, out guestPassId));
+                    && TryGetGuestPassIdFromJellyfinAuthorization(config, info.DeviceId, info.Token, out guestPassId);
                 if (isGuestPassToken
                     && (!IsGuestPassTokenValid(config, guestPassId)
                         || session == null
@@ -538,9 +541,14 @@ public partial class StreamFlixController : ControllerBase
                 var isOrphanGuestDevice = isGuestPassToken && session == null;
                 if (isOrphanGuestDevice)
                 {
-                    if (!string.IsNullOrWhiteSpace(info.Token))
+                    if (!string.IsNullOrWhiteSpace(info.Token)
+                        && await LogoutSingleJellyfinTokenAsync(info.Token).ConfigureAwait(false)
+                        && !string.IsNullOrWhiteSpace(guestPassId))
                     {
-                        await LogoutSingleJellyfinTokenAsync(info.Token).ConfigureAwait(false);
+                        await RemoveGuestPassTokenFingerprintAsync(
+                            config,
+                            guestPassId,
+                            ComputeCredentialFingerprint(info.Token)).ConfigureAwait(false);
                     }
                 }
                 else
@@ -558,6 +566,7 @@ public partial class StreamFlixController : ControllerBase
                         && !info.IsApiKey
                         && IsProfileIssuedJellyfinToken(config, info.Token, info.DeviceId);
                     isAdmin = isAdmin || isVerifiedJellyfinAdmin;
+                    var isLegacyGuestPassMigrationPending = info.User != null && legacyGuestPassUserIds.Contains(info.User.Id);
 
                     return new CallerContext(
                         session,
@@ -568,7 +577,8 @@ public partial class StreamFlixController : ControllerBase
                         isVerifiedJellyfinAdmin,
                         isGuestPassToken,
                         jellyfinTokenFingerprint,
-                        isProfileIssuedJellyfinToken);
+                        isProfileIssuedJellyfinToken,
+                        isLegacyGuestPassMigrationPending);
                 }
             }
         }
@@ -775,5 +785,6 @@ public partial class StreamFlixController : ControllerBase
         bool IsVerifiedJellyfinAdmin = false,
         bool IsGuestPassToken = false,
         string? JellyfinTokenFingerprint = null,
-        bool IsProfileIssuedJellyfinToken = false);
+        bool IsProfileIssuedJellyfinToken = false,
+        bool IsLegacyGuestPassMigrationPending = false);
 }

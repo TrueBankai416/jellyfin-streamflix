@@ -43,6 +43,7 @@ public partial class StreamFlixController
     [Produces(MediaTypeNames.Application.Json)]
     public async Task<ActionResult<object>> ActivateProfile([FromBody] ActivateProfileRequest? request)
     {
+        await using var guestTokenReservation = new GuestPassTokenIssuanceReservation(this, Config);
         SetNoStoreSecurityHeaders();
         var config = Config;
         var caller = await GetCallerAsync(config).ConfigureAwait(false);
@@ -230,7 +231,12 @@ public partial class StreamFlixController
             RemoteEndPoint = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "127.0.0.1",
         };
 
-        if (isGuest && !await TryReserveGuestPassTokenIssuanceAsync(config).ConfigureAwait(false))
+        if (isGuest && string.IsNullOrWhiteSpace(caller.Session?.GuestPassId))
+        {
+            return StatusCode(403, new { code = "guest_context_invalid", message = "The Guest Pass session is no longer valid." });
+        }
+
+        if (isGuest && !await TryReserveGuestPassTokenIssuanceAsync(config, guestTokenReservation).ConfigureAwait(false))
         {
             return StatusCode(429, new
             {
@@ -250,11 +256,17 @@ public partial class StreamFlixController
             return StatusCode(403, new { code = "auth_failed", message = $"Could not sign in to Jellyfin as \"{user.Username}\". Ensure the account is enabled in Server Dashboard → Users." });
         }
 
-        if (isGuest && !string.IsNullOrWhiteSpace(caller.Session?.GuestPassId) && !string.IsNullOrWhiteSpace(authResult.AccessToken))
+        if (string.IsNullOrWhiteSpace(authResult.AccessToken))
         {
+            return StatusCode(403, new { code = "auth_failed", message = "Could not start the Guest Pass media session." });
+        }
+
+        if (isGuest)
+        {
+            guestTokenReservation.Commit();
             await TrackGuestAccessTokenAsync(config, caller.Session!.GuestPassId!, authResult.AccessToken).ConfigureAwait(false);
         }
-        else if (!string.IsNullOrWhiteSpace(authResult.AccessToken))
+        else
         {
             await RegisterActiveProfileContextAsync(config, caller, profile, user, authResult.AccessToken).ConfigureAwait(false);
         }
@@ -626,6 +638,11 @@ public partial class StreamFlixController
 
                 existing.JellyfinUserId = targetIdStr;
                 existing.JellyfinUsername = targetUser.Username;
+                config.ProfileLinkedJellyfinUserIds ??= new List<string>();
+                if (!config.ProfileLinkedJellyfinUserIds.Contains(targetIdStr, StringComparer.OrdinalIgnoreCase))
+                {
+                    config.ProfileLinkedJellyfinUserIds.Add(targetIdStr);
+                }
             }
 
             // Never allow active Guest Passes to remain if a profile is re-linked to an administrator account
@@ -1058,14 +1075,15 @@ public partial class StreamFlixController
     {
         var sessionToken = Request.Headers[StreamFlixSessionService.HeaderName].FirstOrDefault()?.Trim();
         if (IsGuestSession(caller)
-            || string.IsNullOrWhiteSpace(jellyfinAccessToken)
-            || (caller.Session != null && string.IsNullOrWhiteSpace(sessionToken)))
+            || string.IsNullOrWhiteSpace(jellyfinAccessToken))
         {
             return;
         }
 
         var now = DateTimeOffset.UtcNow;
-        var sessionFingerprint = caller.Session == null ? string.Empty : ComputeCredentialFingerprint(sessionToken!);
+        var sessionFingerprint = caller.Session == null || string.IsNullOrWhiteSpace(sessionToken)
+            ? string.Empty
+            : ComputeCredentialFingerprint(sessionToken);
         var jellyfinTokenFingerprint = ComputeCredentialFingerprint(jellyfinAccessToken);
         var previousJellyfinTokenFingerprint = caller.JellyfinTokenFingerprint;
         var activeContext = new StreamFlixActiveProfileContext
@@ -1083,6 +1101,40 @@ public partial class StreamFlixController
         {
             lock (GuestPassAuthorizationStateLock)
             {
+                config.ProfileIssuedJellyfinTokenFingerprints ??= new List<StreamFlixProfileTokenFingerprint>();
+                config.ProfileLinkedJellyfinUserIds ??= new List<string>();
+                var normalizedUserId = user.Id.ToString("N");
+                var profileLinkedUserChanged = false;
+                if (!config.ProfileLinkedJellyfinUserIds.Contains(normalizedUserId, StringComparer.OrdinalIgnoreCase))
+                {
+                    config.ProfileLinkedJellyfinUserIds.Add(normalizedUserId);
+                    profileLinkedUserChanged = true;
+                }
+
+                var profileTokenChanged = false;
+                if (!config.ProfileIssuedJellyfinTokenFingerprints.Any(record =>
+                    string.Equals(record.TokenFingerprint, jellyfinTokenFingerprint, StringComparison.Ordinal))
+                    && config.ProfileIssuedJellyfinTokenFingerprints.Count < MaxProfileIssuedJellyfinTokenFingerprints)
+                {
+                    config.ProfileIssuedJellyfinTokenFingerprints.Add(new StreamFlixProfileTokenFingerprint
+                    {
+                        ProfileId = profile.Id,
+                        JellyfinUserId = normalizedUserId,
+                        TokenFingerprint = jellyfinTokenFingerprint,
+                    });
+                    profileTokenChanged = true;
+                }
+
+                if (caller.Session != null && string.IsNullOrWhiteSpace(sessionToken))
+                {
+                    if (profileTokenChanged || profileLinkedUserChanged)
+                    {
+                        Plugin.Instance?.SaveConfiguration();
+                    }
+
+                    return;
+                }
+
                 config.ActiveProfileContexts ??= new List<StreamFlixActiveProfileContext>();
                 config.ActiveProfileContexts.RemoveAll(context =>
                     string.Equals(context.JellyfinTokenFingerprint, jellyfinTokenFingerprint, StringComparison.Ordinal)

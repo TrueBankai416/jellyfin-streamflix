@@ -183,22 +183,26 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages
                         incoming.GuestPassManagerProfileIds = existing.GuestPassManagerProfileIds;
                     }
 
-                    if ((incoming.GuestPassTokenFingerprints == null || incoming.GuestPassTokenFingerprints.Count == 0)
-                        && existing.GuestPassTokenFingerprints != null
-                        && existing.GuestPassTokenFingerprints.Count > 0)
+                    incoming.GuestPassTokenFingerprints = existing.GuestPassTokenFingerprints ?? new List<StreamFlixGuestPassTokenFingerprint>();
+                    incoming.ProfileIssuedJellyfinTokenFingerprints = existing.ProfileIssuedJellyfinTokenFingerprints ?? new List<StreamFlixProfileTokenFingerprint>();
+                    var profileLinkedUserIds = existing.ProfileLinkedJellyfinUserIds ?? new List<string>();
+                    foreach (var profile in incoming.Profiles ?? new List<StreamFlixProfileConfig>())
                     {
-                        incoming.GuestPassTokenFingerprints = existing.GuestPassTokenFingerprints;
+                        if (Guid.TryParse(profile.JellyfinUserId, out var linkedUserId))
+                        {
+                            var normalizedUserId = linkedUserId.ToString("N");
+                            if (!profileLinkedUserIds.Contains(normalizedUserId, StringComparer.OrdinalIgnoreCase))
+                            {
+                                profileLinkedUserIds.Add(normalizedUserId);
+                            }
+                        }
                     }
 
-                    incoming.GuestPassTokenIssuanceCount = Math.Max(incoming.GuestPassTokenIssuanceCount, existing.GuestPassTokenIssuanceCount);
+                    incoming.ProfileLinkedJellyfinUserIds = profileLinkedUserIds;
+                    incoming.GuestPassTokenIssuanceCount = existing.GuestPassTokenIssuanceCount;
+                    incoming.LegacyGuestPassTokenRevokedUserIds = existing.LegacyGuestPassTokenRevokedUserIds ?? new List<string>();
                     incoming.LegacyGuestPassTokensRevoked |= existing.LegacyGuestPassTokensRevoked;
-
-                    if ((incoming.ActiveProfileContexts == null || incoming.ActiveProfileContexts.Count == 0)
-                        && existing.ActiveProfileContexts != null
-                        && existing.ActiveProfileContexts.Count > 0)
-                    {
-                        incoming.ActiveProfileContexts = existing.ActiveProfileContexts;
-                    }
+                    incoming.ActiveProfileContexts = existing.ActiveProfileContexts ?? new List<StreamFlixActiveProfileContext>();
 
                     if (string.IsNullOrWhiteSpace(incoming.SessionSigningKey) && !string.IsNullOrWhiteSpace(existing.SessionSigningKey))
                     {
@@ -480,7 +484,10 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages
                 EnableGuestPasses = BoolVal(root, nameof(PluginConfiguration.EnableGuestPasses), true),
                 GuestPassManagerProfileIds = new List<string>(),
                 GuestPassTokenFingerprints = new List<StreamFlixGuestPassTokenFingerprint>(),
+                ProfileIssuedJellyfinTokenFingerprints = new List<StreamFlixProfileTokenFingerprint>(),
+                ProfileLinkedJellyfinUserIds = new List<string>(),
                 GuestPassTokenIssuanceCount = IntVal(root, nameof(PluginConfiguration.GuestPassTokenIssuanceCount), 0),
+                LegacyGuestPassTokenRevokedUserIds = new List<string>(),
                 LegacyGuestPassTokensRevoked = BoolVal(root, nameof(PluginConfiguration.LegacyGuestPassTokensRevoked), false),
                 ActiveProfileContexts = new List<StreamFlixActiveProfileContext>(),
                 EnableWatchTogether = BoolVal(root, nameof(PluginConfiguration.EnableWatchTogether), true),
@@ -521,6 +528,42 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages
                         TokenFingerprint = Val(e, nameof(StreamFlixGuestPassTokenFingerprint.TokenFingerprint)) ?? string.Empty,
                     })
                     .Where(x => !string.IsNullOrWhiteSpace(x.PassId) && !string.IsNullOrWhiteSpace(x.TokenFingerprint))
+                    .ToList();
+            }
+
+            var profileTokenFingerprintsEl = root.Elements().FirstOrDefault(e => string.Equals(e.Name.LocalName, nameof(PluginConfiguration.ProfileIssuedJellyfinTokenFingerprints), StringComparison.OrdinalIgnoreCase));
+            if (profileTokenFingerprintsEl != null)
+            {
+                cfg.ProfileIssuedJellyfinTokenFingerprints = profileTokenFingerprintsEl.Elements()
+                    .Select(e => new StreamFlixProfileTokenFingerprint
+                    {
+                        ProfileId = Val(e, nameof(StreamFlixProfileTokenFingerprint.ProfileId)) ?? string.Empty,
+                        JellyfinUserId = Val(e, nameof(StreamFlixProfileTokenFingerprint.JellyfinUserId)) ?? string.Empty,
+                        TokenFingerprint = Val(e, nameof(StreamFlixProfileTokenFingerprint.TokenFingerprint)) ?? string.Empty,
+                    })
+                    .Where(x => !string.IsNullOrWhiteSpace(x.TokenFingerprint))
+                    .ToList();
+            }
+
+            var profileLinkedUserIdsEl = root.Elements().FirstOrDefault(e => string.Equals(e.Name.LocalName, nameof(PluginConfiguration.ProfileLinkedJellyfinUserIds), StringComparison.OrdinalIgnoreCase));
+            if (profileLinkedUserIdsEl != null)
+            {
+                cfg.ProfileLinkedJellyfinUserIds = profileLinkedUserIdsEl.Elements()
+                    .Select(x => (x.Value ?? string.Empty).Trim())
+                    .Where(x => Guid.TryParse(x, out _))
+                    .Select(x => Guid.Parse(x).ToString("N"))
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .ToList();
+            }
+
+            var revokedGuestUserIdsEl = root.Elements().FirstOrDefault(e => string.Equals(e.Name.LocalName, nameof(PluginConfiguration.LegacyGuestPassTokenRevokedUserIds), StringComparison.OrdinalIgnoreCase));
+            if (revokedGuestUserIdsEl != null)
+            {
+                cfg.LegacyGuestPassTokenRevokedUserIds = revokedGuestUserIdsEl.Elements()
+                    .Select(x => (x.Value ?? string.Empty).Trim())
+                    .Where(x => Guid.TryParse(x, out _))
+                    .Select(x => Guid.Parse(x).ToString("N"))
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
                     .ToList();
             }
 
@@ -716,12 +759,40 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages
                 dirty = true;
             }
 
-            var minimumGuestTokenIssuanceCount = Math.Max(
-                cfg.GuestPassTokenFingerprints.Count,
-                (cfg.GuestPasses ?? new List<StreamFlixGuestPass>()).Sum(pass => Math.Max(0, pass.RedemptionCount)));
-            if (cfg.GuestPassTokenIssuanceCount < minimumGuestTokenIssuanceCount)
+            if (cfg.ProfileIssuedJellyfinTokenFingerprints == null)
             {
-                cfg.GuestPassTokenIssuanceCount = minimumGuestTokenIssuanceCount;
+                cfg.ProfileIssuedJellyfinTokenFingerprints = new List<StreamFlixProfileTokenFingerprint>();
+                dirty = true;
+            }
+
+            if (cfg.ProfileLinkedJellyfinUserIds == null)
+            {
+                cfg.ProfileLinkedJellyfinUserIds = new List<string>();
+                dirty = true;
+            }
+
+            foreach (var profile in cfg.Profiles ?? new List<StreamFlixProfileConfig>())
+            {
+                if (Guid.TryParse(profile.JellyfinUserId, out var linkedUserId))
+                {
+                    var normalizedUserId = linkedUserId.ToString("N");
+                    if (!cfg.ProfileLinkedJellyfinUserIds.Contains(normalizedUserId, StringComparer.OrdinalIgnoreCase))
+                    {
+                        cfg.ProfileLinkedJellyfinUserIds.Add(normalizedUserId);
+                        dirty = true;
+                    }
+                }
+            }
+
+            if (cfg.LegacyGuestPassTokenRevokedUserIds == null)
+            {
+                cfg.LegacyGuestPassTokenRevokedUserIds = new List<string>();
+                dirty = true;
+            }
+
+            if (cfg.GuestPassTokenIssuanceCount != cfg.GuestPassTokenFingerprints.Count)
+            {
+                cfg.GuestPassTokenIssuanceCount = cfg.GuestPassTokenFingerprints.Count;
                 dirty = true;
             }
 
