@@ -40,6 +40,8 @@ public static class StreamFlixOidcService
     private static readonly ConcurrentDictionary<string, CachedDiscovery> DiscoveryCache = new(StringComparer.OrdinalIgnoreCase);
     private static readonly ConcurrentDictionary<string, Task<OidcDiscoveryDoc>> DiscoveryInFlight = new(StringComparer.OrdinalIgnoreCase);
     private static readonly ConcurrentDictionary<string, CachedJwks> JwksCache = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly ConcurrentDictionary<string, PendingOidcFlow> PendingOidcFlows = new(StringComparer.Ordinal);
+    private static readonly object PendingFlowsLock = new();
 
     public sealed record OidcStatePayload(
         string StateId,
@@ -75,6 +77,27 @@ public static class StreamFlixOidcService
         string? UserInfoEndpoint);
 
     public sealed record OidcDiagnosticCheck(string Status, string Label, string Detail);
+
+    public sealed record OidcPollResult(string Status, OidcHandoffPayload? Handoff, string? ErrorMessage);
+
+    private sealed class PendingOidcFlow
+    {
+        public required OidcStatePayload State { get; init; }
+
+        public required byte[] PollSecretHash { get; init; }
+
+        public DateTimeOffset StateExpiresAt { get; set; }
+
+        public DateTimeOffset HandoffExpiresAt { get; set; }
+
+        public bool StateConsumed { get; set; }
+
+        public bool PollClaimed { get; set; }
+
+        public OidcHandoffPayload? CompletedHandoff { get; set; }
+
+        public string? ErrorMessage { get; set; }
+    }
 
     public static string GetDisplayProviderName(PluginConfiguration config)
     {
@@ -156,7 +179,7 @@ public static class StreamFlixOidcService
         });
     }
 
-    public static async Task<(string AuthRedirectUrl, string StateId, string SignedStateCookie)> CreateAuthorizationRedirectAsync(
+    public static async Task<(string AuthRedirectUrl, string StateId, string SignedStateCookie, string PollSecret)> CreateAuthorizationRedirectAsync(
         PluginConfiguration config,
         string callbackUri,
         string returnWebBase,
@@ -177,6 +200,8 @@ public static class StreamFlixOidcService
         var codeChallenge = Base64UrlEncode(challengeBytes);
         var stateId = Convert.ToHexString(RandomNumberGenerator.GetBytes(16)).ToLowerInvariant();
         var nonce = Convert.ToHexString(RandomNumberGenerator.GetBytes(16)).ToLowerInvariant();
+        var pollSecret = Base64UrlEncode(RandomNumberGenerator.GetBytes(32));
+        var pollSecretHash = SHA256.HashData(Encoding.ASCII.GetBytes(pollSecret));
 
         var statePayload = new OidcStatePayload(
             StateId: stateId,
@@ -185,6 +210,8 @@ public static class StreamFlixOidcService
             RedirectUri: callbackUri,
             ReturnWebBase: returnWebBase,
             PendingProfileId: (pendingProfileId ?? string.Empty).Trim());
+
+        RegisterPendingFlow(statePayload, pollSecretHash);
 
         var signedCookie = StreamFlixSessionService.SignShortLivedPayload(
             config,
@@ -208,7 +235,187 @@ public static class StreamFlixOidcService
             sb.Append("&login_hint=").Append(Uri.EscapeDataString(loginHint.Trim()));
         }
 
-        return (sb.ToString(), stateId, signedCookie);
+        return (sb.ToString(), stateId, signedCookie, pollSecret);
+    }
+
+    public static OidcStatePayload? TryConsumePendingState(string? rawStateId)
+    {
+        var clean = (rawStateId ?? string.Empty).Trim().ToLowerInvariant();
+        if (clean.Length < 16 || clean.Length > 64)
+        {
+            return null;
+        }
+
+        PrunePendingFlows();
+        lock (PendingFlowsLock)
+        {
+            if (!PendingOidcFlows.TryGetValue(clean, out var flow))
+            {
+                return null;
+            }
+
+            if (flow.StateConsumed || DateTimeOffset.UtcNow >= flow.StateExpiresAt)
+            {
+                return null;
+            }
+
+            flow.StateConsumed = true;
+            return flow.State;
+        }
+    }
+
+    public static void MarkPendingStateConsumed(string? rawStateId)
+    {
+        var clean = (rawStateId ?? string.Empty).Trim().ToLowerInvariant();
+        if (clean.Length < 16 || clean.Length > 64)
+        {
+            return;
+        }
+
+        lock (PendingFlowsLock)
+        {
+            if (PendingOidcFlows.TryGetValue(clean, out var flow))
+            {
+                flow.StateConsumed = true;
+            }
+        }
+    }
+
+    public static void StoreCompletedFlow(string? rawStateId, OidcHandoffPayload? handoff, string? errorMessage)
+    {
+        var clean = (rawStateId ?? string.Empty).Trim().ToLowerInvariant();
+        if (clean.Length < 16 || clean.Length > 64)
+        {
+            return;
+        }
+
+        lock (PendingFlowsLock)
+        {
+            if (!PendingOidcFlows.TryGetValue(clean, out var flow))
+            {
+                return;
+            }
+
+            flow.StateConsumed = true;
+            flow.CompletedHandoff = handoff;
+            flow.ErrorMessage = errorMessage;
+            flow.HandoffExpiresAt = DateTimeOffset.UtcNow.AddSeconds(90);
+        }
+    }
+
+    public static OidcPollResult PollOrClaimFlow(string? rawStateId, string? rawPollSecret)
+    {
+        var cleanState = (rawStateId ?? string.Empty).Trim().ToLowerInvariant();
+        var cleanSecret = (rawPollSecret ?? string.Empty).Trim();
+        if (cleanState.Length < 16 || cleanState.Length > 64 || cleanSecret.Length < 24 || cleanSecret.Length > 128)
+        {
+            return new OidcPollResult("invalid", null, "Invalid OIDC handoff parameters.");
+        }
+
+        var candidateHash = SHA256.HashData(Encoding.ASCII.GetBytes(cleanSecret));
+        PrunePendingFlows();
+
+        lock (PendingFlowsLock)
+        {
+            if (!PendingOidcFlows.TryGetValue(cleanState, out var flow))
+            {
+                return new OidcPollResult("expired", null, null);
+            }
+
+            if (!CryptographicOperations.FixedTimeEquals(candidateHash, flow.PollSecretHash))
+            {
+                return new OidcPollResult("invalid", null, "Invalid OIDC poll secret.");
+            }
+
+            if (flow.PollClaimed)
+            {
+                PendingOidcFlows.TryRemove(cleanState, out _);
+                return new OidcPollResult("expired", null, null);
+            }
+
+            var now = DateTimeOffset.UtcNow;
+            if (!string.IsNullOrWhiteSpace(flow.ErrorMessage))
+            {
+                var err = flow.ErrorMessage;
+                flow.PollClaimed = true;
+                PendingOidcFlows.TryRemove(cleanState, out _);
+                return new OidcPollResult("error", null, err);
+            }
+
+            if (flow.CompletedHandoff != null)
+            {
+                if (now >= flow.HandoffExpiresAt)
+                {
+                    PendingOidcFlows.TryRemove(cleanState, out _);
+                    return new OidcPollResult("expired", null, null);
+                }
+
+                var handoff = flow.CompletedHandoff;
+                flow.PollClaimed = true;
+                PendingOidcFlows.TryRemove(cleanState, out _);
+                return new OidcPollResult("complete", handoff, null);
+            }
+
+            if (now >= flow.StateExpiresAt)
+            {
+                PendingOidcFlows.TryRemove(cleanState, out _);
+                return new OidcPollResult("expired", null, null);
+            }
+
+            return new OidcPollResult("pending", null, null);
+        }
+    }
+
+    private static void RegisterPendingFlow(OidcStatePayload statePayload, byte[] pollSecretHash)
+    {
+        PrunePendingFlows();
+        lock (PendingFlowsLock)
+        {
+            if (PendingOidcFlows.Count >= 256)
+            {
+                var oldest = PendingOidcFlows
+                    .OrderBy(kv => kv.Value.StateExpiresAt)
+                    .Take(64)
+                    .Select(kv => kv.Key)
+                    .ToList();
+                foreach (var k in oldest)
+                {
+                    PendingOidcFlows.TryRemove(k, out _);
+                }
+            }
+
+            var now = DateTimeOffset.UtcNow;
+            PendingOidcFlows[statePayload.StateId] = new PendingOidcFlow
+            {
+                State = statePayload,
+                PollSecretHash = pollSecretHash,
+                StateExpiresAt = now.AddMinutes(10),
+                HandoffExpiresAt = now.AddMinutes(10),
+                StateConsumed = false,
+                PollClaimed = false,
+            };
+        }
+    }
+
+    private static void PrunePendingFlows()
+    {
+        if (PendingOidcFlows.IsEmpty)
+        {
+            return;
+        }
+
+        var now = DateTimeOffset.UtcNow;
+        foreach (var kv in PendingOidcFlows)
+        {
+            var f = kv.Value;
+            var expired = f.PollClaimed
+                || (f.CompletedHandoff != null && now >= f.HandoffExpiresAt)
+                || (f.CompletedHandoff == null && now >= f.StateExpiresAt);
+            if (expired)
+            {
+                PendingOidcFlows.TryRemove(kv.Key, out _);
+            }
+        }
     }
 
     public static async Task<VerifiedOidcIdentity> CompleteCallbackAsync(

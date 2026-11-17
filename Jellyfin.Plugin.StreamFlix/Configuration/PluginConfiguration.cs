@@ -57,6 +57,12 @@ public class StreamFlixProfileConfig
     /// (rather than created manually by the server owner in Jellyfin Dashboard -> Users).
     /// </summary>
     public bool IsPluginCreatedJellyfinUser { get; set; }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether initial playback permissions have already been applied to a plugin-created Jellyfin user,
+    /// ensuring subsequent permission adjustments made by an administrator in Jellyfin Dashboard are preserved.
+    /// </summary>
+    public bool PermissionsInitialized { get; set; }
 }
 
 /// <summary>
@@ -123,6 +129,9 @@ public class PluginConfiguration : BasePluginConfiguration
         HeroSelectionMode = "recent";
         HeroContentType = "all";
         HeroLibraryIds = new List<string>();
+        ShowLibrariesInNav = true;
+        NavHiddenBuiltIns = new List<string>();
+        NavLibraryIds = new List<string>();
         EnableCustomOidc = false;
         OidcProviderName = string.Empty;
         OidcIssuerUrl = string.Empty;
@@ -131,6 +140,7 @@ public class PluginConfiguration : BasePluginConfiguration
         OidcRequireAllowlist = false;
         ApprovedOidcUsers = new List<string>();
         EnableGuestPasses = true;
+        GuestPassManagerProfileIds = new List<string>();
         EnableWatchTogether = true;
         GuestPasses = new List<StreamFlixGuestPass>();
         EnableSeerr = false;
@@ -251,6 +261,21 @@ public class PluginConfiguration : BasePluginConfiguration
     public List<string> HeroLibraryIds { get; set; }
 
     /// <summary>
+    /// Gets or sets a value indicating whether configured Jellyfin media libraries appear as navigation pills in the top bar (respecting per-user library access).
+    /// </summary>
+    public bool ShowLibrariesInNav { get; set; }
+
+    /// <summary>
+    /// Gets or sets built-in navigation pill IDs hidden from the top navigation bar (<c>series</c>, <c>movies</c>, <c>collections</c>, <c>top10</c>, <c>mylist</c>).
+    /// </summary>
+    public List<string> NavHiddenBuiltIns { get; set; }
+
+    /// <summary>
+    /// Gets or sets optional Jellyfin Library/View IDs to display in the top navigation bar when <see cref="ShowLibrariesInNav"/> is enabled. Empty means all accessible video libraries.
+    /// </summary>
+    public List<string> NavLibraryIds { get; set; }
+
+    /// <summary>
     /// Gets or sets a value indicating whether Beta Custom OpenID Connect (OIDC) SSO sign-in is enabled.
     /// Disabled by default.
     /// </summary>
@@ -290,6 +315,12 @@ public class PluginConfiguration : BasePluginConfiguration
     /// Gets or sets a value indicating whether Temporary Guest Passes (creation, invite links, QR codes, and guest sessions) are enabled.
     /// </summary>
     public bool EnableGuestPasses { get; set; }
+
+    /// <summary>
+    /// Gets or sets non-administrator adult profile IDs allowed to create, view, share, and revoke Guest Passes.
+    /// Empty by default (only Administrator profiles can manage Guest Passes).
+    /// </summary>
+    public List<string> GuestPassManagerProfileIds { get; set; }
 
     /// <summary>
     /// Gets or sets a value indicating whether StreamFlix Watch Together (SyncPlay rooms) is enabled for non-Kids profiles.

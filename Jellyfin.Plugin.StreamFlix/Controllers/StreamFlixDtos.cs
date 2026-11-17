@@ -86,6 +86,13 @@ public class BeginOidcRequest
     public string? LoginHint { get; set; }
 }
 
+public class CompleteOidcRequest
+{
+    public string? StateId { get; set; }
+
+    public string? PollSecret { get; set; }
+}
+
 public class ActivateProfileRequest
 {
     public string ProfileId { get; set; } = string.Empty;
@@ -223,6 +230,12 @@ public class SaveAdminConfigRequest
 
     public List<string>? HeroLibraryIds { get; set; }
 
+    public bool ShowLibrariesInNav { get; set; } = true;
+
+    public List<string>? NavHiddenBuiltIns { get; set; }
+
+    public List<string>? NavLibraryIds { get; set; }
+
     public bool EnableCustomOidc { get; set; }
 
     public string? OidcProviderName { get; set; }
@@ -240,6 +253,8 @@ public class SaveAdminConfigRequest
     public List<string>? ApprovedOidcUsers { get; set; }
 
     public bool EnableGuestPasses { get; set; } = true;
+
+    public List<string>? GuestPassManagerProfileIds { get; set; }
 
     public bool EnableWatchTogether { get; set; } = true;
 

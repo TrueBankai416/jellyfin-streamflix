@@ -7,21 +7,19 @@
         if (isGuestPassSession()) {
             return false;
         }
+        if (typeof isActiveProfileAdmin === 'function') {
+            return isActiveProfileAdmin();
+        }
         var active = state.activeProfile;
         if (!active || active.isKids) {
             return false;
         }
-        // Per-profile gate: isHouseholdAdmin() alone is household-wide and would
-        // expose media management to every adult profile in an admin household.
-        if (active.isAdmin) {
-            return true;
-        }
         var serverProfile = active.id && typeof findProfileById === 'function' ? findProfileById(active.id) : null;
-        return Boolean(serverProfile && (serverProfile.isAdmin || serverProfile.isOwner));
+        return Boolean(serverProfile ? serverProfile.isAdmin : active.isAdmin);
     }
 
-    // apiFetch() always signs with the active profile token (except on admin route
-    // hashes), so media management calls need an explicit admin-token variant.
+    // apiFetch() signs with the active profile token (except on admin route hashes),
+    // so media management calls use an explicit admin-token request helper.
     function adminApiFetch(adminAuth, path, options) {
         options = options || {};
         var headers = {};
@@ -69,12 +67,12 @@
         });
     }
 
-    // Resolve an Administrator token for media management without navigating away,
-    // mirroring openStreamFlixAdminRoute(): live admin client → cached adminAuth →
-    // server-side ElevateAdmin (with PIN pad fallback).
     function requestManageAdminAuth(suppliedPin, forceElevate) {
         if (isGuestPassSession()) {
             return Promise.reject(new Error('Guest passes cannot manage media.'));
+        }
+        if (!canManageMediaItems()) {
+            return Promise.reject(new Error('Switch to an Administrator profile first to manage media.'));
         }
         if (!suppliedPin && !forceElevate) {
             if (typeof isCurrentJellyfinClientAdmin === 'function' && isCurrentJellyfinClientAdmin()) {
@@ -91,6 +89,18 @@
             }
             if (state.adminAuth && state.adminAuth.accessToken && state.adminAuth.userId) {
                 return Promise.resolve(state.adminAuth);
+            }
+            if (state.activeProfile && state.activeProfile.isAdmin && state.activeProfile.accessToken && state.activeProfile.jellyfinUserId) {
+                saveAdminAuth({
+                    userId: state.activeProfile.jellyfinUserId,
+                    userName: state.activeProfile.jellyfinUsername || state.activeProfile.name || 'Administrator',
+                    accessToken: state.activeProfile.accessToken,
+                    serverId: state.activeProfile.serverId || resolveKnownServerId(),
+                    user: null
+                });
+                if (state.adminAuth && state.adminAuth.accessToken && state.adminAuth.userId) {
+                    return Promise.resolve(state.adminAuth);
+                }
             }
         }
         var dev = getJellyfinDeviceInfo();
@@ -118,8 +128,6 @@
             return state.adminAuth;
         }).catch(function (err) {
             var code = err && err.code;
-            // Only open a pad for the initial request — errors for a PIN submitted from
-            // an already-open pad must propagate back to that pad's validation handler.
             if (!suppliedPin && (code === 'pin_required' || code === 'pin_invalid') && typeof openPinPad === 'function') {
                 return new Promise(function (resolve, reject) {
                     var settled = false;
@@ -154,9 +162,6 @@
     function runWithManageAuth(run) {
         return requestManageAdminAuth().then(function (adminAuth) {
             return run(adminAuth).catch(function (err) {
-                // A cached or in-memory admin token may have been revoked — force a fresh
-                // ElevateAdmin once, skipping the live-client and cached shortcuts that
-                // would hand back the same rejected token.
                 if (err && err.status === 401) {
                     clearAdminAuth();
                     return requestManageAdminAuth('', true).then(run);
@@ -174,8 +179,6 @@
         });
     }
 
-    // Include a trailing semicolon when names contain commas so a single name such
-    // as "Example Pictures, Inc." remains unambiguous in the editable field.
     function joinEditableNames(arr) {
         if (!Array.isArray(arr) || !arr.length) {
             return '';
@@ -205,8 +208,6 @@
             || normalizeGuid(it.ParentId) === norm));
     }
 
-    // After a delete, scrub the item (and direct descendants) from every client-side
-    // cache and rendered card, then silently reload the hub rows from the server.
     function purgeDeletedItemFromCaches(itemId) {
         var norm = normalizeGuid(itemId);
         try {
@@ -297,9 +298,6 @@
                 } else if (act === 'download') {
                     manageDownloadMedia(item);
                 } else if (act === 'advanced') {
-                    // Close the detail modal first (keepRoute so it doesn't trigger a
-                    // history.back) — openStreamFlixAdminRoute may navigate without a
-                    // reload for an already-signed-in administrator.
                     if (state.activeDetailModal && typeof state.activeDetailModal.close === 'function') {
                         try { state.activeDetailModal.close(true); } catch (eCloseDetail) {}
                     }
@@ -331,8 +329,6 @@
         var origStudiosText = joinEditableNames(Array.isArray(fullItem.Studios)
             ? fullItem.Studios.map(function (s) { return s && s.Name ? s.Name : ''; }).filter(Boolean)
             : []);
-        // Snapshot the original arrays so each save attempt derives from them —
-        // a failed save must not leave previously edited values inside fullItem.
         var origGenresArr = Array.isArray(fullItem.Genres) ? fullItem.Genres.slice() : [];
         var origTagsArr = Array.isArray(fullItem.Tags) ? fullItem.Tags.slice() : [];
         var origStudiosArr = Array.isArray(fullItem.Studios) ? fullItem.Studios.slice() : [];
@@ -415,10 +411,6 @@
             fullItem.ProductionYear = yearRaw ? parseInt(yearRaw, 10) : null;
             fullItem.OfficialRating = q('#bfx-meta-rating').value.trim() || null;
             fullItem.CommunityRating = commRaw ? Math.min(10, Math.max(0, parseFloat(commRaw))) : null;
-            // Only rewrite name lists the administrator actually edited (so untouched
-            // arrays, including names containing commas, are preserved exactly), and
-            // re-derive from the original snapshots on every attempt so a failed save
-            // followed by a restored input submits exactly what the form shows.
             var genresText = q('#bfx-meta-genres').value;
             fullItem.Genres = genresText.trim() !== origGenresText
                 ? splitEditableNames(genresText)
@@ -432,7 +424,6 @@
                 ? splitEditableNames(studiosText).map(function (n) { return { Name: n }; })
                 : origStudiosArr.slice();
 
-            // Native editor semantics: POST the full (edited) item dto back
             runWithManageAuth(function (auth) {
                 return adminApiFetch(auth, '/Items/' + encodeURIComponent(fullItem.Id), {
                     method: 'POST',
@@ -643,8 +634,6 @@
         runWithManageAuth(function (auth) {
             return adminApiFetch(auth, '/Users/' + encodeURIComponent(auth.userId)
                 + '/Items/' + encodeURIComponent(item.Id)).then(function () {
-                // Browser-initiated downloads cannot expose their response to the
-                // retry wrapper, so validate the token before creating the link.
                 var url = apiBase() + '/Items/' + encodeURIComponent(item.Id)
                     + '/Download?api_key=' + encodeURIComponent(auth.accessToken);
                 var a = document.createElement('a');

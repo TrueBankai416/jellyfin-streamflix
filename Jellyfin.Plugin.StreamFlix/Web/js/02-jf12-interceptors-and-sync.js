@@ -123,6 +123,11 @@
                             origSetRequestHeader.call(this, 'X-Emby-Token', token);
                         }
                     }
+                    if (String(this.__streamflixUrl || '').toLowerCase().indexOf('/streamflix/') !== -1
+                        && state.googleUser && state.googleUser.token
+                        && !(this.__streamflixHeaders && this.__streamflixHeaders['x-streamflix-session'])) {
+                        origSetRequestHeader.call(this, 'X-StreamFlix-Session', state.googleUser.token);
+                    }
                     if (this.__streamflixMethod === 'POST' && typeof bodyArg === 'string' && typeof onWatchPartyNativeProgressReport === 'function') {
                         var xUrlLow = String(this.__streamflixUrl || '').toLowerCase();
                         if (xUrlLow.indexOf('/sessions/playing') !== -1 && bodyArg.charAt(0) === '{') {
@@ -170,10 +175,11 @@
                 input = urlStr;
             }
 
-            if (isSameOrigin && getActiveToken()) {
+            var attachSessionHdr = isSameOrigin && lowCheckUrl.indexOf('/streamflix/') !== -1 && state.googleUser && state.googleUser.token;
+            if (isSameOrigin && (getActiveToken() || attachSessionHdr)) {
                 var token = sanitizeHeaderField(getActiveToken());
-                if (token) {
-                    var authVal = getEmbyAuthHeader(token);
+                if (token || attachSessionHdr) {
+                    var authVal = token ? getEmbyAuthHeader(token) : '';
                     init = Object.assign({}, init || {});
                     if (typeof Headers !== 'undefined') {
                         var mergedHeaders = new Headers(
@@ -184,15 +190,25 @@
                                 mergedHeaders.set(k, v);
                             });
                         }
-                        mergedHeaders.set('Authorization', authVal);
-                        mergedHeaders.set('X-Emby-Authorization', authVal);
-                        mergedHeaders.set('X-Emby-Token', token);
+                        if (token) {
+                            mergedHeaders.set('Authorization', authVal);
+                            mergedHeaders.set('X-Emby-Authorization', authVal);
+                            mergedHeaders.set('X-Emby-Token', token);
+                        }
+                        if (attachSessionHdr && !mergedHeaders.has('X-StreamFlix-Session')) {
+                            mergedHeaders.set('X-StreamFlix-Session', state.googleUser.token);
+                        }
                         init.headers = mergedHeaders;
                     } else {
                         var hCopy = Object.assign({}, init.headers || {});
-                        hCopy['Authorization'] = authVal;
-                        hCopy['X-Emby-Authorization'] = authVal;
-                        hCopy['X-Emby-Token'] = token;
+                        if (token) {
+                            hCopy['Authorization'] = authVal;
+                            hCopy['X-Emby-Authorization'] = authVal;
+                            hCopy['X-Emby-Token'] = token;
+                        }
+                        if (attachSessionHdr && !hCopy['X-StreamFlix-Session']) {
+                            hCopy['X-StreamFlix-Session'] = state.googleUser.token;
+                        }
                         init.headers = hCopy;
                     }
                 }
@@ -931,6 +947,7 @@
             localStorage.setItem('jellyfin_credentials', JSON.stringify(creds));
         } catch (e) {}
 
+        var authPromises = [];
         try {
             var targetClients = [];
             var pushClient = function (c) {
@@ -1020,12 +1037,15 @@
                     client._currentUser = authPayload.user;
                     try {
                         if (typeof client.onAuthenticated === 'function') {
-                            client.onAuthenticated(client, {
+                            var authRes = client.onAuthenticated(client, {
                                 User: authPayload.user,
                                 SessionInfo: authPayload.sessionInfo || null,
                                 AccessToken: authPayload.accessToken,
                                 ServerId: serverId || (authPayload.user && authPayload.user.ServerId) || ''
                             });
+                            if (authRes && typeof authRes.then === 'function') {
+                                authPromises.push(authRes.catch(function () {}));
+                            }
                         }
                     } catch (eOnAuth) {}
                 } else if (prevCurrentUser && normalizeGuid(prevCurrentUser.Id || prevCurrentUser.id) === normalizeGuid(authPayload.userId)) {
@@ -1038,6 +1058,7 @@
             probeWebGpuAdapterOnce();
             syncAutomaticWebGpuPlayerPreference();
         } catch (e) {}
+        return authPromises.length > 0 ? Promise.all(authPromises) : Promise.resolve();
     }
 
     function sanitizeHexColor(raw, fallback) {
@@ -1062,6 +1083,8 @@
             kidsExitPinRequired: p.kidsExitPinRequired !== false,
             isAdmin: Boolean(p.isAdmin),
             isOwner: Boolean(p.isOwner || p.id === 'streamflix_owner'),
+            canActivate: p.canActivate !== false,
+            canManageGuestPasses: Boolean(p.canManageGuestPasses || (p.isAdmin && !p.isKids)),
             autoplayNextEpisode: p.autoplayNextEpisode !== false,
             maxParentalRating: p.maturityRating || p.maxParentalRating || (p.isKids ? 'Older Kids (TV-Y7 / PG)' : 'TV-MA / R (All Maturity Levels)'),
             hasPin: Boolean(p.hasPin),
@@ -1229,6 +1252,18 @@
         var prevHeroLibsSig = Array.isArray(prevCfg.heroLibraryIds) ? prevCfg.heroLibraryIds.join(',') : '';
         var nextHeroLibsSig = nextHeroLibs.join(',');
 
+        var nextShowLibsInNav = cfg.showLibrariesInNav !== false;
+        var nextNavHiddenBuiltIns = Array.isArray(cfg.navHiddenBuiltIns)
+            ? cfg.navHiddenBuiltIns.map(function (x) { return String(x || '').trim().toLowerCase(); }).filter(Boolean)
+            : [];
+        var nextNavLibraryIds = Array.isArray(cfg.navLibraryIds)
+            ? cfg.navLibraryIds.map(function (x) { return String(x || '').trim(); }).filter(Boolean)
+            : [];
+        var prevNavSig = String(prevCfg.showLibrariesInNav !== false) + '|'
+            + (Array.isArray(prevCfg.navHiddenBuiltIns) ? prevCfg.navHiddenBuiltIns.join(',') : '') + '|'
+            + (Array.isArray(prevCfg.navLibraryIds) ? prevCfg.navLibraryIds.join(',') : '');
+        var nextNavSig = String(nextShowLibsInNav) + '|' + nextNavHiddenBuiltIns.join(',') + '|' + nextNavLibraryIds.join(',');
+
         var nextTop10Mode = String(cfg.top10SelectionMode || 'most_played').toLowerCase();
         var nextHeroRot = cfg.heroRotationSeconds !== undefined && cfg.heroRotationSeconds !== null
             ? Math.max(0, Math.min(120, Number(cfg.heroRotationSeconds) || 0))
@@ -1242,7 +1277,8 @@
             || prevCfg.heroSlideCount !== nextHeroCount
             || prevCfg.heroSelectionMode !== nextHeroSel
             || prevCfg.heroContentType !== nextHeroType
-            || prevHeroLibsSig !== nextHeroLibsSig;
+            || prevHeroLibsSig !== nextHeroLibsSig
+            || prevNavSig !== nextNavSig;
 
         state.configFresh = true;
         state.configAttempted = true;
@@ -1290,12 +1326,26 @@
             heroSelectionMode: nextHeroSel,
             heroContentType: nextHeroType,
             heroLibraryIds: nextHeroLibs,
+            showLibrariesInNav: nextShowLibsInNav,
+            navHiddenBuiltIns: nextNavHiddenBuiltIns,
+            navLibraryIds: nextNavLibraryIds,
             approvedGoogleAccounts: Array.isArray(cfg.approvedGoogleAccounts) ? cfg.approvedGoogleAccounts : [],
             approvedOidcUsers: Array.isArray(cfg.approvedOidcUsers) ? cfg.approvedOidcUsers : [],
             serverUsers: Array.isArray(cfg.serverUsers) ? cfg.serverUsers : [],
             showcaseItems: serverShowcase,
             profiles: normalizedProfiles
         };
+
+        if (state.activeProfile && state.activeProfile.id && normalizedProfiles.length > 0) {
+            for (var apIdx = 0; apIdx < normalizedProfiles.length; apIdx++) {
+                if (normalizedProfiles[apIdx].id === state.activeProfile.id) {
+                    state.activeProfile.isAdmin = normalizedProfiles[apIdx].isAdmin;
+                    state.activeProfile.canManageGuestPasses = normalizedProfiles[apIdx].canManageGuestPasses;
+                    saveJson(PROFILE_KEY, state.activeProfile);
+                    break;
+                }
+            }
+        }
 
         // A token the server no longer accepts has expired or been revoked ("Sign out all devices")
         if (state.googleUser && state.googleUser.token) {

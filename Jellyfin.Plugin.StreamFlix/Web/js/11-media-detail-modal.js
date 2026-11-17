@@ -266,8 +266,6 @@
                         if (!updatedItem || !updatedItem.Id || modalClosed) {
                             return;
                         }
-                        // Admin-elevated fetches carry the administrator's UserData —
-                        // keep the active profile's own watch state for resume/My List.
                         var ownUserData = (resolvedItem && resolvedItem.UserData) || (item && item.UserData);
                         if (ownUserData) {
                             updatedItem.UserData = ownUserData;
@@ -310,7 +308,6 @@
                             }
                         });
                         putCachedItem(updatedItem.Id, updatedItem);
-                        // Replace every editable display field, including cleared values
                         if (updatedItem.Type === 'Episode') {
                             var sublineEl = qModal('#streamflix-modal-episode-subline');
                             if (sublineEl) {

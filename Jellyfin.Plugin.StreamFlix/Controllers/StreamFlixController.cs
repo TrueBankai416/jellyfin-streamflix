@@ -138,7 +138,11 @@ public partial class StreamFlixController : ControllerBase
         Plugin.Instance?.EnsureInjectedThrottled();
         var config = Config;
         var caller = await GetCallerAsync(config).ConfigureAwait(false);
-        await SyncProfilesAsync(config, force: false).ConfigureAwait(false);
+        if (HasHouseholdAccess(config, caller))
+        {
+            await SyncProfilesAsync(config, force: false).ConfigureAwait(false);
+        }
+
         return Ok(BuildPublicState(config, caller));
     }
 
@@ -156,6 +160,22 @@ public partial class StreamFlixController : ControllerBase
         }
 
         return Ok(BuildAdminConfigResponse(config));
+    }
+
+    [HttpGet("AdminPageHtml")]
+    [AllowAnonymous]
+    [Produces(MediaTypeNames.Application.Json)]
+    public async Task<ActionResult<object>> GetAdminPageHtml()
+    {
+        SetNoStoreSecurityHeaders();
+        var config = Config;
+        var caller = await GetCallerAsync(config).ConfigureAwait(false);
+        if (!caller.IsAdmin)
+        {
+            return StatusCode(403, new { code = "admin_required", message = "Only a Jellyfin administrator can open StreamFlix settings." });
+        }
+
+        return Ok(new { html = Plugin.GetEmbeddedConfigPageBundle().Text });
     }
 
     [HttpPost("AdminConfig")]
@@ -233,6 +253,33 @@ public partial class StreamFlixController : ControllerBase
                     .ToList();
             }
 
+            config.ShowLibrariesInNav = request.ShowLibrariesInNav;
+            if (request.NavHiddenBuiltIns != null)
+            {
+                var allowedBuiltIns = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+                {
+                    "series",
+                    "movies",
+                    "collections",
+                    "top10",
+                    "mylist",
+                };
+                config.NavHiddenBuiltIns = request.NavHiddenBuiltIns
+                    .Where(id => !string.IsNullOrWhiteSpace(id) && allowedBuiltIns.Contains(id.Trim()))
+                    .Select(id => id.Trim().ToLowerInvariant())
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .ToList();
+            }
+
+            if (request.NavLibraryIds != null)
+            {
+                config.NavLibraryIds = request.NavLibraryIds
+                    .Where(id => !string.IsNullOrWhiteSpace(id))
+                    .Select(id => id.Trim())
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .ToList();
+            }
+
             config.EnableCustomOidc = request.EnableCustomOidc;
             var oidcName = (request.OidcProviderName ?? string.Empty).Trim();
             config.OidcProviderName = oidcName.Length > 32 ? oidcName.Substring(0, 32).Trim() : oidcName;
@@ -276,6 +323,20 @@ public partial class StreamFlixController : ControllerBase
 
             var wasGuestPassesEnabled = config.EnableGuestPasses;
             config.EnableGuestPasses = request.EnableGuestPasses;
+            if (request.GuestPassManagerProfileIds != null)
+            {
+                var eligibleIds = new HashSet<string>(
+                    (config.Profiles ?? new List<StreamFlixProfileConfig>())
+                        .Where(p => !p.IsKids && !IsProfileLinkedToAdmin(p) && !string.IsNullOrWhiteSpace(p.Id))
+                        .Select(p => p.Id.Trim()),
+                    StringComparer.OrdinalIgnoreCase);
+                config.GuestPassManagerProfileIds = request.GuestPassManagerProfileIds
+                    .Where(id => !string.IsNullOrWhiteSpace(id) && eligibleIds.Contains(id.Trim()))
+                    .Select(id => id.Trim())
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .ToList();
+            }
+
             config.EnableWatchTogether = request.EnableWatchTogether;
 
             Plugin.Instance?.SaveConfiguration();
@@ -368,10 +429,19 @@ public partial class StreamFlixController : ControllerBase
 
     private static bool HasHouseholdAccess(PluginConfiguration config, CallerContext caller)
     {
+        if (caller.IsAdmin)
+        {
+            return true;
+        }
+
+        if (IsGateUnconfigured(config))
+        {
+            return false;
+        }
+
         return (config.BypassLoginGateOnLan && caller.IsLocalLan)
             || caller.Session != null
-            || caller.IsAdmin
-            || (caller.IsJellyfinAuthenticated && (!config.RequireGoogleAuth || config.AllowStandardJellyfinLogin || IsGateUnconfigured(config)));
+            || (config.AllowStandardJellyfinLogin && caller.IsJellyfinAuthenticated && caller.JellyfinUser != null);
     }
 
     private ObjectResult GoogleRequired(PluginConfiguration? config = null)
@@ -563,6 +633,16 @@ public partial class StreamFlixController : ControllerBase
             .Select(id => id.Trim())
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
+        var navHiddenBuiltInsSnapshot = (config.NavHiddenBuiltIns ?? new List<string>())
+            .Where(id => !string.IsNullOrWhiteSpace(id))
+            .Select(id => id.Trim().ToLowerInvariant())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        var navLibraryIdsSnapshot = (config.NavLibraryIds ?? new List<string>())
+            .Where(id => !string.IsNullOrWhiteSpace(id))
+            .Select(id => id.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
 
         return new
         {
@@ -591,6 +671,7 @@ public partial class StreamFlixController : ControllerBase
             hasAccess,
             isAdmin = caller.IsAdmin,
             enableGuestPasses = config.EnableGuestPasses,
+            guestPassManagerProfileIds = hasAccess && caller.IsAdmin ? (config.GuestPassManagerProfileIds ?? new List<string>()).ToList() : new List<string>(),
             enableWatchTogether = config.EnableWatchTogether,
             hasAnyAdultPin = hasAccess && !isGuestPass && (config.Profiles ?? new List<StreamFlixProfileConfig>()).Any(p => !p.IsKids && !string.IsNullOrWhiteSpace(p.PinCode)),
             isGuestPass,
@@ -620,6 +701,9 @@ public partial class StreamFlixController : ControllerBase
             heroSelectionMode = NormalizeHeroSelectionMode(config.HeroSelectionMode),
             heroContentType = NormalizeHeroContentType(config.HeroContentType),
             heroLibraryIds = heroLibrariesSnapshot,
+            showLibrariesInNav = config.ShowLibrariesInNav,
+            navHiddenBuiltIns = navHiddenBuiltInsSnapshot,
+            navLibraryIds = navLibraryIdsSnapshot,
             approvedGoogleAccounts = hasAccess && caller.IsAdmin ? approvedSnapshot : new List<string>(),
             approvedOidcUsers = hasAccess && caller.IsAdmin ? approvedOidcSnapshot : new List<string>(),
             serverUsers,
@@ -659,6 +743,9 @@ public partial class StreamFlixController : ControllerBase
             heroSelectionMode = NormalizeHeroSelectionMode(config.HeroSelectionMode),
             heroContentType = NormalizeHeroContentType(config.HeroContentType),
             heroLibraryIds = (config.HeroLibraryIds ?? new List<string>()).ToList(),
+            showLibrariesInNav = config.ShowLibrariesInNav,
+            navHiddenBuiltIns = (config.NavHiddenBuiltIns ?? new List<string>()).ToList(),
+            navLibraryIds = (config.NavLibraryIds ?? new List<string>()).ToList(),
             enableCustomOidc = config.EnableCustomOidc,
             oidcProviderName = config.OidcProviderName ?? string.Empty,
             oidcIssuerUrl = config.OidcIssuerUrl ?? string.Empty,
@@ -667,6 +754,7 @@ public partial class StreamFlixController : ControllerBase
             oidcRequireAllowlist = config.OidcRequireAllowlist,
             approvedOidcUsers = (config.ApprovedOidcUsers ?? new List<string>()).ToList(),
             enableGuestPasses = config.EnableGuestPasses,
+            guestPassManagerProfileIds = (config.GuestPassManagerProfileIds ?? new List<string>()).ToList(),
             enableWatchTogether = config.EnableWatchTogether,
             enableSeerr = config.EnableSeerr,
             seerrUrl = config.SeerrUrl ?? string.Empty,

@@ -1,7 +1,7 @@
 ---
 name: "StreamFlix"
 guid: "7cc1a505-91f6-4661-b4f9-7eee8be33b19"
-version: "0.9.2.4"
+version: "0.9.2.6"
 targetAbi: "12.0.0.0"
 framework: "net10.0"
 owner: "StreamFlix"
@@ -18,4 +18,4 @@ imageUrl: "https://raw.githubusercontent.com/streamflix-dev/jellyfin-streamflix/
 artifacts:
   - "Jellyfin.Plugin.StreamFlix.dll"
 changelog: >
-  - Separate Seerr Requests Underneath Library Search + Bulletproof Admin Route & Library Search Fix: render Seerr requestable titles in a clean, separate section underneath library matches so requestable items are never confused with playable media; fix local library search across Video/Movie/Series/ParentId views and Seerr verified Jellyfin IDs so existing library titles always appear; persist dedicated route-aware Administrator credentials and sync jellyfin-web ServerConnections/ApiProvider cleanly so Plugin Settings and Admin Dashboard never bounce back to Home on iOS App, Safari, or Desktop WebUI
+  - Security Hardening, Per-Profile Guest Pass Permissions, Admin Media Metadata Tools & Card Grid Polish: fix admin token elevation & profile activation authorization across Jellyfin, Google OAuth, OIDC & LAN sessions (#8); restrict profile creation/deletion/reordering and Jellyfin user provisioning to administrators while preserving custom library & remote-access permissions on pre-existing Jellyfin users (#8); enforce per-user Seerr permissions, quotas & request ownership without admin-key fallback (#8); add per-profile Guest Pass Manager permissions in Plugin Settings & server-side endpoints (#3); add admin-only Manage Media tools (Edit Metadata, Identify, Refresh Metadata, Media Info, Download, Advanced Editor & Delete Media) in the title detail modal (#2); add SECURITY.md & enable GitHub Private Vulnerability Reporting; fix uniform 2:3 poster card heights & crisp hover preview artwork in All Movies/Series grids

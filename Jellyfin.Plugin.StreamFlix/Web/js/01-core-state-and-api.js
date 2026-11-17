@@ -1,6 +1,6 @@
 /* ==========================================================================
    STREAMFLIX — Netflix-style UI for Jellyfin: server-verified Google & OIDC SSO,
-   "Who's watching?" profiles, Guest Passes & Seerr (v0.9.2.4)
+   "Who's watching?" profiles, Guest Passes & Seerr (v0.9.2.6)
    ========================================================================== */
 (function () {
     'use strict';
@@ -10,16 +10,18 @@
     }
     window.__STREAMFLIX_BOOTSTRAPPED__ = true;
 
-    var VERSION = '0.9.2.4';
+    var VERSION = '0.9.2.6';
     // Household session issued by the server ({ token, authKind, providerName, email, username, userId, name, picture, isAdmin, guestPassId, lockedProfileId, expiresAt })
     var GOOGLE_KEY = 'streamflix_session_v7';
     var ADMIN_AUTH_KEY = 'streamflix_admin_auth_v1';
     var OAUTH_STATE_KEY = 'streamflix_oauth_state';
+    var OIDC_PENDING_KEY = 'streamflix_oidc_pending_v1';
     var PENDING_PROFILE_KEY = 'streamflix_pending_profile';
     var PROFILE_KEY = 'streamflix_active_profile_v64';
     var LEGACY_PROFILE_KEY = 'streamflix_active_profile_v63';
     var CACHED_CONFIG_KEY = 'streamflix_cached_config_v7';
     var CINEMA_HUB_PREF_KEY = 'streamflix_cinema_hub_enabled_v1';
+    var NAV_PROFILE_PREF_PREFIX = 'streamflix_nav_prefs_v1_';
     var SHOWCASE_ITEMS_KEY = 'streamflix_showcase_items_v1';
 
     // Pre-v7 storage: unsigned client-side Google flag and caches with hard-coded defaults
@@ -96,6 +98,9 @@
         heroSelectionMode: 'recent',
         heroContentType: 'all',
         heroLibraryIds: [],
+        showLibrariesInNav: true,
+        navHiddenBuiltIns: [],
+        navLibraryIds: [],
         approvedGoogleAccounts: [],
         approvedOidcUsers: [],
         serverUsers: [],
@@ -121,8 +126,13 @@
         adminWarmAttempted: false,
         legacyProfileToMigrate: legacyProfileToMigrate,
         manageMode: false,
+        explicitPickerOpen: false,
+        openedDirectlyToManage: false,
+        embeddedAdminModalOpen: false,
+        noBackdropItemIds: {},
         verifyingGoogle: false,
         startingOidcRedirect: false,
+        oidcPollInFlight: false,
         activatingProfileId: null,
         sessionVerifiedOnce: false,
         accountDropdownOpen: false,
@@ -140,6 +150,9 @@
         seerrLocalAbort: null,
         seerrSubmittingMap: {},
         browseFilter: null,
+        libraryBrowser: null,
+        libraryBrowserSeq: 0,
+        libraryViewData: {},
         lastSurpriseId: '',
         activeDetailModal: null,
         itemCache: {},
@@ -159,6 +172,9 @@
             allMovies: [],
             allSeries: [],
             collectionsItems: [],
+            totalMoviesCount: 0,
+            totalSeriesCount: 0,
+            totalCollectionsCount: 0,
             views: []
         },
         heroIndex: 0,
@@ -281,7 +297,7 @@
                 p.classList.remove('has-logo');
                 p.textContent = img.getAttribute('alt') || '';
             }
-        } else if (kind === 'preview') {
+        } else if (kind === 'preview' || kind === 'pv') {
             var d = document.createElement('div');
             d.className = 'bfx-pv-title';
             d.textContent = img.getAttribute('alt') || '';
@@ -311,21 +327,24 @@
         if (!rootEl || !rootEl.querySelectorAll) {
             return;
         }
-        var imgs = rootEl.querySelectorAll('img[data-bfx-img="fade"], img[data-bfx-logo-fallback]');
+        var imgs = rootEl.querySelectorAll('img[data-bfx-img="fade"], img[data-bfx-img="pv"], img[data-bfx-logo-fallback]');
         for (var i = 0; i < imgs.length; i++) {
             var img = imgs[i];
             if (!img.complete) {
                 continue;
             }
+            var imgMode = img.getAttribute('data-bfx-img');
             if (img.naturalWidth > 0) {
-                if (img.getAttribute('data-bfx-img') === 'fade') {
+                if (imgMode === 'fade' || imgMode === 'pv') {
                     img.classList.add('is-loaded');
                 }
             } else {
                 var logoKind = img.getAttribute('data-bfx-logo-fallback');
                 if (logoKind) {
                     applyLogoImgFallback(img, logoKind);
-                } else if (img.getAttribute('data-bfx-img') === 'fade') {
+                } else if (imgMode === 'pv') {
+                    applyFadeImgError(img, 'hide');
+                } else if (imgMode === 'fade') {
                     applyFadeImgError(img, img.getAttribute('data-bfx-err') || 'broken');
                 }
             }
@@ -339,7 +358,11 @@
         window.__STREAMFLIX_CSP_IMG_HANDLERS__ = true;
         document.addEventListener('load', function (ev) {
             var t = ev && ev.target;
-            if (t && t.tagName === 'IMG' && t.getAttribute('data-bfx-img') === 'fade') {
+            if (!t || t.tagName !== 'IMG') {
+                return;
+            }
+            var imgMode = t.getAttribute('data-bfx-img');
+            if (imgMode === 'fade' || imgMode === 'pv') {
                 t.classList.add('is-loaded');
             }
         }, true);
@@ -353,7 +376,10 @@
                 applyLogoImgFallback(t, logoKind);
                 return;
             }
-            if (t.getAttribute('data-bfx-img') === 'fade') {
+            var imgMode = t.getAttribute('data-bfx-img');
+            if (imgMode === 'pv') {
+                applyFadeImgError(t, 'hide');
+            } else if (imgMode === 'fade') {
                 applyFadeImgError(t, t.getAttribute('data-bfx-err') || 'broken');
             }
         }, true);
@@ -792,6 +818,9 @@
     }
 
     function isAdminRouteHash() {
+        if (state.embeddedAdminModalOpen) {
+            return true;
+        }
         var h = (window.location.hash || '').toLowerCase();
         return h.indexOf('configurationpage') !== -1
             || h.indexOf('dashboard') !== -1

@@ -172,6 +172,7 @@
         };
         var okFlag = param('sf_oidc');
         var errMsg = param('sf_oidc_error');
+        var stateId = param('sf_state');
         if (!okFlag && !errMsg) {
             return null;
         }
@@ -186,11 +187,77 @@
         }
         return {
             complete: okFlag === '1',
-            error: errMsg
+            error: errMsg,
+            stateId: stateId || ''
         };
     }
 
+    function savePendingOidcFlow(stateId, pollSecret) {
+        if (!stateId || !pollSecret) {
+            return;
+        }
+        var payload = JSON.stringify({
+            stateId: String(stateId),
+            pollSecret: String(pollSecret),
+            startedAt: Date.now()
+        });
+        try { sessionStorage.setItem(OIDC_PENDING_KEY, payload); } catch (e1) {}
+        try { localStorage.setItem(OIDC_PENDING_KEY, payload); } catch (e2) {}
+    }
+
+    function loadPendingOidcFlow() {
+        var raw = '';
+        try { raw = sessionStorage.getItem(OIDC_PENDING_KEY) || ''; } catch (e1) {}
+        if (!raw) {
+            try { raw = localStorage.getItem(OIDC_PENDING_KEY) || ''; } catch (e2) {}
+        }
+        if (!raw) {
+            return null;
+        }
+        try {
+            var parsed = JSON.parse(raw);
+            if (!parsed || !parsed.stateId || !parsed.pollSecret) {
+                clearPendingOidcFlow();
+                return null;
+            }
+            if (parsed.startedAt && (Date.now() - Number(parsed.startedAt) > 10 * 60 * 1000)) {
+                clearPendingOidcFlow();
+                return null;
+            }
+            return parsed;
+        } catch (e3) {
+            clearPendingOidcFlow();
+            return null;
+        }
+    }
+
+    function clearPendingOidcFlow() {
+        try { sessionStorage.removeItem(OIDC_PENDING_KEY); } catch (e1) {}
+        try { localStorage.removeItem(OIDC_PENDING_KEY); } catch (e2) {}
+    }
+
+    function isMobileOrNativeWebView() {
+        try {
+            if (window.NativeShell || window.NativeInterface || window.ReactNativeWebView) {
+                return true;
+            }
+            if (window.webkit && window.webkit.messageHandlers) {
+                return true;
+            }
+            var ua = (typeof navigator !== 'undefined' && navigator.userAgent) ? navigator.userAgent : '';
+            return /iPhone|iPad|iPod|Android|Mobile/i.test(ua);
+        } catch (e) {
+            return false;
+        }
+    }
+
     function navigateExternalNoReferrer(url) {
+        // On mobile apps & embedded WebViews (jellyfin-expo WKWebView / Android WebView), synthetic <a rel="noreferrer">.click()
+        // can trigger external browser interception instead of navigating the active WebView. Use location.assign directly there.
+        if (isMobileOrNativeWebView()) {
+            window.location.assign(url);
+            return;
+        }
         try {
             var a = document.createElement('a');
             a.href = url;
@@ -250,9 +317,13 @@
             if (!res || !res.authorizeUrl) {
                 throw new Error((res && res.message) || ('Could not start ' + providerLabel + ' sign-in.'));
             }
+            if (res.stateId && res.pollSecret) {
+                savePendingOidcFlow(res.stateId, res.pollSecret);
+            }
             navigateExternalNoReferrer(res.authorizeUrl);
         }).catch(function (err) {
             state.startingOidcRedirect = false;
+            clearPendingOidcFlow();
             var msg = (err && err.message) || ('Could not start ' + providerLabel + ' sign-in.');
             if (!hasHouseholdAccess()) {
                 renderGoogleAuthGate(null, msg);
@@ -262,57 +333,113 @@
         });
     }
 
-    function completeOidcHandoff() {
+    function applyVerifiedOidcSession(res, providerLabel) {
+        clearPendingOidcFlow();
+        state.startingOidcRedirect = false;
+        var resolvedProvider = res.providerName || providerLabel || getOidcProviderLabel();
+        var resolvedEmail = res.email || '';
+        var resolvedUser = res.username || res.name || (resolvedEmail ? '' : 'user');
+        setHouseholdSession({
+            token: res.sessionToken,
+            authKind: 'oidc',
+            providerName: resolvedProvider,
+            email: resolvedEmail,
+            username: resolvedUser,
+            name: res.name || resolvedEmail || resolvedUser,
+            picture: res.picture || '',
+            expiresAt: res.expiresAt || ''
+        });
+
+        state.activeProfile = null;
+        localStorage.removeItem(PROFILE_KEY);
+
+        var pendingId = res.pendingProfileId || takePendingProfileId();
+        return fetchPublicConfig().then(function () {
+            renderProfilePickerGate();
+            var pending = pendingId ? findProfileById(pendingId) : null;
+            if (pending) {
+                handleSelectProfile(pending);
+            } else {
+                var who = resolvedEmail || resolvedUser || resolvedProvider;
+                showToast('Signed in via ' + resolvedProvider + (who && who !== resolvedProvider ? (' as ' + who) : ''), 'success');
+            }
+            return res;
+        });
+    }
+
+    function completeOidcHandoff(oidcCb) {
         state.verifyingGoogle = true;
         var providerLabel = getOidcProviderLabel();
         renderGoogleAuthGate('Completing ' + providerLabel + ' sign-in…');
+        var pendingFlow = loadPendingOidcFlow();
+        var reqStateId = (oidcCb && oidcCb.stateId) || (pendingFlow && pendingFlow.stateId) || '';
+        var reqPollSecret = (pendingFlow && (!reqStateId || pendingFlow.stateId === reqStateId)) ? pendingFlow.pollSecret : '';
 
         return apiFetch('/StreamFlix/Oidc/Complete', {
             method: 'POST',
             credentials: 'same-origin',
             headers: { 'Content-Type': 'application/json' },
-            body: '{}'
+            body: JSON.stringify({
+                stateId: reqStateId,
+                pollSecret: reqPollSecret
+            })
         }).then(function (res) {
             state.verifyingGoogle = false;
             if (!res || !res.verified || !res.sessionToken) {
+                clearPendingOidcFlow();
                 takePendingProfileId();
                 renderGoogleAuthGate(null, (res && res.message) || (providerLabel + ' verification failed.'));
                 return null;
             }
-
-            var resolvedProvider = res.providerName || providerLabel;
-            var resolvedEmail = res.email || '';
-            var resolvedUser = res.username || res.name || (resolvedEmail ? '' : 'user');
-            setHouseholdSession({
-                token: res.sessionToken,
-                authKind: 'oidc',
-                providerName: resolvedProvider,
-                email: resolvedEmail,
-                username: resolvedUser,
-                name: res.name || resolvedEmail || resolvedUser,
-                picture: res.picture || '',
-                expiresAt: res.expiresAt || ''
-            });
-
-            state.activeProfile = null;
-            localStorage.removeItem(PROFILE_KEY);
-
-            var pendingId = res.pendingProfileId || takePendingProfileId();
-            return fetchPublicConfig().then(function () {
-                renderProfilePickerGate();
-                var pending = pendingId ? findProfileById(pendingId) : null;
-                if (pending) {
-                    handleSelectProfile(pending);
-                } else {
-                    var who = resolvedEmail || resolvedUser || resolvedProvider;
-                    showToast('Signed in via ' + resolvedProvider + (who && who !== resolvedProvider ? (' as ' + who) : ''), 'success');
-                }
-                return res;
-            });
+            return applyVerifiedOidcSession(res, providerLabel);
         }).catch(function (err) {
             state.verifyingGoogle = false;
+            clearPendingOidcFlow();
             takePendingProfileId();
             renderGoogleAuthGate(null, (err && err.message) || (providerLabel + ' sign-in failed.'));
+        });
+    }
+
+    function pollPendingOidcFlowIfActive() {
+        if (state.oidcPollInFlight || state.verifyingGoogle || hasHouseholdAccess()) {
+            if (hasHouseholdAccess()) {
+                clearPendingOidcFlow();
+            }
+            return;
+        }
+        var pendingFlow = loadPendingOidcFlow();
+        if (!pendingFlow || !pendingFlow.stateId || !pendingFlow.pollSecret) {
+            return;
+        }
+        state.oidcPollInFlight = true;
+        var providerLabel = getOidcProviderLabel();
+        apiFetch('/StreamFlix/Oidc/Poll', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                stateId: pendingFlow.stateId,
+                pollSecret: pendingFlow.pollSecret
+            })
+        }).then(function (res) {
+            state.oidcPollInFlight = false;
+            if (!res || !res.status || res.status === 'pending') {
+                return;
+            }
+            if (res.status === 'complete' && res.verified && res.sessionToken) {
+                state.justCompletedGoogleOAuth = true;
+                applyVerifiedOidcSession(res, providerLabel);
+                return;
+            }
+            clearPendingOidcFlow();
+            state.startingOidcRedirect = false;
+            if (res.status === 'error' && res.message && !hasHouseholdAccess()) {
+                takePendingProfileId();
+                renderGoogleAuthGate(null, res.message);
+            } else if (!hasHouseholdAccess()) {
+                renderGoogleAuthGate();
+            }
+        }).catch(function () {
+            state.oidcPollInFlight = false;
         });
     }
 
@@ -641,6 +768,8 @@
                     serverId: activated.serverId,
                     user: res.user || null
                 });
+            } else {
+                clearAdminAuth();
             }
 
             if (state.config) {
@@ -691,6 +820,8 @@
             }
             state.itemCache = {};
             state.browseFilter = null;
+            state.libraryBrowser = null;
+            state.libraryViewData = {};
             state.searchQuery = '';
             state.searchResults = null;
             state.seerrSearchResults = null;
@@ -785,6 +916,135 @@
         }
     }
 
+    var adminBounceTimer = null;
+
+    function openEmbeddedStreamFlixSettingsModal() {
+        var existing = document.getElementById('bfx-embedded-admin-modal');
+        if (existing) {
+            return;
+        }
+        state.embeddedAdminModalOpen = true;
+        closeAccountDropdown();
+        closeOverlayGate();
+
+        var backdrop = document.createElement('div');
+        backdrop.id = 'bfx-embedded-admin-modal';
+        backdrop.className = 'bfx-embedded-admin-backdrop';
+        backdrop.setAttribute('role', 'dialog');
+        backdrop.setAttribute('aria-modal', 'true');
+        backdrop.setAttribute('aria-label', getBrandName() + ' Plugin Settings');
+        backdrop.innerHTML = ''
+            + '<div class="bfx-embedded-admin-shell">'
+            + '  <div class="bfx-embedded-admin-topbar">'
+            + '    <button type="button" class="streamflix-ghost-btn" id="bfx-embedded-admin-close">' + icon('chevronLeft') + '<span>Back to ' + escapeHtml(getBrandName()) + '</span></button>'
+            + '    <span class="bfx-embedded-admin-title">' + escapeHtml(getBrandName()) + ' Plugin Settings</span>'
+            + '  </div>'
+            + '  <div class="bfx-embedded-admin-body" id="bfx-embedded-admin-body">'
+            + '    <div class="streamflix-filter-loading"><div class="streamflix-spinner-ring"></div><span>Loading Plugin Settings…</span></div>'
+            + '  </div>'
+            + '</div>';
+        document.body.appendChild(backdrop);
+
+        var closeEmbedded = function () {
+            var cfgEl = backdrop.querySelector('#StreamFlixConfigPage');
+            if (cfgEl) {
+                try { cfgEl.dispatchEvent(new CustomEvent('viewhide')); } catch (eHide) {}
+            }
+            state.embeddedAdminModalOpen = false;
+            if (backdrop.parentNode) {
+                backdrop.parentNode.removeChild(backdrop);
+            }
+            if (state.activeProfile && state.activeProfile.accessToken && state.activeProfile.jellyfinUserId) {
+                applyJellyfinServerCredentials({
+                    serverId: state.activeProfile.serverId || (state.config && state.config.serverId),
+                    userId: state.activeProfile.jellyfinUserId,
+                    accessToken: state.activeProfile.accessToken
+                });
+            }
+            fetchPublicConfig().catch(function () {});
+            scheduleLifecycleTick(0);
+        };
+
+        var closeBtn = backdrop.querySelector('#bfx-embedded-admin-close');
+        if (closeBtn) {
+            closeBtn.addEventListener('click', closeEmbedded);
+        }
+
+        if (!window.Dashboard) {
+            window.Dashboard = {
+                showLoadingMsg: function () {},
+                hideLoadingMsg: function () {},
+                alert: function (msg) { showToast(typeof msg === 'string' ? msg : ((msg && msg.message) || ''), 'info'); },
+                navigate: function (route) {
+                    closeEmbedded();
+                    window.location.hash = '#/' + String(route || 'home').replace(/^#!?\/?/, '');
+                }
+            };
+        }
+
+        apiFetch('/StreamFlix/AdminPageHtml').then(function (res) {
+            var bodyEl = document.getElementById('bfx-embedded-admin-body');
+            if (!bodyEl || !res || !res.html) {
+                throw new Error('Could not load StreamFlix settings view.');
+            }
+            var doc = new DOMParser().parseFromString(String(res.html), 'text/html');
+            var pageNode = doc.getElementById('StreamFlixConfigPage');
+            if (!pageNode) {
+                throw new Error('Invalid StreamFlix settings markup.');
+            }
+            var scripts = Array.prototype.slice.call(pageNode.querySelectorAll('script'));
+            scripts.forEach(function (s) {
+                if (s.parentNode) {
+                    s.parentNode.removeChild(s);
+                }
+            });
+            bodyEl.innerHTML = '';
+            var importedPage = document.importNode(pageNode, true);
+            importedPage.classList.remove('hide');
+            bodyEl.appendChild(importedPage);
+
+            scripts.forEach(function (origScript) {
+                var liveScript = document.createElement('script');
+                liveScript.textContent = origScript.textContent || '';
+                importedPage.appendChild(liveScript);
+            });
+
+            setTimeout(function () {
+                try {
+                    importedPage.dispatchEvent(new CustomEvent('viewshow'));
+                } catch (eShow) {}
+            }, 20);
+        }).catch(function (err) {
+            var bodyEl = document.getElementById('bfx-embedded-admin-body');
+            if (bodyEl) {
+                bodyEl.innerHTML = buildEmptyStateHtml('gear', 'Could not load Plugin Settings', (err && err.message) || 'Administrator access is required.');
+            }
+        });
+    }
+
+    function armPluginConfigBounceFallback(cleanRoute) {
+        if (adminBounceTimer) {
+            clearTimeout(adminBounceTimer);
+            adminBounceTimer = null;
+        }
+        var lower = String(cleanRoute || '').toLowerCase();
+        if (lower.indexOf('configurationpage') !== 0 || lower.indexOf('streamflix') === -1) {
+            return;
+        }
+        adminBounceTimer = setTimeout(function () {
+            adminBounceTimer = null;
+            if (document.getElementById('StreamFlixConfigPage') || document.getElementById('bfx-embedded-admin-modal')) {
+                return;
+            }
+            var curHash = String(window.location.hash || '').toLowerCase();
+            var bouncedToHome = curHash === '' || curHash === '#' || curHash === '#/' || curHash.indexOf('#/home') === 0 || curHash.indexOf('#!/home') === 0;
+            var hasFallback = Boolean(document.querySelector('#fallbackPage:not(.hide)'));
+            if (bouncedToHome || hasFallback) {
+                openEmbeddedStreamFlixSettingsModal();
+            }
+        }, 2200);
+    }
+
     function navigateDirectAdminTarget(targetHash) {
         var raw = String(targetHash || '#/dashboard').trim();
         var cleanRoute = raw.replace(/^#!?\/?/, '').replace(/^\/+/, '') || 'dashboard';
@@ -799,6 +1059,7 @@
         if (document.body) {
             document.body.classList.remove('streamflix-hub-filtered', 'streamflix-hub-active');
         }
+        armPluginConfigBounceFallback(cleanRoute);
         try {
             if (window.Dashboard && typeof window.Dashboard.navigate === 'function') {
                 window.Dashboard.navigate(cleanRoute);
@@ -823,7 +1084,7 @@
         );
 
         saveAdminAuth(adminAuthObj);
-        applyJellyfinServerCredentials({
+        var syncPromise = applyJellyfinServerCredentials({
             serverId: adminAuthObj.serverId || (state.config && state.config.serverId) || '',
             userId: adminAuthObj.userId,
             accessToken: adminAuthObj.accessToken,
@@ -831,15 +1092,23 @@
             sessionInfo: adminAuthObj.sessionInfo || null
         });
 
-        if (alreadySyncedInMemory) {
-            navigateDirectAdminTarget(hashDest);
+        // When window.ApiClient already exists in memory (including Jellyfin iOS jellyfin-expo WKWebView & Safari),
+        // NEVER call window.location.reload() — reloading resets mobile WKWebView wrappers back to #/home!
+        // Wait for client.onAuthenticated (localusersignedin -> React UserProvider commit) before navigating.
+        if (beforeInfo.client) {
+            if (alreadySyncedInMemory) {
+                navigateDirectAdminTarget(hashDest);
+                return;
+            }
+            Promise.resolve(syncPromise).then(function () {
+                setTimeout(function () {
+                    navigateDirectAdminTarget(hashDest);
+                }, 65);
+            });
             return;
         }
 
-        // If jellyfin-web's private ES-module ServerConnections / ApiProvider has not initialized this admin
-        // session in memory yet (e.g. fresh Safari session where window.ApiClient was undefined, or switching
-        // from a non-admin profile like Max to Admin Fraggle), boot cleanly into the admin hash once so
-        // ServerConnections.connect() and ConnectionRequired(level='admin') initialize natively as Administrator.
+        // Only perform a one-shot boot reload when window.ApiClient has not been created yet at all
         var lastReloadTs = 0;
         try {
             lastReloadTs = Number(sessionStorage.getItem('streamflix_admin_reload_ts') || 0);
@@ -866,10 +1135,12 @@
 
     var adminElevationInFlight = false;
     function warmAdminAuthSilently() {
+        var canElevateCurrent = (typeof isActiveProfileAdmin === 'function' && isActiveProfileAdmin())
+            || isCurrentJellyfinClientAdmin();
         if (state.adminWarmAttempted
             || adminElevationInFlight
             || isGuestPassSession()
-            || !isHouseholdAdmin()
+            || !canElevateCurrent
             || (state.adminAuth && state.adminAuth.accessToken && state.adminAuth.userId)) {
             return;
         }
@@ -900,6 +1171,17 @@
 
     function openStreamFlixAdminRoute(targetHash, suppliedPin) {
         var dest = String(targetHash || '#/configurationpage?name=StreamFlix').trim();
+        if (isGuestPassSession()) {
+            showToast('Guest Pass sessions cannot open Administrator settings.', 'error');
+            return;
+        }
+        var canUseAdmin = (typeof isActiveProfileAdmin === 'function' && isActiveProfileAdmin())
+            || isCurrentJellyfinClientAdmin()
+            || (!state.activeProfile && isHouseholdAdmin());
+        if (!canUseAdmin) {
+            showToast('Switch to an Administrator profile first to open Server Settings.', 'error');
+            return;
+        }
         if (!suppliedPin && isCurrentJellyfinClientAdmin()) {
             var liveInfo = getUnderlyingApiClientAuth();
             if (liveInfo.userId && liveInfo.accessToken) {
@@ -914,7 +1196,7 @@
             navigateDirectAdminTarget(dest);
             return;
         }
-        if (!suppliedPin && !isGuestPassSession() && state.adminAuth && state.adminAuth.accessToken && state.adminAuth.userId) {
+        if (!suppliedPin && state.adminAuth && state.adminAuth.accessToken && state.adminAuth.userId) {
             enterAdminRouteWithAuth(state.adminAuth, dest);
             return;
         }

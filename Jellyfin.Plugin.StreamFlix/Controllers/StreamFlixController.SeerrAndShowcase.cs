@@ -214,17 +214,24 @@ public partial class StreamFlixController
         SetNoStoreSecurityHeaders();
         var config = Config;
         var caller = await GetCallerAsync(config).ConfigureAwait(false);
-        var (allowed, isKids, _, denyReason) = await EvaluateSeerrPermissionAsync(config, caller, profileId).ConfigureAwait(false);
+        var (allowed, isKids, resolvedProfile, denyReason) = await EvaluateSeerrPermissionAsync(config, caller, profileId).ConfigureAwait(false);
         if (!allowed)
         {
             return StatusCode(403, new { code = "seerr_forbidden", message = denyReason });
         }
 
+        var effectiveAdmin = IsEffectiveActiveAdmin(caller);
         try
         {
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(HttpContext.RequestAborted);
             cts.CancelAfter(TimeSpan.FromSeconds(12));
-            var list = await StreamFlixSeerrService.GetRecentRequestsAsync(config, isKids, cts.Token).ConfigureAwait(false);
+            var list = await StreamFlixSeerrService.GetRecentRequestsAsync(
+                config,
+                isKids,
+                effectiveAdmin,
+                resolvedProfile,
+                caller.Session?.Email,
+                cts.Token).ConfigureAwait(false);
             return Ok(new
             {
                 requests = list.Select(r => new
@@ -243,6 +250,7 @@ public partial class StreamFlixController
                     downloadProgress = r.DownloadProgress,
                     seasons = r.Seasons,
                     createdAt = r.CreatedAt,
+                    canCancel = r.CanCancel,
                     jellyfinMediaId = VerifyLocalJellyfinMediaId(r.JellyfinMediaId),
                 }).ToList(),
             });
@@ -287,6 +295,7 @@ public partial class StreamFlixController
             return StatusCode(429, new { ok = false, code = "rate_limited", message = "Too many media requests submitted recently. Please wait a couple of minutes." });
         }
 
+        var effectiveAdmin = IsEffectiveActiveAdmin(caller);
         try
         {
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(HttpContext.RequestAborted);
@@ -300,6 +309,7 @@ public partial class StreamFlixController
                 request.ServerId,
                 resolvedProfile,
                 caller.Session?.Email,
+                effectiveAdmin,
                 cts.Token).ConfigureAwait(false);
 
             return Ok(new
@@ -310,6 +320,10 @@ public partial class StreamFlixController
                 statusLabel = res.StatusLabel,
                 message = res.Message,
             });
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return StatusCode(403, new { ok = false, code = "seerr_permission_denied", message = ex.Message });
         }
         catch (OperationCanceledException) when (!HttpContext.RequestAborted.IsCancellationRequested)
         {
@@ -335,18 +349,29 @@ public partial class StreamFlixController
 
         var config = Config;
         var caller = await GetCallerAsync(config).ConfigureAwait(false);
-        var (allowed, _, _, denyReason) = await EvaluateSeerrPermissionAsync(config, caller, request.ProfileId).ConfigureAwait(false);
+        var (allowed, _, resolvedProfile, denyReason) = await EvaluateSeerrPermissionAsync(config, caller, request.ProfileId).ConfigureAwait(false);
         if (!allowed)
         {
             return StatusCode(403, new { ok = false, code = "seerr_forbidden", message = denyReason });
         }
 
+        var effectiveAdmin = IsEffectiveActiveAdmin(caller);
         try
         {
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(HttpContext.RequestAborted);
             cts.CancelAfter(TimeSpan.FromSeconds(12));
-            var (ok, message) = await StreamFlixSeerrService.CancelRequestAsync(config, request.RequestId, cts.Token).ConfigureAwait(false);
+            var (ok, message) = await StreamFlixSeerrService.CancelRequestAsync(
+                config,
+                request.RequestId,
+                effectiveAdmin,
+                resolvedProfile,
+                caller.Session?.Email,
+                cts.Token).ConfigureAwait(false);
             return Ok(new { ok, message });
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return StatusCode(403, new { ok = false, code = "seerr_cancel_forbidden", message = ex.Message });
         }
         catch (OperationCanceledException) when (!HttpContext.RequestAborted.IsCancellationRequested)
         {
@@ -738,11 +763,12 @@ public partial class StreamFlixController
                 }
             }
 
-            queryType.GetProperty("Limit")?.SetValue(query, 48);
+            queryType.GetProperty("Limit")?.SetValue(query, 72);
 
             var getItemList = typeof(ILibraryManager).GetMethod("GetItemList", new[] { queryType });
             if (getItemList?.Invoke(libraryManager, new[] { query }) is System.Collections.IEnumerable items)
             {
+                var fallbackWithoutBackdrop = new List<object>();
                 foreach (var item in items)
                 {
                     if (item == null)
@@ -760,16 +786,39 @@ public partial class StreamFlixController
                             || string.Equals(typeName, "Series", StringComparison.OrdinalIgnoreCase)
                             || string.Equals(typeName, "Video", StringComparison.OrdinalIgnoreCase))
                         {
-                            result.Add(new
+                            var (hasBackdrop, hasPrimary) = InspectItemImagesCompat(item);
+                            var dto = new
                             {
                                 id = id.ToString("N"),
                                 name,
                                 type = typeName,
-                            });
-                            if (result.Count >= 36)
+                                hasBackdrop,
+                                hasPrimary,
+                            };
+                            if (hasBackdrop)
                             {
-                                break;
+                                result.Add(dto);
+                                if (result.Count >= 36)
+                                {
+                                    break;
+                                }
                             }
+                            else if (fallbackWithoutBackdrop.Count < 36)
+                            {
+                                fallbackWithoutBackdrop.Add(dto);
+                            }
+                        }
+                    }
+                }
+
+                if (result.Count < 36 && fallbackWithoutBackdrop.Count > 0)
+                {
+                    foreach (var extra in fallbackWithoutBackdrop)
+                    {
+                        result.Add(extra);
+                        if (result.Count >= 36)
+                        {
+                            break;
                         }
                     }
                 }
@@ -780,6 +829,67 @@ public partial class StreamFlixController
         }
 
         return result;
+    }
+
+    private static (bool HasBackdrop, bool HasPrimary) InspectItemImagesCompat(object item)
+    {
+        var hasBackdrop = false;
+        var hasPrimary = false;
+        try
+        {
+            var t = item.GetType();
+            var backdropProp = t.GetProperty("BackdropImagePaths");
+            if (backdropProp?.GetValue(item) is System.Collections.IEnumerable bpList)
+            {
+                foreach (var entry in bpList)
+                {
+                    if (entry is string s && !string.IsNullOrWhiteSpace(s))
+                    {
+                        hasBackdrop = true;
+                        break;
+                    }
+                }
+            }
+
+            var primaryProp = t.GetProperty("PrimaryImagePath");
+            if (primaryProp?.GetValue(item) is string primStr && !string.IsNullOrWhiteSpace(primStr))
+            {
+                hasPrimary = true;
+            }
+
+            if (!hasBackdrop || !hasPrimary)
+            {
+                foreach (var m in t.GetMethods().Where(m => string.Equals(m.Name, "HasImage", StringComparison.Ordinal)))
+                {
+                    var ps = m.GetParameters();
+                    if (ps.Length is 1 or 2 && ps[0].ParameterType.IsEnum)
+                    {
+                        if (!hasBackdrop && Enum.TryParse(ps[0].ParameterType, "Backdrop", ignoreCase: true, out var bdEnum) && bdEnum != null)
+                        {
+                            var args = ps.Length == 2 ? new object[] { bdEnum, 0 } : new object[] { bdEnum };
+                            if (m.Invoke(item, args) is bool b && b)
+                            {
+                                hasBackdrop = true;
+                            }
+                        }
+
+                        if (!hasPrimary && Enum.TryParse(ps[0].ParameterType, "Primary", ignoreCase: true, out var prEnum) && prEnum != null)
+                        {
+                            var args = ps.Length == 2 ? new object[] { prEnum, 0 } : new object[] { prEnum };
+                            if (m.Invoke(item, args) is bool p && p)
+                            {
+                                hasPrimary = true;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        catch
+        {
+        }
+
+        return (hasBackdrop, hasPrimary);
     }
 
     private object SerializeSeerrDetail(StreamFlixSeerrService.SeerrMediaDetail d)
@@ -867,13 +977,55 @@ public partial class StreamFlixController
             return Task.FromResult<(bool, bool, StreamFlixProfileConfig?, string)>((false, false, null, "Media requests are disabled for Guest Pass sessions."));
         }
 
-        var effectiveProfileId = isGuest ? caller.Session?.LockedProfileId : requestedProfileId;
-        var profile = FindProfile(config, effectiveProfileId);
-        if (profile == null && caller.JellyfinUser != null)
+        StreamFlixProfileConfig? profile = null;
+        if (isGuest)
         {
+            profile = FindProfile(config, caller.Session?.LockedProfileId);
+            if (profile == null || IsProfileLinkedToAdmin(profile))
+            {
+                return Task.FromResult<(bool, bool, StreamFlixProfileConfig?, string)>((false, false, null, "Guest Pass profile is unavailable."));
+            }
+        }
+        else if (IsEffectiveActiveAdmin(caller))
+        {
+            profile = FindProfile(config, requestedProfileId);
+            if (profile == null && caller.JellyfinUser != null)
+            {
+                var adminUid = caller.JellyfinUser.Id.ToString("N");
+                profile = (config.Profiles ?? new List<StreamFlixProfileConfig>())
+                    .FirstOrDefault(p => string.Equals(p.JellyfinUserId, adminUid, StringComparison.OrdinalIgnoreCase));
+            }
+        }
+        else
+        {
+            if (caller.JellyfinUser == null)
+            {
+                return Task.FromResult<(bool, bool, StreamFlixProfileConfig?, string)>((false, false, null, "Activate a household profile before using Media Requests."));
+            }
+
             var callerUid = caller.JellyfinUser.Id.ToString("N");
-            profile = (config.Profiles ?? new List<StreamFlixProfileConfig>())
-                .FirstOrDefault(p => string.Equals(p.JellyfinUserId, callerUid, StringComparison.OrdinalIgnoreCase));
+            var ownedProfiles = (config.Profiles ?? new List<StreamFlixProfileConfig>())
+                .Where(p => string.Equals(p.JellyfinUserId, callerUid, StringComparison.OrdinalIgnoreCase))
+                .ToList();
+
+            if (!string.IsNullOrWhiteSpace(requestedProfileId))
+            {
+                var requested = FindProfile(config, requestedProfileId);
+                if (requested == null || !string.Equals(requested.JellyfinUserId, callerUid, StringComparison.OrdinalIgnoreCase))
+                {
+                    return Task.FromResult<(bool, bool, StreamFlixProfileConfig?, string)>((false, false, null, "You can only access Media Requests for your currently active profile."));
+                }
+
+                profile = requested;
+            }
+            else
+            {
+                profile = ownedProfiles.FirstOrDefault();
+                if (profile == null)
+                {
+                    return Task.FromResult<(bool, bool, StreamFlixProfileConfig?, string)>((false, false, null, "Your Jellyfin account is not linked to an active StreamFlix profile."));
+                }
+            }
         }
 
         var isKids = profile?.IsKids == true;

@@ -514,6 +514,14 @@
                         </div>
 
                         <div class="bfx-collapse-body hide" id="GuestPassesConfigBody">
+                            <div class="bfx-subbox" style="margin:0 0 14px;">
+                                <div class="bfx-subbox-title">Guest Pass Managers</div>
+                                <div class="fieldDescription" style="margin-bottom:8px;">Administrator profiles can always create, view, and revoke Guest Passes. Select any adult household profiles below that should also be allowed to manage Guest Passes (Kids profiles are never eligible).</div>
+                                <div class="bfx-libs-grid" id="GuestPassManagerProfiles">
+                                    <div class="bfx-empty">Loading profiles…</div>
+                                </div>
+                            </div>
+
                             <div class="bfx-subbox" style="margin-top:0;">
                                 <div class="bfx-subbox-title">Create New Guest Pass</div>
                                 <div class="bfx-callout hide" id="StreamFlixNoGuestProfilesHint">
@@ -563,12 +571,64 @@
                         </div>
                     </div>
 
-                    <!-- 5. Home, Hero Billboard & Top 10 -->
+                    <!-- 5. Home, Navigation, Hero Billboard & Top 10 -->
                     <div class="bfx-section" id="StreamFlixHomeSection" data-cfg-section="home">
                         <div class="bfx-section-head">
                             <div>
-                                <h3>Home, Hero Billboard &amp; Top 10</h3>
-                                <div class="fieldDescription">Choose how featured titles and the <strong>#1–#10</strong> row are selected on the StreamFlix Home screen.</div>
+                                <h3>Home, Navigation &amp; Hero Billboard</h3>
+                                <div class="fieldDescription">Customize the top navigation bar, Jellyfin library pills, featured billboard slides, and <strong>#1–#10</strong> ranking.</div>
+                            </div>
+                        </div>
+
+                        <div class="bfx-subbox" style="margin:0 0 16px;">
+                            <div class="bfx-subbox-title">Top Navigation Bar</div>
+                            <div class="fieldDescription" style="margin-bottom:8px;">Select which built-in categories and Jellyfin media libraries appear in the top-left navigation bar (and phone navigation). Per-user Jellyfin library permissions are always respected.</div>
+
+                            <div style="margin-bottom:12px;">
+                                <div class="inputLabel" style="margin-bottom:4px;">Built-in navigation items</div>
+                                <div class="bfx-libs-grid" id="StreamFlixNavBuiltInsList">
+                                    <label class="bfx-lib-chip" style="opacity:.72;cursor:default;">
+                                        <input type="checkbox" checked disabled />
+                                        <span>Home</span>
+                                        <span class="bfx-lib-type">PINNED</span>
+                                    </label>
+                                    <label class="bfx-lib-chip">
+                                        <input type="checkbox" data-nav-builtin="series" checked />
+                                        <span>Shows</span>
+                                    </label>
+                                    <label class="bfx-lib-chip">
+                                        <input type="checkbox" data-nav-builtin="movies" checked />
+                                        <span>Movies</span>
+                                    </label>
+                                    <label class="bfx-lib-chip">
+                                        <input type="checkbox" data-nav-builtin="collections" checked />
+                                        <span>Collections</span>
+                                    </label>
+                                    <label class="bfx-lib-chip">
+                                        <input type="checkbox" data-nav-builtin="top10" checked />
+                                        <span>Top 10</span>
+                                    </label>
+                                    <label class="bfx-lib-chip">
+                                        <input type="checkbox" data-nav-builtin="mylist" checked />
+                                        <span>My List</span>
+                                    </label>
+                                </div>
+                            </div>
+
+                            <div class="checkboxContainer checkboxContainer-withDescription" style="margin:6px 0 6px;">
+                                <label class="emby-checkbox-label">
+                                    <input id="ShowLibrariesInNav" name="ShowLibrariesInNav" type="checkbox" is="emby-checkbox" checked />
+                                    <span>Show Jellyfin media libraries in navigation bar</span>
+                                </label>
+                                <div class="fieldDescription checkboxFieldDescription">Surfaces configured Jellyfin libraries (e.g. Anime, Anime Movies, Documentaries) as dedicated navigation tabs.</div>
+                            </div>
+
+                            <div id="StreamFlixNavLibrariesWrap" style="margin-top:6px;">
+                                <div class="inputLabel" style="margin-bottom:4px;">Visible Jellyfin libraries</div>
+                                <div class="fieldDescription">Choose which Jellyfin libraries appear in the top bar (only shown to users granted access to each library).</div>
+                                <div class="bfx-libs-grid" id="StreamFlixNavLibrariesList">
+                                    <div class="bfx-empty">Loading libraries…</div>
+                                </div>
                             </div>
                         </div>
 
@@ -743,6 +803,11 @@
                 var lastPublic = null;
                 var availableLibraries = [];
                 var selectedHeroLibIds = [];
+                var selectedNavHiddenBuiltIns = [];
+                var selectedNavLibIds = [];
+                var selectedGuestPassManagerIds = [];
+                var guestPassManagersLoaded = false;
+                var navLibsTouched = false;
                 var heroLibrariesLoaded = false;
                 var reorderBusy = false;
                 var bundleLoadPromise = null;
@@ -1123,24 +1188,44 @@
                 });
 
                 function streamflixApi(method, path, body) {
-                    var options = {
-                        type: method,
-                        url: ApiClient.getUrl('StreamFlix/' + path),
-                        dataType: 'json'
+                    if (typeof window.ApiClient !== 'undefined' && window.ApiClient && typeof window.ApiClient.ajax === 'function') {
+                        var options = {
+                            type: method,
+                            url: ApiClient.getUrl('StreamFlix/' + path),
+                            dataType: 'json'
+                        };
+                        if (body !== undefined) {
+                            options.data = JSON.stringify(body);
+                            options.contentType = 'application/json';
+                        }
+                        return ApiClient.ajax(options).catch(function (err) {
+                            if (err && typeof err.json === 'function') {
+                                return err.json().catch(function () { return {}; }).then(function (data) {
+                                    var e = new Error((data && data.message) || ('Request failed (' + err.status + ')'));
+                                    e.status = err.status;
+                                    throw e;
+                                });
+                            }
+                            throw err instanceof Error ? err : new Error('Request failed');
+                        });
+                    }
+                    var fOpts = {
+                        method: method,
+                        headers: { 'Accept': 'application/json' }
                     };
                     if (body !== undefined) {
-                        options.data = JSON.stringify(body);
-                        options.contentType = 'application/json';
+                        fOpts.headers['Content-Type'] = 'application/json';
+                        fOpts.body = JSON.stringify(body);
                     }
-                    return ApiClient.ajax(options).catch(function (err) {
-                        if (err && typeof err.json === 'function') {
-                            return err.json().catch(function () { return {}; }).then(function (data) {
-                                var e = new Error((data && data.message) || ('Request failed (' + err.status + ')'));
-                                e.status = err.status;
-                                throw e;
+                    return window.fetch('/StreamFlix/' + path, fOpts).then(function (res) {
+                        if (!res.ok) {
+                            return res.json().catch(function () { return {}; }).then(function (d) {
+                                var e2 = new Error((d && d.message) || ('HTTP ' + res.status));
+                                e2.status = res.status;
+                                throw e2;
                             });
                         }
-                        throw err instanceof Error ? err : new Error('Request failed');
+                        return res.json();
                     });
                 }
 
@@ -1479,12 +1564,100 @@
                     return out;
                 }
 
+                function isSmartDuplicateLibraryName(libName) {
+                    var low = String(libName || '').trim().toLowerCase();
+                    var moviesChecked = Boolean(($('input[data-nav-builtin="movies"]') || {}).checked);
+                    var seriesChecked = Boolean(($('input[data-nav-builtin="series"]') || {}).checked);
+                    var colsChecked = Boolean(($('input[data-nav-builtin="collections"]') || {}).checked);
+                    if (moviesChecked && (low === 'movies' || low === 'films')) {
+                        return true;
+                    }
+                    if (seriesChecked && (low === 'shows' || low === 'tv shows' || low === 'tv' || low === 'series')) {
+                        return true;
+                    }
+                    if (colsChecked && (low === 'collections' || low === 'boxsets' || low === 'box sets')) {
+                        return true;
+                    }
+                    return false;
+                }
+
+                function renderNavLibraries() {
+                    var wrap = $('#StreamFlixNavLibrariesWrap');
+                    var showLibsEl = $('#ShowLibrariesInNav');
+                    if (wrap && showLibsEl) {
+                        wrap.classList.toggle('hide', !showLibsEl.checked);
+                    }
+                    var host = $('#StreamFlixNavLibrariesList');
+                    if (!host) {
+                        return;
+                    }
+                    if (!availableLibraries.length) {
+                        host.innerHTML = '<div class="bfx-empty">No media libraries found yet.</div>';
+                        return;
+                    }
+                    var hasExplicit = selectedNavLibIds.length > 0;
+                    var explicitNone = selectedNavLibIds.indexOf('__NONE__') !== -1;
+                    var selectedMap = {};
+                    selectedNavLibIds.forEach(function (id) {
+                        selectedMap[normalizeIdKey(id)] = true;
+                    });
+                    host.innerHTML = availableLibraries.map(function (lib) {
+                        var checked = hasExplicit
+                            ? (!explicitNone && Boolean(selectedMap[normalizeIdKey(lib.id)]))
+                            : !isSmartDuplicateLibraryName(lib.name);
+                        return ''
+                            + '<label class="bfx-lib-chip">'
+                            + '  <input type="checkbox" data-nav-lib-id="' + esc(lib.id) + '"' + (checked ? ' checked' : '') + ' />'
+                            + '  <span>' + esc(lib.name) + '</span>'
+                            + (lib.type ? '<span class="bfx-lib-type">' + esc(lib.type) + '</span>' : '')
+                            + '</label>';
+                    }).join('');
+                    Array.prototype.forEach.call(host.querySelectorAll('input[data-nav-lib-id]'), function (cb) {
+                        cb.addEventListener('change', function () {
+                            navLibsTouched = true;
+                        });
+                    });
+                }
+
+                function getUncheckedNavBuiltIns() {
+                    var out = [];
+                    Array.prototype.forEach.call(page.querySelectorAll('input[data-nav-builtin]'), function (cb) {
+                        if (!cb.checked) {
+                            var id = cb.getAttribute('data-nav-builtin');
+                            if (id) {
+                                out.push(id);
+                            }
+                        }
+                    });
+                    return out;
+                }
+
+                function getConfiguredNavLibraryIdsForSave() {
+                    if (!heroLibrariesLoaded) {
+                        return selectedNavLibIds.slice();
+                    }
+                    if (!navLibsTouched && selectedNavLibIds.length === 0) {
+                        return [];
+                    }
+                    var out = [];
+                    Array.prototype.forEach.call(page.querySelectorAll('input[data-nav-lib-id]:checked'), function (cb) {
+                        var id = cb.getAttribute('data-nav-lib-id');
+                        if (id) {
+                            out.push(id);
+                        }
+                    });
+                    return out.length > 0 ? out : ['__NONE__'];
+                }
+
                 function loadHeroLibraries() {
-                    return ApiClient.ajax({
-                        type: 'GET',
-                        url: ApiClient.getUrl('Library/VirtualFolders'),
-                        dataType: 'json'
-                    }).then(function (folders) {
+                    var fetchFolders = (typeof window.ApiClient !== 'undefined' && window.ApiClient && typeof window.ApiClient.ajax === 'function')
+                        ? ApiClient.ajax({
+                            type: 'GET',
+                            url: ApiClient.getUrl('Library/VirtualFolders'),
+                            dataType: 'json'
+                        })
+                        : window.fetch('/Library/VirtualFolders', { headers: { 'Accept': 'application/json' } }).then(function (r) { return r.ok ? r.json() : []; });
+                    return fetchFolders.then(function (folders) {
                         var list = Array.isArray(folders) ? folders : [];
                         availableLibraries = list
                             .map(function (f) {
@@ -1501,8 +1674,13 @@
                             });
                         heroLibrariesLoaded = true;
                         renderHeroLibraries();
+                        renderNavLibraries();
                     }).catch(function () {
                         $('#StreamFlixHeroLibrariesList').innerHTML = '<div class="bfx-empty">Could not load library list.</div>';
+                        var navHost = $('#StreamFlixNavLibrariesList');
+                        if (navHost) {
+                            navHost.innerHTML = '<div class="bfx-empty">Could not load library list.</div>';
+                        }
                     });
                 }
 
@@ -1551,9 +1729,69 @@
                     return '<span class="bfx-badge blue" title="Locked to a Google account">G ' + esc(hint) + '</span>';
                 }
 
+                function renderGuestPassManagers() {
+                    var host = $('#GuestPassManagerProfiles');
+                    if (!host) {
+                        return;
+                    }
+                    if (!profiles.length) {
+                        host.innerHTML = '<div class="bfx-empty">No profiles available yet.</div>';
+                        return;
+                    }
+                    var selectedMap = {};
+                    selectedGuestPassManagerIds.forEach(function (id) {
+                        selectedMap[String(id || '').trim().toLowerCase()] = true;
+                    });
+                    var adminProfiles = profiles.filter(function (p) { return Boolean(p.isAdmin); });
+                    var adultProfiles = profiles.filter(function (p) { return !p.isAdmin && !p.isKids; });
+                    var chips = [];
+                    adminProfiles.forEach(function (p) {
+                        chips.push(''
+                            + '<label class="bfx-lib-chip" style="opacity:.78;cursor:default;">'
+                            + '  <input type="checkbox" checked disabled />'
+                            + '  <span>' + esc((p.avatarEmoji ? p.avatarEmoji + ' ' : '') + p.name) + '</span>'
+                            + '  <span class="bfx-lib-type">ADMIN</span>'
+                            + '</label>');
+                    });
+                    adultProfiles.forEach(function (p) {
+                        var isChecked = Boolean(selectedMap[String(p.id || '').trim().toLowerCase()]);
+                        chips.push(''
+                            + '<label class="bfx-lib-chip">'
+                            + '  <input type="checkbox" data-gp-manager-id="' + esc(p.id) + '"' + (isChecked ? ' checked' : '') + ' />'
+                            + '  <span>' + esc((p.avatarEmoji ? p.avatarEmoji + ' ' : '') + p.name) + '</span>'
+                            + '</label>');
+                    });
+                    if (!chips.length) {
+                        host.innerHTML = '<div class="bfx-empty">No adult profiles found.</div>';
+                        return;
+                    }
+                    host.innerHTML = chips.join('');
+                    Array.prototype.forEach.call(host.querySelectorAll('input[data-gp-manager-id]'), function (cb) {
+                        cb.addEventListener('change', function () {
+                            selectedGuestPassManagerIds = getCheckedGuestPassManagerIds();
+                        });
+                    });
+                }
+
+                function getCheckedGuestPassManagerIds() {
+                    var host = $('#GuestPassManagerProfiles');
+                    if (!host || !profiles.length) {
+                        return selectedGuestPassManagerIds.slice();
+                    }
+                    var out = [];
+                    Array.prototype.forEach.call(host.querySelectorAll('input[data-gp-manager-id]:checked'), function (cb) {
+                        var id = cb.getAttribute('data-gp-manager-id');
+                        if (id) {
+                            out.push(id);
+                        }
+                    });
+                    return out;
+                }
+
                 function renderProfiles() {
                     if (!profiles.length) {
                         grid.innerHTML = '<div class="bfx-empty">No profiles yet. Open <strong>Manage profiles</strong> to create one.</div>';
+                        renderGuestPassManagers();
                         renderStatus();
                         return;
                     }
@@ -1582,6 +1820,7 @@
                             + '  </div>'
                             + '</div>';
                     }).join('');
+                    renderGuestPassManagers();
                     renderStatus();
                 }
 
@@ -1649,6 +1888,7 @@
                             + '  </div>'
                             + '</div>';
                     }).join('');
+                    renderGuestPassManagers();
                     renderStatus();
                 }
 
@@ -1749,6 +1989,9 @@
                     lastPublic = pub || null;
                     if (pub && Array.isArray(pub.profiles)) {
                         profiles = pub.profiles;
+                    }
+                    if (!guestPassManagersLoaded && pub && Array.isArray(pub.guestPassManagerProfileIds)) {
+                        selectedGuestPassManagerIds = pub.guestPassManagerProfileIds.slice();
                     }
                     if (pub && pub.version) {
                         $('#StreamFlixVersionLabel').textContent = '· v' + String(pub.version).replace(/\.0$/, '');
@@ -2230,10 +2473,24 @@
                     '#AdminFallbackLanOnly',
                     '#BypassLoginGateOnLan',
                     '#EnableGuestPasses',
+                    '#ShowLibrariesInNav',
                     '#ShowHeroAdvanced',
                     '#EnableSeerr'
                 ].forEach(function (sel) {
                     $(sel).addEventListener('change', onAuthOrStatusChange);
+                });
+                $('#ShowLibrariesInNav').addEventListener('change', function () {
+                    var wrap = $('#StreamFlixNavLibrariesWrap');
+                    if (wrap) {
+                        wrap.classList.toggle('hide', !$('#ShowLibrariesInNav').checked);
+                    }
+                });
+                Array.prototype.forEach.call(page.querySelectorAll('input[data-nav-builtin]'), function (cb) {
+                    cb.addEventListener('change', function () {
+                        if (!navLibsTouched && selectedNavLibIds.length === 0) {
+                            renderNavLibraries();
+                        }
+                    });
                 });
 
                 function renderRedirectUris() {
@@ -2268,6 +2525,9 @@
                     $('#BypassLoginGateOnLan').checked = Boolean(cfg.bypassLoginGateOnLan);
                     $('#AutoProvisionJellyfinUsers').checked = cfg.autoProvisionJellyfinUsers !== false;
                     $('#EnableGuestPasses').checked = cfg.enableGuestPasses !== false;
+                    selectedGuestPassManagerIds = Array.isArray(cfg.guestPassManagerProfileIds) ? cfg.guestPassManagerProfileIds.slice() : [];
+                    guestPassManagersLoaded = true;
+                    renderGuestPassManagers();
                     $('#EnableWatchTogether').checked = cfg.enableWatchTogether !== false;
                     $('#SessionLifetimeDays').value = cfg.sessionLifetimeDays > 0 ? cfg.sessionLifetimeDays : 30;
                     $('#Top10SelectionMode').value = cfg.top10SelectionMode || 'most_played';
@@ -2281,6 +2541,18 @@
                     selectedHeroLibIds = Array.isArray(cfg.heroLibraryIds) ? cfg.heroLibraryIds.slice() : [];
                     $('#ShowHeroAdvanced').checked = Boolean(heroType !== 'all' || heroRot !== 9 || heroSlides !== 8 || selectedHeroLibIds.length > 0);
                     renderHeroLibraries();
+
+                    $('#ShowLibrariesInNav').checked = cfg.showLibrariesInNav !== false;
+                    selectedNavHiddenBuiltIns = Array.isArray(cfg.navHiddenBuiltIns)
+                        ? cfg.navHiddenBuiltIns.map(function (x) { return String(x || '').trim().toLowerCase(); })
+                        : [];
+                    selectedNavLibIds = Array.isArray(cfg.navLibraryIds) ? cfg.navLibraryIds.slice() : [];
+                    navLibsTouched = false;
+                    Array.prototype.forEach.call(page.querySelectorAll('input[data-nav-builtin]'), function (cb) {
+                        var bid = String(cb.getAttribute('data-nav-builtin') || '').toLowerCase();
+                        cb.checked = selectedNavHiddenBuiltIns.indexOf(bid) === -1;
+                    });
+                    renderNavLibraries();
 
                     var gClientId = cfg.googleClientId || '';
                     $('#GoogleClientId').value = gClientId;
@@ -2376,6 +2648,7 @@
                         bypassLoginGateOnLan: $('#BypassLoginGateOnLan').checked,
                         autoProvisionJellyfinUsers: $('#AutoProvisionJellyfinUsers').checked,
                         enableGuestPasses: $('#EnableGuestPasses').checked,
+                        guestPassManagerProfileIds: getCheckedGuestPassManagerIds(),
                         enableWatchTogether: $('#EnableWatchTogether').checked,
                         googleClientId: $('#GoogleClientId').value.trim(),
                         googleClientSecret: googleSecretTyped || '__KEEP__',
@@ -2388,6 +2661,9 @@
                         heroSelectionMode: $('#HeroSelectionMode').value || 'recent',
                         heroContentType: $('#HeroContentType').value || 'all',
                         heroLibraryIds: getCheckedHeroLibraryIds(),
+                        showLibrariesInNav: $('#ShowLibrariesInNav').checked,
+                        navHiddenBuiltIns: getUncheckedNavBuiltIns(),
+                        navLibraryIds: getConfiguredNavLibraryIdsForSave(),
                         enableCustomOidc: $('#EnableCustomOidc').checked,
                         oidcProviderName: $('#OidcProviderName').value.trim().slice(0, 32),
                         oidcIssuerUrl: $('#OidcIssuerUrl').value.trim(),
