@@ -299,7 +299,10 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages
             || cfg.BypassLoginGateOnLan
             || !cfg.EnableGoogleSignIn
             || !cfg.EnableGuestPasses
-            || !cfg.EnableStreamFlixUi;
+            || !cfg.EnableStreamFlixUi
+            || !cfg.ShowLibrariesInNav
+            || (cfg.NavHiddenBuiltIns != null && cfg.NavHiddenBuiltIns.Count > 0)
+            || (cfg.NavLibraryIds != null && cfg.NavLibraryIds.Count > 0);
     }
 
     private void SnapshotExistingXmlBeforeLoad()
@@ -475,6 +478,7 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages
                 HeroSlideCount = IntVal(root, nameof(PluginConfiguration.HeroSlideCount), 8),
                 HeroSelectionMode = Val(root, nameof(PluginConfiguration.HeroSelectionMode)) ?? "recent",
                 HeroContentType = Val(root, nameof(PluginConfiguration.HeroContentType)) ?? "all",
+                ShowLibrariesInNav = BoolVal(root, nameof(PluginConfiguration.ShowLibrariesInNav), true),
                 EnableCustomOidc = BoolVal(root, nameof(PluginConfiguration.EnableCustomOidc), false),
                 OidcProviderName = Val(root, nameof(PluginConfiguration.OidcProviderName)) ?? string.Empty,
                 OidcIssuerUrl = Val(root, nameof(PluginConfiguration.OidcIssuerUrl)) ?? string.Empty,
@@ -600,6 +604,24 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages
             if (heroLibsEl != null)
             {
                 cfg.HeroLibraryIds = heroLibsEl.Elements()
+                    .Select(x => (x.Value ?? string.Empty).Trim())
+                    .Where(x => !string.IsNullOrEmpty(x))
+                    .ToList();
+            }
+
+            var navHiddenEl = root.Elements().FirstOrDefault(e => string.Equals(e.Name.LocalName, nameof(PluginConfiguration.NavHiddenBuiltIns), StringComparison.OrdinalIgnoreCase));
+            if (navHiddenEl != null)
+            {
+                cfg.NavHiddenBuiltIns = navHiddenEl.Elements()
+                    .Select(x => (x.Value ?? string.Empty).Trim())
+                    .Where(x => !string.IsNullOrEmpty(x))
+                    .ToList();
+            }
+
+            var navLibsEl = root.Elements().FirstOrDefault(e => string.Equals(e.Name.LocalName, nameof(PluginConfiguration.NavLibraryIds), StringComparison.OrdinalIgnoreCase));
+            if (navLibsEl != null)
+            {
+                cfg.NavLibraryIds = navLibsEl.Elements()
                     .Select(x => (x.Value ?? string.Empty).Trim())
                     .Where(x => !string.IsNullOrEmpty(x))
                     .ToList();
@@ -867,6 +889,9 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages
     private static readonly Lazy<(string Text, byte[] Bytes, string ETag)> EmbeddedScript =
         new(() => AssembleEmbeddedBundle("Jellyfin.Plugin.StreamFlix.Web.js.", ".js"));
 
+    private static readonly Lazy<(string Text, byte[] Bytes, string ETag)> EmbeddedConfigPage =
+        new(() => AssembleEmbeddedBundle("Jellyfin.Plugin.StreamFlix.Configuration.", ".html"));
+
     private static readonly Lazy<string> AssetVersionCache = new(() =>
     {
         var v = typeof(Plugin).Assembly.GetName().Version;
@@ -906,6 +931,8 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages
     public static string GetEmbeddedScriptContent() => EmbeddedScript.Value.Text;
 
     public static (string Text, byte[] Bytes, string ETag) GetEmbeddedScriptBundle() => EmbeddedScript.Value;
+
+    public static (string Text, byte[] Bytes, string ETag) GetEmbeddedConfigPageBundle() => EmbeddedConfigPage.Value;
 
     public void CleanConflictingBrandingCssIfPresent()
     {

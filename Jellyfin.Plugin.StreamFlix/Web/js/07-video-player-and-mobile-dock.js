@@ -1492,6 +1492,7 @@
                         state.searchResults = null;
                         state.seerrSearchResults = null;
                         state.browseFilter = null;
+                        state.libraryBrowser = null;
                         state.activeCategory = 'all';
                         state.heroIndex = 0;
                         if (!isOnHomeRoute()) {
@@ -1526,6 +1527,7 @@
                         state.searchResults = null;
                         state.seerrSearchResults = null;
                         state.browseFilter = null;
+                        state.libraryBrowser = null;
                         if (state.cinemaHubEnabled === false) {
                             window.location.hash = '#/movies.html';
                             syncMobileDockState();

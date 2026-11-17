@@ -114,6 +114,7 @@
         state.searchResults = null;
         state.seerrSearchResults = null;
         state.browseFilter = null;
+        state.libraryBrowser = null;
         if (!isOnHomeRoute()) {
             window.location.hash = '#/home';
         }
@@ -159,6 +160,14 @@
             + '  <button type="button" role="switch" aria-checked="' + (hubOn ? 'true' : 'false') + '" aria-label="Toggle ' + brand + ' Home" class="bfx-prefs-toggle-btn" data-bfx-toggle-cinema-hub="1">'
             + '    <span class="bfx-switch' + (hubOn ? ' on' : '') + '"><i></i></span>'
             + '  </button>'
+            + '</div>'
+            + '<div class="bfx-prefs-feature-card" data-bfx-customize-nav="1" role="button" tabindex="0" style="cursor:pointer;margin-top:10px;">'
+            + '  <div class="bfx-prefs-feature-ico">' + icon('sliders') + '</div>'
+            + '  <div class="bfx-prefs-feature-copy">'
+            + '    <div class="bfx-prefs-feature-title-row"><span class="bfx-prefs-feature-title">Navigation Bar Items</span></div>'
+            + '    <div class="bfx-prefs-feature-desc">Select which built-in categories and Jellyfin libraries appear in the top navigation bar for this profile.</div>'
+            + '  </div>'
+            + '  <span class="bfx-prefs-row-chev" aria-hidden="true">' + icon('chevronRight') + '</span>'
             + '</div>';
     }
 
@@ -203,6 +212,26 @@
                     }
                 });
             }
+        });
+
+        Array.prototype.forEach.call(container.querySelectorAll('[data-bfx-customize-nav="1"]'), function (navCard) {
+            if (navCard.getAttribute('data-bfx-bound') === '1') {
+                return;
+            }
+            navCard.setAttribute('data-bfx-bound', '1');
+            var openNav = function (ev) {
+                ev.preventDefault();
+                ev.stopPropagation();
+                if (typeof openNavCustomizeModal === 'function') {
+                    openNavCustomizeModal();
+                }
+            };
+            navCard.addEventListener('click', openNav);
+            navCard.addEventListener('keydown', function (ev) {
+                if (ev.key === 'Enter' || ev.key === ' ') {
+                    openNav(ev);
+                }
+            });
         });
     }
 

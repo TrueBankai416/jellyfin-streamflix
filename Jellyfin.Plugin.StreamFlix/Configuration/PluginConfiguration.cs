@@ -154,6 +154,9 @@ public class PluginConfiguration : BasePluginConfiguration
         HeroSelectionMode = "recent";
         HeroContentType = "all";
         HeroLibraryIds = new List<string>();
+        ShowLibrariesInNav = true;
+        NavHiddenBuiltIns = new List<string>();
+        NavLibraryIds = new List<string>();
         EnableCustomOidc = false;
         OidcProviderName = string.Empty;
         OidcIssuerUrl = string.Empty;
@@ -287,6 +290,21 @@ public class PluginConfiguration : BasePluginConfiguration
     /// Gets or sets optional Jellyfin Library/View IDs allowed in the hero billboard. Empty means all libraries.
     /// </summary>
     public List<string> HeroLibraryIds { get; set; }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether configured Jellyfin media libraries appear as navigation pills in the top bar (respecting per-user library access).
+    /// </summary>
+    public bool ShowLibrariesInNav { get; set; }
+
+    /// <summary>
+    /// Gets or sets built-in navigation pill IDs hidden from the top navigation bar (<c>series</c>, <c>movies</c>, <c>collections</c>, <c>top10</c>, <c>mylist</c>).
+    /// </summary>
+    public List<string> NavHiddenBuiltIns { get; set; }
+
+    /// <summary>
+    /// Gets or sets optional Jellyfin Library/View IDs to display in the top navigation bar when <see cref="ShowLibrariesInNav"/> is enabled. Empty means all accessible video libraries.
+    /// </summary>
+    public List<string> NavLibraryIds { get; set; }
 
     /// <summary>
     /// Gets or sets a value indicating whether Beta Custom OpenID Connect (OIDC) SSO sign-in is enabled.

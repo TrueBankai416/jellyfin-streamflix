@@ -415,6 +415,14 @@
             + '    </span>'
             + '    <span class="bfx-switch' + (hubOn ? ' on' : '') + '" data-cs-hub-switch="1"><i></i></span>'
             + '  </button>'
+            + '  <button type="button" class="bfx-cs-row" data-cs-act="customize-nav">'
+            + '    <span class="bfx-cs-row-ico is-disp">' + icon('sliders') + '</span>'
+            + '    <span class="bfx-cs-row-body">'
+            + '      <span class="bfx-cs-row-title">Navigation Bar Items</span>'
+            + '      <span class="bfx-cs-row-sub">Choose visible tabs &amp; Jellyfin libraries</span>'
+            + '    </span>'
+            + '    <span class="bfx-cs-row-chev">' + icon('chevronRight') + '</span>'
+            + '  </button>'
             + '  <button type="button" class="bfx-cs-row" data-cs-href="#/mypreferencesplayback.html' + escapeHtml(uidSuffix) + '">'
             + '    <span class="bfx-cs-row-ico is-play">' + icon('play') + '</span>'
             + '    <span class="bfx-cs-row-body">'
@@ -463,6 +471,15 @@
                 var sw = hubBtn.querySelector('[data-cs-hub-switch="1"]');
                 if (sw) {
                     sw.classList.toggle('on', next);
+                }
+            });
+        }
+        var navCustBtn = m.modal.querySelector('[data-cs-act="customize-nav"]');
+        if (navCustBtn) {
+            navCustBtn.addEventListener('click', function () {
+                m.close(true);
+                if (typeof openNavCustomizeModal === 'function') {
+                    openNavCustomizeModal();
                 }
             });
         }
@@ -739,8 +756,11 @@
             ? 'App player, downloads & device options'
             : 'Player quality, display & phone options';
 
+        var showPhoneMyListTile = isPhoneSheet
+            && state.cinemaHubEnabled !== false
+            && !(typeof isNavBuiltInHidden === 'function' && isNavBuiltInHidden('mylist'));
         var tilesHtml = ''
-            + (isPhoneSheet && state.cinemaHubEnabled !== false ? ddTile('streamflix-dd-mylist', 'bookmark', 'My List', 'Saved movies & shows', 'is-mylist') : '')
+            + (showPhoneMyListTile ? ddTile('streamflix-dd-mylist', 'bookmark', 'My List', 'Saved movies & shows', 'is-mylist') : '')
             + (canPhoneSurprise ? ddTile('streamflix-dd-surprise', 'shuffle', 'Surprise Me', 'Pick something great to watch', 'is-surprise') : '')
             + (castBtnNative ? ddTile('streamflix-dd-cast', 'cast', castInfo.connected ? 'Casting' : 'Cast', castInfo.connected ? ('Connected to ' + (castInfo.deviceName || 'another device')) : 'Play on a TV, Chromecast or another device', 'is-cast' + (castInfo.connected ? ' is-live' : '')) : '')
             + (!isGuest && !isKidsActive ? ddTile('streamflix-dd-quick-connect', 'tv', 'Quick Connect', 'Sign in on a TV or another device with a 6-digit code', 'is-qc') : '');
@@ -789,7 +809,8 @@
                     + (showClientSettingsRow ? ddItem('streamflix-dd-client-settings', 'smartphone', 'Client Settings', clientSettingsSubLabel, 'is-client-settings', '<span class="bfx-dd-chev">' + icon('chevronRight') + '</span>') : '')
                     + (isCurrentProfileSeerrAllowed() ? ddItem('streamflix-dd-seerr-requests', 'seerrIcon', 'Media Requests', 'Track requested movies & shows', '', '<span class="bfx-dd-chev">' + icon('chevronRight') + '</span>') : '')
                     + (canManageGuestPasses && areGuestPassesEnabled() ? ddItem('streamflix-dd-guest-passes', 'ticket', 'Guest Passes', 'Temporary invite links & QR', '', '<span class="bfx-dd-chev">' + icon('chevronRight') + '</span>') : '')
-                    + (isAdmin ? ddItem('streamflix-dd-dashboard', 'gear', 'Dashboard', 'Server & ' + getBrandName() + ' plugin settings', '', '<span class="bfx-dd-chev">' + icon('chevronRight') + '</span>') : '')
+                    + (isAdmin ? ddItem('streamflix-dd-plugin-settings', 'sliders', getBrandName() + ' Settings', 'Auth, profiles, navigation & hero', '', '<span class="bfx-dd-chev">' + icon('chevronRight') + '</span>') : '')
+                    + (isAdmin ? ddItem('streamflix-dd-dashboard', 'gear', 'Dashboard', 'Jellyfin server administration', '', '<span class="bfx-dd-chev">' + icon('chevronRight') + '</span>') : '')
                     + '<div class="streamflix-dd-divider"></div>'
                     + ddItem('streamflix-dd-signout', 'logout', isGuest ? 'Exit Guest Pass' : 'Sign out', '', 'danger')));
 
@@ -833,6 +854,7 @@
             state.searchResults = null;
             state.seerrSearchResults = null;
             state.browseFilter = null;
+            state.libraryBrowser = null;
             state.activeCategory = 'mylist';
             state.heroIndex = 0;
             if (!isOnHomeRoute()) {
@@ -874,6 +896,9 @@
         });
         bind('streamflix-dd-user-prefs', function () {
             window.location.hash = '#/mypreferencesmenu';
+        });
+        bind('streamflix-dd-plugin-settings', function () {
+            openStreamFlixAdminRoute('#/configurationpage?name=StreamFlix');
         });
         bind('streamflix-dd-dashboard', function () {
             openStreamFlixAdminRoute('#/dashboard');

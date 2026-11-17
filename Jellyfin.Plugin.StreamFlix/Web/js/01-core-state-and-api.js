@@ -1,6 +1,6 @@
 /* ==========================================================================
    STREAMFLIX — Netflix-style UI for Jellyfin: server-verified Google & OIDC SSO,
-   "Who's watching?" profiles, Guest Passes & Seerr (v0.9.2.4)
+   "Who's watching?" profiles, Guest Passes & Seerr (v0.9.2.5)
    ========================================================================== */
 (function () {
     'use strict';
@@ -10,16 +10,18 @@
     }
     window.__STREAMFLIX_BOOTSTRAPPED__ = true;
 
-    var VERSION = '0.9.2.4';
+    var VERSION = '0.9.2.5';
     // Household session issued by the server ({ token, authKind, providerName, email, username, userId, name, picture, isAdmin, guestPassId, lockedProfileId, expiresAt })
     var GOOGLE_KEY = 'streamflix_session_v7';
     var ADMIN_AUTH_KEY = 'streamflix_admin_auth_v1';
     var OAUTH_STATE_KEY = 'streamflix_oauth_state';
+    var OIDC_PENDING_KEY = 'streamflix_oidc_pending_v1';
     var PENDING_PROFILE_KEY = 'streamflix_pending_profile';
     var PROFILE_KEY = 'streamflix_active_profile_v64';
     var LEGACY_PROFILE_KEY = 'streamflix_active_profile_v63';
     var CACHED_CONFIG_KEY = 'streamflix_cached_config_v7';
     var CINEMA_HUB_PREF_KEY = 'streamflix_cinema_hub_enabled_v1';
+    var NAV_PROFILE_PREF_PREFIX = 'streamflix_nav_prefs_v1_';
     var SHOWCASE_ITEMS_KEY = 'streamflix_showcase_items_v1';
 
     // Pre-v7 storage: unsigned client-side Google flag and caches with hard-coded defaults
@@ -96,6 +98,9 @@
         heroSelectionMode: 'recent',
         heroContentType: 'all',
         heroLibraryIds: [],
+        showLibrariesInNav: true,
+        navHiddenBuiltIns: [],
+        navLibraryIds: [],
         approvedGoogleAccounts: [],
         approvedOidcUsers: [],
         serverUsers: [],
@@ -121,8 +126,13 @@
         adminWarmAttempted: false,
         legacyProfileToMigrate: legacyProfileToMigrate,
         manageMode: false,
+        explicitPickerOpen: false,
+        openedDirectlyToManage: false,
+        embeddedAdminModalOpen: false,
+        noBackdropItemIds: {},
         verifyingGoogle: false,
         startingOidcRedirect: false,
+        oidcPollInFlight: false,
         activatingProfileId: null,
         sessionVerifiedOnce: false,
         accountDropdownOpen: false,
@@ -140,6 +150,9 @@
         seerrLocalAbort: null,
         seerrSubmittingMap: {},
         browseFilter: null,
+        libraryBrowser: null,
+        libraryBrowserSeq: 0,
+        libraryViewData: {},
         lastSurpriseId: '',
         activeDetailModal: null,
         itemCache: {},
@@ -159,6 +172,9 @@
             allMovies: [],
             allSeries: [],
             collectionsItems: [],
+            totalMoviesCount: 0,
+            totalSeriesCount: 0,
+            totalCollectionsCount: 0,
             views: []
         },
         heroIndex: 0,
@@ -792,6 +808,9 @@
     }
 
     function isAdminRouteHash() {
+        if (state.embeddedAdminModalOpen) {
+            return true;
+        }
         var h = (window.location.hash || '').toLowerCase();
         return h.indexOf('configurationpage') !== -1
             || h.indexOf('dashboard') !== -1

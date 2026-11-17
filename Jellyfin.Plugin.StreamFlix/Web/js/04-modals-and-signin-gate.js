@@ -176,6 +176,9 @@
     }
 
     function closeOverlayGate() {
+        state.explicitPickerOpen = false;
+        state.openedDirectlyToManage = false;
+        state.manageMode = false;
         document.body.classList.remove('streamflix-gate-locked');
         var root = document.getElementById('streamflix-overlay-root');
         if (!root) {
@@ -497,8 +500,9 @@
             return list;
         }
         var seen = {};
+        var noBackdropMap = state.noBackdropItemIds || {};
 
-        function pushCandidate(id, name, type) {
+        function pushCandidate(id, name, type, hasBackdrop, hasPrimary) {
             if (!id) {
                 return;
             }
@@ -507,18 +511,37 @@
                 return;
             }
             seen[norm] = true;
+            var resolvedBackdrop = noBackdropMap[norm]
+                ? false
+                : (typeof hasBackdrop === 'boolean' ? hasBackdrop : undefined);
+            var resolvedPrimary = typeof hasPrimary === 'boolean' ? hasPrimary : true;
             list.push({
                 id: String(id),
                 name: String(name || 'Featured Title'),
-                type: String(type || 'Movie')
+                type: String(type || 'Movie'),
+                hasBackdrop: resolvedBackdrop,
+                hasPrimary: resolvedPrimary
             });
+        }
+
+        function inferDtoBackdrop(it) {
+            return Boolean(
+                (Array.isArray(it.BackdropImageTags) && it.BackdropImageTags.length > 0)
+                || (Array.isArray(it.ParentBackdropImageTags) && it.ParentBackdropImageTags.length > 0)
+            );
+        }
+
+        function inferDtoPrimary(it) {
+            return Boolean((it.ImageTags && it.ImageTags.Primary) || it.SeriesPrimaryImageTag);
         }
 
         // 1. Server-provided showcaseItems from /StreamFlix/PublicConfig ([AllowAnonymous])
         if (state.config && Array.isArray(state.config.showcaseItems)) {
             state.config.showcaseItems.forEach(function (it) {
                 if (it && (it.id || it.Id)) {
-                    pushCandidate(it.id || it.Id, it.name || it.Name, it.type || it.Type);
+                    var hb = typeof it.hasBackdrop === 'boolean' ? it.hasBackdrop : (it.BackdropImageTags ? inferDtoBackdrop(it) : undefined);
+                    var hp = typeof it.hasPrimary === 'boolean' ? it.hasPrimary : (it.ImageTags ? inferDtoPrimary(it) : true);
+                    pushCandidate(it.id || it.Id, it.name || it.Name, it.type || it.Type, hb, hp);
                 }
             });
         }
@@ -535,7 +558,7 @@
                 if (Array.isArray(pool)) {
                     pool.forEach(function (it) {
                         if (it && it.Id && (it.Type === 'Movie' || it.Type === 'Series')) {
-                            pushCandidate(it.Id, it.Name, it.Type);
+                            pushCandidate(it.Id, it.Name, it.Type, inferDtoBackdrop(it), inferDtoPrimary(it));
                         }
                     });
                 }
@@ -547,7 +570,9 @@
         if (Array.isArray(cachedShowcase)) {
             cachedShowcase.forEach(function (it) {
                 if (it && (it.id || it.Id)) {
-                    pushCandidate(it.id || it.Id, it.name || it.Name, it.type || it.Type);
+                    var hbCached = typeof it.hasBackdrop === 'boolean' ? it.hasBackdrop : undefined;
+                    var hpCached = typeof it.hasPrimary === 'boolean' ? it.hasPrimary : true;
+                    pushCandidate(it.id || it.Id, it.name || it.Name, it.type || it.Type, hbCached, hpCached);
                 }
             });
         }
@@ -557,12 +582,15 @@
             Object.keys(state.itemCache).forEach(function (k) {
                 var it = state.itemCache[k];
                 if (it && it.Id && (it.Type === 'Movie' || it.Type === 'Series')) {
-                    pushCandidate(it.Id, it.Name, it.Type);
+                    pushCandidate(it.Id, it.Name, it.Type, inferDtoBackdrop(it), inferDtoPrimary(it));
                 }
             });
         }
 
-        return list;
+        // Prefer titles with verified backdrops first so the wall avoids missing-image tiles
+        var withBd = list.filter(function (x) { return x.hasBackdrop === true; });
+        var other = list.filter(function (x) { return x.hasBackdrop !== true && (x.hasBackdrop !== false || x.hasPrimary !== false); });
+        return withBd.length >= 12 ? withBd.concat(other) : list;
     }
 
     function buildNetflixBackdropWallGridTilesHtml() {
@@ -578,18 +606,30 @@
         ];
         var base = apiBase();
         var brandInitial = getBrandLogoText().charAt(0) || 'S';
+        var noBackdropMap = state.noBackdropItemIds || {};
         var tilesHtml = '';
 
         for (var i = 0; i < totalTiles; i++) {
             var palette = fallbackPalettes[i % fallbackPalettes.length];
             if (items.length > 0) {
                 var item = items[i % items.length];
+                var normId = normalizeGuid(item.id);
                 var eid = encodeURIComponent(item.id);
+                var canUseBackdrop = item.hasBackdrop !== false && !noBackdropMap[normId];
+                var canUsePrimary = item.hasPrimary !== false;
                 var backdropSrc = base + '/Items/' + eid + '/Images/Backdrop/0?maxWidth=520&quality=80';
                 var primarySrc = base + '/Items/' + eid + '/Images/Primary?maxWidth=380&quality=80';
+                var imgTagHtml = '';
+                if (canUseBackdrop) {
+                    imgTagHtml = '  <img src="' + escapeHtml(backdropSrc) + '"'
+                        + (canUsePrimary ? (' data-fallback-src="' + escapeHtml(primarySrc) + '"') : '')
+                        + ' data-wall-item-id="' + escapeHtml(normId) + '" data-wall-kind="backdrop" alt="' + escapeHtml(item.name) + '" loading="eager" decoding="async" />';
+                } else if (canUsePrimary) {
+                    imgTagHtml = '  <img src="' + escapeHtml(primarySrc) + '" data-wall-item-id="' + escapeHtml(normId) + '" data-wall-kind="primary" alt="' + escapeHtml(item.name) + '" loading="eager" decoding="async" />';
+                }
                 tilesHtml += ''
                     + '<div class="streamflix-netflix-wall-tile" style="background:' + palette + ';">'
-                    + '  <img src="' + escapeHtml(backdropSrc) + '" data-fallback-src="' + escapeHtml(primarySrc) + '" alt="' + escapeHtml(item.name) + '" loading="eager" decoding="async" />'
+                    + imgTagHtml
                     + '  <span class="streamflix-netflix-wall-badge">' + escapeHtml(brandInitial) + '</span>'
                     + '  <div class="streamflix-netflix-wall-caption">' + escapeHtml(item.name) + '</div>'
                     + '</div>';
@@ -630,9 +670,14 @@
                 });
             }
             img.addEventListener('error', function () {
+                var wallId = img.getAttribute('data-wall-item-id');
+                if (wallId && img.getAttribute('data-wall-kind') === 'backdrop') {
+                    state.noBackdropItemIds[wallId] = true;
+                }
                 var fallback = img.getAttribute('data-fallback-src');
                 if (fallback && img.getAttribute('data-tried-fallback') !== '1') {
                     img.setAttribute('data-tried-fallback', '1');
+                    img.setAttribute('data-wall-kind', 'primary');
                     img.src = fallback;
                 } else {
                     img.style.display = 'none';

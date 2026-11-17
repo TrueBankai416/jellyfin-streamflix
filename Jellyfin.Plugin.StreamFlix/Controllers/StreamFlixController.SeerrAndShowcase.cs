@@ -738,11 +738,12 @@ public partial class StreamFlixController
                 }
             }
 
-            queryType.GetProperty("Limit")?.SetValue(query, 48);
+            queryType.GetProperty("Limit")?.SetValue(query, 72);
 
             var getItemList = typeof(ILibraryManager).GetMethod("GetItemList", new[] { queryType });
             if (getItemList?.Invoke(libraryManager, new[] { query }) is System.Collections.IEnumerable items)
             {
+                var fallbackWithoutBackdrop = new List<object>();
                 foreach (var item in items)
                 {
                     if (item == null)
@@ -760,16 +761,39 @@ public partial class StreamFlixController
                             || string.Equals(typeName, "Series", StringComparison.OrdinalIgnoreCase)
                             || string.Equals(typeName, "Video", StringComparison.OrdinalIgnoreCase))
                         {
-                            result.Add(new
+                            var (hasBackdrop, hasPrimary) = InspectItemImagesCompat(item);
+                            var dto = new
                             {
                                 id = id.ToString("N"),
                                 name,
                                 type = typeName,
-                            });
-                            if (result.Count >= 36)
+                                hasBackdrop,
+                                hasPrimary,
+                            };
+                            if (hasBackdrop)
                             {
-                                break;
+                                result.Add(dto);
+                                if (result.Count >= 36)
+                                {
+                                    break;
+                                }
                             }
+                            else if (fallbackWithoutBackdrop.Count < 36)
+                            {
+                                fallbackWithoutBackdrop.Add(dto);
+                            }
+                        }
+                    }
+                }
+
+                if (result.Count < 36 && fallbackWithoutBackdrop.Count > 0)
+                {
+                    foreach (var extra in fallbackWithoutBackdrop)
+                    {
+                        result.Add(extra);
+                        if (result.Count >= 36)
+                        {
+                            break;
                         }
                     }
                 }
@@ -780,6 +804,67 @@ public partial class StreamFlixController
         }
 
         return result;
+    }
+
+    private static (bool HasBackdrop, bool HasPrimary) InspectItemImagesCompat(object item)
+    {
+        var hasBackdrop = false;
+        var hasPrimary = false;
+        try
+        {
+            var t = item.GetType();
+            var backdropProp = t.GetProperty("BackdropImagePaths");
+            if (backdropProp?.GetValue(item) is System.Collections.IEnumerable bpList)
+            {
+                foreach (var entry in bpList)
+                {
+                    if (entry is string s && !string.IsNullOrWhiteSpace(s))
+                    {
+                        hasBackdrop = true;
+                        break;
+                    }
+                }
+            }
+
+            var primaryProp = t.GetProperty("PrimaryImagePath");
+            if (primaryProp?.GetValue(item) is string primStr && !string.IsNullOrWhiteSpace(primStr))
+            {
+                hasPrimary = true;
+            }
+
+            if (!hasBackdrop || !hasPrimary)
+            {
+                foreach (var m in t.GetMethods().Where(m => string.Equals(m.Name, "HasImage", StringComparison.Ordinal)))
+                {
+                    var ps = m.GetParameters();
+                    if (ps.Length is 1 or 2 && ps[0].ParameterType.IsEnum)
+                    {
+                        if (!hasBackdrop && Enum.TryParse(ps[0].ParameterType, "Backdrop", ignoreCase: true, out var bdEnum) && bdEnum != null)
+                        {
+                            var args = ps.Length == 2 ? new object[] { bdEnum, 0 } : new object[] { bdEnum };
+                            if (m.Invoke(item, args) is bool b && b)
+                            {
+                                hasBackdrop = true;
+                            }
+                        }
+
+                        if (!hasPrimary && Enum.TryParse(ps[0].ParameterType, "Primary", ignoreCase: true, out var prEnum) && prEnum != null)
+                        {
+                            var args = ps.Length == 2 ? new object[] { prEnum, 0 } : new object[] { prEnum };
+                            if (m.Invoke(item, args) is bool p && p)
+                            {
+                                hasPrimary = true;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        catch
+        {
+        }
+
+        return (hasBackdrop, hasPrimary);
     }
 
     private object SerializeSeerrDetail(StreamFlixSeerrService.SeerrMediaDetail d)

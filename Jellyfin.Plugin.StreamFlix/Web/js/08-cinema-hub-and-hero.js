@@ -1173,6 +1173,7 @@
                 return null;
             }
             var kFilter = typeof filterItemsForKidsMode === 'function' ? filterItemsForKidsMode : function (arr) { return arr || []; };
+            var kidsActive = typeof isKidsProfileActive === 'function' && isKidsProfileActive();
             state.hubData.rawHeroItems = kFilter((results[0] && results[0].Items) || []);
             state.hubData.resumeItems = kFilter((results[1] && results[1].Items) || []);
             state.hubData.nextUpItems = kFilter((results[2] && results[2].Items) || []);
@@ -1183,6 +1184,18 @@
             state.hubData.recentMovies = state.hubData.allMovies.slice(0, 18);
             state.hubData.recentSeries = state.hubData.allSeries.slice(0, 18);
             state.hubData.collectionsItems = kFilter((results[7] && results[7].Items) || []);
+            var rawMoviesTotal = Number(results[5] && results[5].TotalRecordCount) || 0;
+            var rawSeriesTotal = Number(results[6] && results[6].TotalRecordCount) || 0;
+            var rawCollectionsTotal = Number(results[7] && results[7].TotalRecordCount) || 0;
+            state.hubData.totalMoviesCount = kidsActive
+                ? state.hubData.allMovies.length
+                : Math.max(rawMoviesTotal, state.hubData.allMovies.length);
+            state.hubData.totalSeriesCount = kidsActive
+                ? state.hubData.allSeries.length
+                : Math.max(rawSeriesTotal, state.hubData.allSeries.length);
+            state.hubData.totalCollectionsCount = kidsActive
+                ? state.hubData.collectionsItems.length
+                : Math.max(rawCollectionsTotal, state.hubData.collectionsItems.length);
             state.hubData.views = (results[8] && results[8].Items) || [];
             state.hubData.popularScores = (results[9] && results[9].scores) || {};
             state.hubData.filteredHeroPool = [];
@@ -1256,6 +1269,15 @@
                         });
                         state.hubData.recentMovies = state.hubData.allMovies.slice(0, 18);
                         state.hubData.recentSeries = state.hubData.allSeries.slice(0, 18);
+                        if (!state.hubData.totalMoviesCount) {
+                            state.hubData.totalMoviesCount = state.hubData.allMovies.length;
+                        }
+                        if (!state.hubData.totalSeriesCount) {
+                            state.hubData.totalSeriesCount = state.hubData.allSeries.length;
+                        }
+                        if (!state.hubData.totalCollectionsCount) {
+                            state.hubData.totalCollectionsCount = state.hubData.collectionsItems.length;
+                        }
                     })
                 );
             }
@@ -2018,17 +2040,20 @@
             + '</section>';
     }
 
-    function buildGridSectionHtml(sectionId, title, itemsList) {
+    function buildGridSectionHtml(sectionId, title, itemsList, opts) {
         if (!Array.isArray(itemsList) || itemsList.length === 0) {
             return '';
         }
+        opts = opts || {};
         var cardsHtml = itemsList.map(buildPosterCardHtml).join('');
         return ''
             + '<section class="streamflix-row streamflix-row-grid" data-row-id="' + escapeHtml(sectionId) + '">'
             + '  <div class="streamflix-row-header">'
             + '    <h2 class="streamflix-row-title">' + title + '</h2>'
+            + (opts.actionHtml || '')
             + '  </div>'
             + '  <div class="streamflix-grid">' + cardsHtml + '</div>'
+            + (opts.footerHtml || '')
             + '</section>';
     }
 
