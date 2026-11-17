@@ -166,6 +166,15 @@ public partial class StreamFlixController
             });
         }
 
+        if (isAdminUser && !caller.IsAdmin)
+        {
+            return StatusCode(403, new
+            {
+                code = "admin_profile_required",
+                message = "Only a Jellyfin Administrator can sign in to an administrator profile.",
+            });
+        }
+
         var needsUserUpdate = false;
         if (isAdminUser)
         {

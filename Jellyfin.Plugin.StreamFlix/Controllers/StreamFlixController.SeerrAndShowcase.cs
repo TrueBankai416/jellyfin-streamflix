@@ -952,13 +952,45 @@ public partial class StreamFlixController
             return Task.FromResult<(bool, bool, StreamFlixProfileConfig?, string)>((false, false, null, "Media requests are disabled for Guest Pass sessions."));
         }
 
-        var effectiveProfileId = isGuest ? caller.Session?.LockedProfileId : requestedProfileId;
-        var profile = FindProfile(config, effectiveProfileId);
-        if (profile == null && caller.JellyfinUser != null)
+        StreamFlixProfileConfig? profile;
+        if (isGuest)
         {
-            var callerUid = caller.JellyfinUser.Id.ToString("N");
-            profile = (config.Profiles ?? new List<StreamFlixProfileConfig>())
-                .FirstOrDefault(p => string.Equals(p.JellyfinUserId, callerUid, StringComparison.OrdinalIgnoreCase));
+            profile = FindProfile(config, caller.Session?.LockedProfileId);
+        }
+        else if (caller.IsAdmin)
+        {
+            profile = FindProfile(config, requestedProfileId);
+        }
+        else
+        {
+            var profiles = config.Profiles ?? new List<StreamFlixProfileConfig>();
+            var callerJellyfinUserId = caller.JellyfinUser?.Id.ToString("N");
+            if (string.IsNullOrWhiteSpace(callerJellyfinUserId)
+                && caller.Session != null
+                && (string.Equals(caller.Session.AuthKind, StreamFlixSessionService.AuthKindJellyfin, StringComparison.Ordinal)
+                    || string.Equals(caller.Session.AuthKind, StreamFlixSessionService.AuthKindJellyfinAdmin, StringComparison.Ordinal)))
+            {
+                callerJellyfinUserId = caller.Session.JellyfinUserId;
+            }
+
+            var matchingProfiles = !string.IsNullOrWhiteSpace(callerJellyfinUserId)
+                ? profiles.Where(p => Guid.TryParse(p.JellyfinUserId, out var linkedUserId)
+                    && string.Equals(linkedUserId.ToString("N"), callerJellyfinUserId, StringComparison.OrdinalIgnoreCase)).ToList()
+                : caller.Session == null
+                    ? new List<StreamFlixProfileConfig>()
+                    : profiles.Where(p => !string.IsNullOrWhiteSpace(p.GoogleAccountEmail)
+                        && DoesCallerOwnExplicitLock(config, p.GoogleAccountEmail, p.AccountLockKind, caller)).ToList();
+
+            var requestedProfile = FindProfile(config, requestedProfileId);
+            if (matchingProfiles.Count != 1
+                || (!string.IsNullOrWhiteSpace(requestedProfileId)
+                    && (requestedProfile == null
+                        || !string.Equals(matchingProfiles[0].Id, requestedProfile.Id, StringComparison.OrdinalIgnoreCase))))
+            {
+                return Task.FromResult<(bool, bool, StreamFlixProfileConfig?, string)>((false, false, null, "The selected profile is not bound to your authenticated account."));
+            }
+
+            profile = matchingProfiles[0];
         }
 
         var isKids = profile?.IsKids == true;
