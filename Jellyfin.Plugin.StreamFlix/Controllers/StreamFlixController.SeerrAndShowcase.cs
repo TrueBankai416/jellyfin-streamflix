@@ -214,17 +214,24 @@ public partial class StreamFlixController
         SetNoStoreSecurityHeaders();
         var config = Config;
         var caller = await GetCallerAsync(config).ConfigureAwait(false);
-        var (allowed, isKids, _, denyReason) = await EvaluateSeerrPermissionAsync(config, caller, profileId).ConfigureAwait(false);
+        var (allowed, isKids, resolvedProfile, denyReason) = await EvaluateSeerrPermissionAsync(config, caller, profileId).ConfigureAwait(false);
         if (!allowed)
         {
             return StatusCode(403, new { code = "seerr_forbidden", message = denyReason });
         }
 
+        var effectiveAdmin = IsEffectiveActiveAdmin(caller);
         try
         {
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(HttpContext.RequestAborted);
             cts.CancelAfter(TimeSpan.FromSeconds(12));
-            var list = await StreamFlixSeerrService.GetRecentRequestsAsync(config, isKids, cts.Token).ConfigureAwait(false);
+            var list = await StreamFlixSeerrService.GetRecentRequestsAsync(
+                config,
+                isKids,
+                effectiveAdmin,
+                resolvedProfile,
+                caller.Session?.Email,
+                cts.Token).ConfigureAwait(false);
             return Ok(new
             {
                 requests = list.Select(r => new
@@ -243,6 +250,7 @@ public partial class StreamFlixController
                     downloadProgress = r.DownloadProgress,
                     seasons = r.Seasons,
                     createdAt = r.CreatedAt,
+                    canCancel = r.CanCancel,
                     jellyfinMediaId = VerifyLocalJellyfinMediaId(r.JellyfinMediaId),
                 }).ToList(),
             });
@@ -287,6 +295,7 @@ public partial class StreamFlixController
             return StatusCode(429, new { ok = false, code = "rate_limited", message = "Too many media requests submitted recently. Please wait a couple of minutes." });
         }
 
+        var effectiveAdmin = IsEffectiveActiveAdmin(caller);
         try
         {
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(HttpContext.RequestAborted);
@@ -300,6 +309,7 @@ public partial class StreamFlixController
                 request.ServerId,
                 resolvedProfile,
                 caller.Session?.Email,
+                effectiveAdmin,
                 cts.Token).ConfigureAwait(false);
 
             return Ok(new
@@ -310,6 +320,10 @@ public partial class StreamFlixController
                 statusLabel = res.StatusLabel,
                 message = res.Message,
             });
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return StatusCode(403, new { ok = false, code = "seerr_permission_denied", message = ex.Message });
         }
         catch (OperationCanceledException) when (!HttpContext.RequestAborted.IsCancellationRequested)
         {
@@ -335,18 +349,29 @@ public partial class StreamFlixController
 
         var config = Config;
         var caller = await GetCallerAsync(config).ConfigureAwait(false);
-        var (allowed, _, _, denyReason) = await EvaluateSeerrPermissionAsync(config, caller, request.ProfileId).ConfigureAwait(false);
+        var (allowed, _, resolvedProfile, denyReason) = await EvaluateSeerrPermissionAsync(config, caller, request.ProfileId).ConfigureAwait(false);
         if (!allowed)
         {
             return StatusCode(403, new { ok = false, code = "seerr_forbidden", message = denyReason });
         }
 
+        var effectiveAdmin = IsEffectiveActiveAdmin(caller);
         try
         {
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(HttpContext.RequestAborted);
             cts.CancelAfter(TimeSpan.FromSeconds(12));
-            var (ok, message) = await StreamFlixSeerrService.CancelRequestAsync(config, request.RequestId, cts.Token).ConfigureAwait(false);
+            var (ok, message) = await StreamFlixSeerrService.CancelRequestAsync(
+                config,
+                request.RequestId,
+                effectiveAdmin,
+                resolvedProfile,
+                caller.Session?.Email,
+                cts.Token).ConfigureAwait(false);
             return Ok(new { ok, message });
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return StatusCode(403, new { ok = false, code = "seerr_cancel_forbidden", message = ex.Message });
         }
         catch (OperationCanceledException) when (!HttpContext.RequestAborted.IsCancellationRequested)
         {
@@ -952,45 +977,55 @@ public partial class StreamFlixController
             return Task.FromResult<(bool, bool, StreamFlixProfileConfig?, string)>((false, false, null, "Media requests are disabled for Guest Pass sessions."));
         }
 
-        StreamFlixProfileConfig? profile;
+        StreamFlixProfileConfig? profile = null;
         if (isGuest)
         {
             profile = FindProfile(config, caller.Session?.LockedProfileId);
+            if (profile == null || IsProfileLinkedToAdmin(profile))
+            {
+                return Task.FromResult<(bool, bool, StreamFlixProfileConfig?, string)>((false, false, null, "Guest Pass profile is unavailable."));
+            }
         }
-        else if (caller.IsAdmin)
+        else if (IsEffectiveActiveAdmin(caller))
         {
             profile = FindProfile(config, requestedProfileId);
+            if (profile == null && caller.JellyfinUser != null)
+            {
+                var adminUid = caller.JellyfinUser.Id.ToString("N");
+                profile = (config.Profiles ?? new List<StreamFlixProfileConfig>())
+                    .FirstOrDefault(p => string.Equals(p.JellyfinUserId, adminUid, StringComparison.OrdinalIgnoreCase));
+            }
         }
         else
         {
-            var profiles = config.Profiles ?? new List<StreamFlixProfileConfig>();
-            var callerJellyfinUserId = caller.JellyfinUser?.Id.ToString("N");
-            if (string.IsNullOrWhiteSpace(callerJellyfinUserId)
-                && caller.Session != null
-                && (string.Equals(caller.Session.AuthKind, StreamFlixSessionService.AuthKindJellyfin, StringComparison.Ordinal)
-                    || string.Equals(caller.Session.AuthKind, StreamFlixSessionService.AuthKindJellyfinAdmin, StringComparison.Ordinal)))
+            if (caller.JellyfinUser == null)
             {
-                callerJellyfinUserId = caller.Session.JellyfinUserId;
+                return Task.FromResult<(bool, bool, StreamFlixProfileConfig?, string)>((false, false, null, "Activate a household profile before using Media Requests."));
             }
 
-            var matchingProfiles = !string.IsNullOrWhiteSpace(callerJellyfinUserId)
-                ? profiles.Where(p => Guid.TryParse(p.JellyfinUserId, out var linkedUserId)
-                    && string.Equals(linkedUserId.ToString("N"), callerJellyfinUserId, StringComparison.OrdinalIgnoreCase)).ToList()
-                : caller.Session == null
-                    ? new List<StreamFlixProfileConfig>()
-                    : profiles.Where(p => !string.IsNullOrWhiteSpace(p.GoogleAccountEmail)
-                        && DoesCallerOwnExplicitLock(config, p.GoogleAccountEmail, p.AccountLockKind, caller)).ToList();
+            var callerUid = caller.JellyfinUser.Id.ToString("N");
+            var ownedProfiles = (config.Profiles ?? new List<StreamFlixProfileConfig>())
+                .Where(p => string.Equals(p.JellyfinUserId, callerUid, StringComparison.OrdinalIgnoreCase))
+                .ToList();
 
-            var requestedProfile = FindProfile(config, requestedProfileId);
-            if (matchingProfiles.Count != 1
-                || (!string.IsNullOrWhiteSpace(requestedProfileId)
-                    && (requestedProfile == null
-                        || !string.Equals(matchingProfiles[0].Id, requestedProfile.Id, StringComparison.OrdinalIgnoreCase))))
+            if (!string.IsNullOrWhiteSpace(requestedProfileId))
             {
-                return Task.FromResult<(bool, bool, StreamFlixProfileConfig?, string)>((false, false, null, "The selected profile is not bound to your authenticated account."));
-            }
+                var requested = FindProfile(config, requestedProfileId);
+                if (requested == null || !string.Equals(requested.JellyfinUserId, callerUid, StringComparison.OrdinalIgnoreCase))
+                {
+                    return Task.FromResult<(bool, bool, StreamFlixProfileConfig?, string)>((false, false, null, "You can only access Media Requests for your currently active profile."));
+                }
 
-            profile = matchingProfiles[0];
+                profile = requested;
+            }
+            else
+            {
+                profile = ownedProfiles.FirstOrDefault();
+                if (profile == null)
+                {
+                    return Task.FromResult<(bool, bool, StreamFlixProfileConfig?, string)>((false, false, null, "Your Jellyfin account is not linked to an active StreamFlix profile."));
+                }
+            }
         }
 
         var isKids = profile?.IsKids == true;

@@ -254,6 +254,8 @@ public class SaveAdminConfigRequest
 
     public bool EnableGuestPasses { get; set; } = true;
 
+    public List<string>? GuestPassManagerProfileIds { get; set; }
+
     public bool EnableWatchTogether { get; set; } = true;
 
     public bool EnableSeerr { get; set; }

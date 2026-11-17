@@ -1083,6 +1083,8 @@
             kidsExitPinRequired: p.kidsExitPinRequired !== false,
             isAdmin: Boolean(p.isAdmin),
             isOwner: Boolean(p.isOwner || p.id === 'streamflix_owner'),
+            canActivate: p.canActivate !== false,
+            canManageGuestPasses: Boolean(p.canManageGuestPasses || (p.isAdmin && !p.isKids)),
             autoplayNextEpisode: p.autoplayNextEpisode !== false,
             maxParentalRating: p.maturityRating || p.maxParentalRating || (p.isKids ? 'Older Kids (TV-Y7 / PG)' : 'TV-MA / R (All Maturity Levels)'),
             hasPin: Boolean(p.hasPin),
@@ -1333,6 +1335,17 @@
             showcaseItems: serverShowcase,
             profiles: normalizedProfiles
         };
+
+        if (state.activeProfile && state.activeProfile.id && normalizedProfiles.length > 0) {
+            for (var apIdx = 0; apIdx < normalizedProfiles.length; apIdx++) {
+                if (normalizedProfiles[apIdx].id === state.activeProfile.id) {
+                    state.activeProfile.isAdmin = normalizedProfiles[apIdx].isAdmin;
+                    state.activeProfile.canManageGuestPasses = normalizedProfiles[apIdx].canManageGuestPasses;
+                    saveJson(PROFILE_KEY, state.activeProfile);
+                    break;
+                }
+            }
+        }
 
         // A token the server no longer accepts has expired or been revoked ("Sign out all devices")
         if (state.googleUser && state.googleUser.token) {
