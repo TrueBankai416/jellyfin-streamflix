@@ -1,7 +1,7 @@
 ---
 name: "StreamFlix"
 guid: "7cc1a505-91f6-4661-b4f9-7eee8be33b19"
-version: "0.9.2.7"
+version: "0.9.2.8"
 targetAbi: "12.0.0.0"
 framework: "net10.0"
 owner: "StreamFlix"
@@ -18,4 +18,4 @@ imageUrl: "https://raw.githubusercontent.com/streamflix-dev/jellyfin-streamflix/
 artifacts:
   - "Jellyfin.Plugin.StreamFlix.dll"
 changelog: >
-  - Clean Disable/Uninstall Recovery, Jellyfin Media Player Compatibility, Household Profile Security, Tailscale Dashboard Fix, Cold-Load Speedup, Seerr Tracker & Direct Downloads: eliminate persistent disk branding/index.html writes and scope all CSS overrides to body.bfx-active so disabling StreamFlix immediately restores 100% vanilla Jellyfin UI (#17, #16); bypass StreamFlix injection and card interceptors in Jellyfin Media Player for Windows (#16); restrict Standard Jellyfin Login household access to linked household profiles and enforce active-profile admin checks across profile deletion/reordering/editing, admin config, and device management (#11, #8, #3); recognize Tailscale CGNAT (100.64.0.0/10) as local network and prevent non-admin tokens from overriding Jellyfin Dashboard API calls (#12); add 2-stage progressive Cinema Hub loading, sessionStorage SWR, and non-blocking server popularity/showcase caches (#13); fix Visible Jellyfin Libraries navigation bar filtering and deduplication (#14); fix Seerr Tracker timeouts and sequential auth probe delays (#15); fix Jellyfin 12 download endpoint compatibility and add direct Movie & Episode Download buttons (#10)
+  - Jellyfin Media Player Full StreamFlix UI Support & Native Download Apikey Fix: restore full StreamFlix Cinema UI in Jellyfin Media Player for Windows while fixing idle .videoPlayerContainer detection, ServerConnections auth resolution, and preserving JMP's native mpv player (#16); update direct media download URLs to use Jellyfin's native ?Apikey= parameter so downloads succeed without HTTP 401 (#18, #10); plus all v0.9.2.7 clean disable recovery (#17), household profile security (#11, #8, #3), Tailscale LAN support (#12), cold-load speedup (#13), Visible Jellyfin Libraries nav fix (#14), and Seerr Tracker fix (#15)

@@ -1265,7 +1265,7 @@
     };
 
     function bootstrap() {
-        if (isNativeDesktopShellClient()) {
+        if (isBundledLocalProtocolOnly()) {
             state.pluginDisabled = true;
             teardownStreamFlixUi();
             return;
