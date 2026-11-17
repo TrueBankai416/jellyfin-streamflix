@@ -381,9 +381,13 @@ public partial class StreamFlixController
             .FirstOrDefault(p => StreamFlixStartupTask.IsOwnerProfile(p) || IsProfileLinkedToAdmin(p));
 
         JUser? adminUser = caller.JellyfinUser;
-        if (adminUser == null && caller.Session != null && Guid.TryParse(caller.Session.JellyfinUserId, out var sessUid))
+        if (adminUser == null
+            || StreamFlixStartupTask.IsUserDisabledCompat(adminUser)
+            || !StreamFlixStartupTask.IsUserAdminCompat(adminUser))
         {
-            adminUser = _userManager.GetUserById(sessUid);
+            adminUser = caller.Session != null && Guid.TryParse(caller.Session.JellyfinUserId, out var sessUid)
+                ? _userManager.GetUserById(sessUid)
+                : null;
         }
 
         if (adminUser == null || StreamFlixStartupTask.IsUserDisabledCompat(adminUser) || !StreamFlixStartupTask.IsUserAdminCompat(adminUser))
