@@ -1,6 +1,6 @@
 /* ==========================================================================
    STREAMFLIX — Netflix-style UI for Jellyfin: server-verified Google & OIDC SSO,
-   "Who's watching?" profiles, Guest Passes & Seerr (v0.9.2.11)
+   "Who's watching?" profiles, Guest Passes & Seerr (v0.9.2.12)
    ========================================================================== */
 (function () {
     'use strict';
@@ -10,7 +10,7 @@
     }
     window.__STREAMFLIX_BOOTSTRAPPED__ = true;
 
-    var VERSION = '0.9.2.11';
+    var VERSION = '0.9.2.12';
     // Household session issued by the server ({ token, authKind, providerName, email, username, userId, name, picture, isAdmin, guestPassId, lockedProfileId, expiresAt })
     var GOOGLE_KEY = 'streamflix_session_v7';
     var ADMIN_AUTH_KEY = 'streamflix_admin_auth_v1';
@@ -23,6 +23,7 @@
     var CACHED_CONFIG_KEY = 'streamflix_cached_config_v7';
     var CINEMA_HUB_PREF_KEY = 'streamflix_cinema_hub_enabled_v1';
     var NAV_PROFILE_PREF_PREFIX = 'streamflix_nav_prefs_v1_';
+    var RECENT_SEARCHES_PREFIX = 'streamflix_recent_searches_v1_';
     var SHOWCASE_ITEMS_KEY = 'streamflix_showcase_items_v1';
 
     // Pre-v7 storage: unsigned client-side Google flag and caches with hard-coded defaults
@@ -146,9 +147,15 @@
         kidsWorld: 'all',
         mobileSearchOpen: false,
         searchQuery: '',
+        searchTypeFilter: 'all',
+        searchGenreFilter: '',
         searchDebounce: null,
+        searchRecentTimer: null,
         searchSeq: 0,
+        searchLocalLoading: false,
         searchResults: null,
+        searchPeopleResults: null,
+        searchPeopleAbort: null,
         seerrSearchLoading: false,
         seerrSearchResults: null,
         seerrSearchAbort: null,
