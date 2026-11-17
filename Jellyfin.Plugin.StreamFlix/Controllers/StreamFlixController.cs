@@ -152,7 +152,11 @@ public partial class StreamFlixController : ControllerBase
         Plugin.Instance?.EnsureInjectedThrottled();
         var config = Config;
         var caller = await GetCallerAsync(config).ConfigureAwait(false);
-        await SyncProfilesAsync(config, force: false).ConfigureAwait(false);
+        if (HasHouseholdAccess(config, caller))
+        {
+            await SyncProfilesAsync(config, force: false).ConfigureAwait(false);
+        }
+
         return Ok(BuildPublicState(config, caller));
     }
 
@@ -349,6 +353,7 @@ public partial class StreamFlixController : ControllerBase
                     .Distinct(StringComparer.OrdinalIgnoreCase)
                     .ToList();
             }
+
             config.EnableWatchTogether = request.EnableWatchTogether;
 
             Plugin.Instance?.SaveConfiguration();
@@ -441,10 +446,19 @@ public partial class StreamFlixController : ControllerBase
 
     private static bool HasHouseholdAccess(PluginConfiguration config, CallerContext caller)
     {
+        if (caller.IsAdmin)
+        {
+            return true;
+        }
+
+        if (IsGateUnconfigured(config))
+        {
+            return false;
+        }
+
         return (config.BypassLoginGateOnLan && caller.IsLocalLan)
             || caller.Session != null
-            || caller.IsAdmin
-            || (caller.IsJellyfinAuthenticated && (!config.RequireGoogleAuth || config.AllowStandardJellyfinLogin || IsGateUnconfigured(config)));
+            || (config.AllowStandardJellyfinLogin && caller.IsJellyfinAuthenticated && caller.JellyfinUser != null);
     }
 
     private static string ComputeCredentialFingerprint(string value)

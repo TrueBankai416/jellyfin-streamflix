@@ -1136,10 +1136,12 @@
 
     var adminElevationInFlight = false;
     function warmAdminAuthSilently() {
+        var canElevateCurrent = (typeof isActiveProfileAdmin === 'function' && isActiveProfileAdmin())
+            || isCurrentJellyfinClientAdmin();
         if (state.adminWarmAttempted
             || adminElevationInFlight
             || isGuestPassSession()
-            || !isHouseholdAdmin()
+            || !canElevateCurrent
             || (state.adminAuth && state.adminAuth.accessToken && state.adminAuth.userId)) {
             return;
         }
@@ -1170,6 +1172,17 @@
 
     function openStreamFlixAdminRoute(targetHash, suppliedPin) {
         var dest = String(targetHash || '#/configurationpage?name=StreamFlix').trim();
+        if (isGuestPassSession()) {
+            showToast('Guest Pass sessions cannot open Administrator settings.', 'error');
+            return;
+        }
+        var canUseAdmin = (typeof isActiveProfileAdmin === 'function' && isActiveProfileAdmin())
+            || isCurrentJellyfinClientAdmin()
+            || (!state.activeProfile && isHouseholdAdmin());
+        if (!canUseAdmin) {
+            showToast('Switch to an Administrator profile first to open Server Settings.', 'error');
+            return;
+        }
         if (!suppliedPin && isCurrentJellyfinClientAdmin()) {
             var liveInfo = getUnderlyingApiClientAuth();
             if (liveInfo.userId && liveInfo.accessToken) {
@@ -1184,7 +1197,7 @@
             navigateDirectAdminTarget(dest);
             return;
         }
-        if (!suppliedPin && !isGuestPassSession() && state.adminAuth && state.adminAuth.accessToken && state.adminAuth.userId) {
+        if (!suppliedPin && state.adminAuth && state.adminAuth.accessToken && state.adminAuth.userId) {
             enterAdminRouteWithAuth(state.adminAuth, dest);
             return;
         }

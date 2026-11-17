@@ -35,6 +35,10 @@
             showToast('Temporary Guest Passes are turned off in Dashboard → Plugins → StreamFlix.', 'info');
             return;
         }
+        if (typeof canActiveProfileManageGuestPasses === 'function' && !canActiveProfileManageGuestPasses()) {
+            showToast('This profile does not have permission to manage Guest Passes.', 'error');
+            return;
+        }
         var passes = [];
         var eligibleProfiles = [];
         var spotlightInfo = null;
@@ -881,6 +885,7 @@
                 seerrItem.statusLabel = nextLabel;
                 if (res && res.requestId) {
                     activeRequestId = Number(res.requestId);
+                    seerrItem.canCancel = /^pending/i.test(String(nextLabel || ''));
                 }
                 applySeerrStatusUpdate(tmdbId, isTv, Number(seerrItem.mediaStatus || nextStatus), nextLabel);
                 showToast((res && res.message) || ('Requested "' + (seerrItem.title || 'Title') + '"!'), 'success');
@@ -956,8 +961,9 @@
                     + '</div>';
             }
 
+            var isAdminSeerr = typeof isActiveProfileAdmin === 'function' && isActiveProfileAdmin();
             var serverPickerHtml = '';
-            if (servers.length > 1) {
+            if (isAdminSeerr && servers.length > 1) {
                 var svPills = servers.map(function (sv) {
                     var isSel = chosenSv && Number(chosenSv.id) === Number(sv.id);
                     var tierTag = sv.is4k ? '<span class="bfx-seerr-4k-tag">4K</span>' : '<span class="bfx-seerr-hd-tag">HD</span>';
@@ -1044,7 +1050,9 @@
             var genrePillsHtml = genres.length
                 ? genres.map(function (g) { return '<span class="bfx-seerr-genre-chip">' + escapeHtml(g) + '</span>'; }).join('')
                 : '';
-            var canCancel = activeRequestId > 0 && (tierStatus === 2 || /^pending/i.test(String(seerrItem.statusLabel || '')));
+            var canCancel = activeRequestId > 0
+                && (isAdminSeerr || seerrItem.canCancel === true)
+                && (tierStatus === 2 || /^pending/i.test(String(seerrItem.statusLabel || '')));
 
             root.innerHTML = ''
                 + '<div class="bfx-seerr-hero">'
@@ -1401,7 +1409,9 @@
                         ? Math.max(0, Math.min(100, Math.round(r.downloadProgress)))
                         : null;
                     var jfId = resolveLocalLibraryId(r);
-                    var isPendingCancelable = Number(r.requestId) > 0 && String(r.statusKey || '').toLowerCase() === 'pending';
+                    var isPendingCancelable = Number(r.requestId) > 0
+                        && String(r.statusKey || '').toLowerCase() === 'pending'
+                        && r.canCancel !== false;
 
                     return ''
                         + '<div class="bfx-req-row">'
@@ -1522,6 +1532,7 @@
                             statusLabel: r.statusLabel,
                             downloadProgress: r.downloadProgress,
                             activeRequestId: r.requestId,
+                            canCancel: r.canCancel !== false && String(r.statusKey || '').toLowerCase() === 'pending',
                             jellyfinMediaId: r.jellyfinMediaId
                         });
                     }

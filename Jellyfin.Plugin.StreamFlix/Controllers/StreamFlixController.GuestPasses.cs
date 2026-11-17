@@ -660,6 +660,27 @@ public partial class StreamFlixController
             && expiresAt > DateTimeOffset.UtcNow;
     }
 
+    private static bool IsEffectiveActiveAdmin(CallerContext caller)
+    {
+        if (caller.IsJellyfinAuthenticated && caller.JellyfinUser != null)
+        {
+            return StreamFlixStartupTask.IsUserAdminCompat(caller.JellyfinUser);
+        }
+
+        return caller.IsAdmin;
+    }
+
+    private bool IsProfileAllowedGuestPassManager(PluginConfiguration config, StreamFlixProfileConfig? profile)
+    {
+        if (profile == null || profile.IsKids || string.IsNullOrWhiteSpace(profile.Id) || IsProfileLinkedToAdmin(profile))
+        {
+            return false;
+        }
+
+        return (config.GuestPassManagerProfileIds ?? new List<string>())
+            .Any(id => string.Equals(id?.Trim(), profile.Id, StringComparison.OrdinalIgnoreCase));
+    }
+
     private static string GetGuestPassStatus(StreamFlixGuestPass pass)
     {
         if (pass.Revoked)
@@ -1610,20 +1631,29 @@ public partial class StreamFlixController
         }
 
         var needsUpdate = false;
-        var desiredAge = StreamFlixStartupTask.ParentalAgeFromMaturity(profile.MaturityRating, profile.IsKids);
-        if (StreamFlixStartupTask.TryGetMaxParentalAge(user) != desiredAge && StreamFlixStartupTask.TrySetMaxParentalAge(user, desiredAge))
+        if (profile.IsPluginCreatedJellyfinUser)
         {
-            needsUpdate = true;
-        }
+            var desiredAge = StreamFlixStartupTask.ParentalAgeFromMaturity(profile.MaturityRating, profile.IsKids);
+            if (StreamFlixStartupTask.TryGetMaxParentalAge(user) != desiredAge && StreamFlixStartupTask.TrySetMaxParentalAge(user, desiredAge))
+            {
+                needsUpdate = true;
+            }
 
-        if (StreamFlixStartupTask.EnsureUserLibraryAccessAndPermissions(user, primaryAdmin))
-        {
-            needsUpdate = true;
-        }
+            if (!profile.PermissionsInitialized)
+            {
+                if (StreamFlixStartupTask.InitializeNewPluginUserPermissions(user, primaryAdmin))
+                {
+                    needsUpdate = true;
+                }
 
-        if (StreamFlixStartupTask.EnsureUserSyncPlayAccess(user, allowCreateAndJoin: !profile.IsKids))
-        {
-            needsUpdate = true;
+                profile.PermissionsInitialized = true;
+                Plugin.Instance?.SaveConfiguration();
+            }
+
+            if (StreamFlixStartupTask.EnsureUserSyncPlayAccess(user, allowCreateAndJoin: !profile.IsKids))
+            {
+                needsUpdate = true;
+            }
         }
 
         if (needsUpdate)
