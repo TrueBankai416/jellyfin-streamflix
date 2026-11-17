@@ -9,6 +9,30 @@
     "imageUrl": "https://raw.githubusercontent.com/streamflix-dev/jellyfin-streamflix/main/Jellyfin.Plugin.StreamFlix/thumb.png",
     "versions": [
       {
+        "version": "0.9.2.10",
+        "changelog": "Build for Jellyfin 12.x (.NET 10).\n\n- Household Profile Activation, Auto-Closing Desktop SSO Tab & Jellyfin Media Player Layout Polish: fix false 'Account Sign-In Required' lockouts on unlocked non-admin household profiles after Google/OIDC/LAN sign-in and restore full Profile Picker management for verified SSO owners; automatically close the external system-browser SSO tab after Jellyfin Media Player sign-in handoff; and fix QtWebEngine 5.15 (Chromium 83) hero/subnav overlap, ghost card blur circles, and missing Flexbox gap spacing",
+        "targetAbi": "12.0.0.0",
+        "sourceUrl": "https://raw.githubusercontent.com/streamflix-dev/jellyfin-streamflix/main/dist/Jellyfin.Plugin.StreamFlix_0.9.2.10_12.0.0.zip",
+        "checksum": "3f7bb1dede2f1a8f063561af2af4cc29",
+        "timestamp": "2026-11-17T22:37:16Z"
+      },
+      {
+        "version": "0.9.2.10",
+        "changelog": "Build for Jellyfin 10.11.x (.NET 9).\n\n- Household Profile Activation, Auto-Closing Desktop SSO Tab & Jellyfin Media Player Layout Polish: fix false 'Account Sign-In Required' lockouts on unlocked non-admin household profiles after Google/OIDC/LAN sign-in and restore full Profile Picker management for verified SSO owners; automatically close the external system-browser SSO tab after Jellyfin Media Player sign-in handoff; and fix QtWebEngine 5.15 (Chromium 83) hero/subnav overlap, ghost card blur circles, and missing Flexbox gap spacing",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://raw.githubusercontent.com/streamflix-dev/jellyfin-streamflix/main/dist/Jellyfin.Plugin.StreamFlix_0.9.2.10_10.11.0.zip",
+        "checksum": "923082b5198d71cae9c5b05de62d87b0",
+        "timestamp": "2026-11-17T22:37:16Z"
+      },
+      {
+        "version": "0.9.2.10",
+        "changelog": "Build for Jellyfin 10.9 - 10.10 (.NET 8).\n\n- Household Profile Activation, Auto-Closing Desktop SSO Tab & Jellyfin Media Player Layout Polish: fix false 'Account Sign-In Required' lockouts on unlocked non-admin household profiles after Google/OIDC/LAN sign-in and restore full Profile Picker management for verified SSO owners; automatically close the external system-browser SSO tab after Jellyfin Media Player sign-in handoff; and fix QtWebEngine 5.15 (Chromium 83) hero/subnav overlap, ghost card blur circles, and missing Flexbox gap spacing",
+        "targetAbi": "10.9.0.0",
+        "sourceUrl": "https://raw.githubusercontent.com/streamflix-dev/jellyfin-streamflix/main/dist/Jellyfin.Plugin.StreamFlix_0.9.2.10_10.9.0.zip",
+        "checksum": "c3e1b8ded0a51453d4372f13e3fc3980",
+        "timestamp": "2026-11-17T22:37:16Z"
+      },
+      {
         "version": "0.9.2.9",
         "changelog": "Build for Jellyfin 12.x (.NET 10).\n\n- Jellyfin Media Player QtWebEngine Rendering & System-Browser SSO Handoff Fix: fix blank dark screen inside Jellyfin Media Player for Windows (Qt 5.15 QtWebEngine / Chromium 83–87) and WebOS/Tizen TVs by adding explicit top/right/bottom/left coordinates alongside CSS inset, splitting :has() out of shared selector lists, adding @supports not (aspect-ratio) card/poster fallbacks, keeping html transparent during mpv hardware video playback, and adding external system-browser Google & OIDC sign-in handoff via NativeShell.openUrl (#16); plus native ?Apikey= download URL fix (#18)",
         "targetAbi": "12.0.0.0",
