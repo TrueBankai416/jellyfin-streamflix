@@ -19,6 +19,8 @@ public class VerifyGoogleRequest
     public string AccessToken { get; set; } = string.Empty;
 
     public bool ApproveIfUnlisted { get; set; }
+
+    public string? DesktopRelayStateId { get; set; }
 }
 
 public class PasswordLoginRequest
