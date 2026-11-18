@@ -9,6 +9,30 @@
     "imageUrl": "https://raw.githubusercontent.com/streamflix-dev/jellyfin-streamflix/main/Jellyfin.Plugin.StreamFlix/thumb.png",
     "versions": [
       {
+        "version": "0.9.2.13",
+        "changelog": "Build for Jellyfin 12.x (.NET 10).\n\n- v0.9.2.12.5 Search Visual Alignment & Hover Preview Clipping Fix: unify the dedicated Search Page header, filter pills, genre pills, and search bar with StreamFlix's native frosted-glass .streamflix-subnav / .streamflix-FilterPills / .streamflix-search-box design language; eliminate sticky-header clipping; and hide the underlying 2:3 poster card while its 16:9 hover preview card is expanded so posters never poke above or clip into hover cards",
+        "targetAbi": "12.0.0.0",
+        "sourceUrl": "https://raw.githubusercontent.com/streamflix-dev/jellyfin-streamflix/main/dist/Jellyfin.Plugin.StreamFlix_0.9.2.13_12.0.0.zip",
+        "checksum": "f3cbf72bae42f6a24006f9100267f431",
+        "timestamp": "2026-11-18T00:03:04Z"
+      },
+      {
+        "version": "0.9.2.13",
+        "changelog": "Build for Jellyfin 10.11.x (.NET 9).\n\n- v0.9.2.12.5 Search Visual Alignment & Hover Preview Clipping Fix: unify the dedicated Search Page header, filter pills, genre pills, and search bar with StreamFlix's native frosted-glass .streamflix-subnav / .streamflix-FilterPills / .streamflix-search-box design language; eliminate sticky-header clipping; and hide the underlying 2:3 poster card while its 16:9 hover preview card is expanded so posters never poke above or clip into hover cards",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://raw.githubusercontent.com/streamflix-dev/jellyfin-streamflix/main/dist/Jellyfin.Plugin.StreamFlix_0.9.2.13_10.11.0.zip",
+        "checksum": "b24aaf845bf0e3428de12b7105730974",
+        "timestamp": "2026-11-18T00:03:04Z"
+      },
+      {
+        "version": "0.9.2.13",
+        "changelog": "Build for Jellyfin 10.9 - 10.10 (.NET 8).\n\n- v0.9.2.12.5 Search Visual Alignment & Hover Preview Clipping Fix: unify the dedicated Search Page header, filter pills, genre pills, and search bar with StreamFlix's native frosted-glass .streamflix-subnav / .streamflix-FilterPills / .streamflix-search-box design language; eliminate sticky-header clipping; and hide the underlying 2:3 poster card while its 16:9 hover preview card is expanded so posters never poke above or clip into hover cards",
+        "targetAbi": "10.9.0.0",
+        "sourceUrl": "https://raw.githubusercontent.com/streamflix-dev/jellyfin-streamflix/main/dist/Jellyfin.Plugin.StreamFlix_0.9.2.13_10.9.0.zip",
+        "checksum": "9b51c2188f7b4d99c2894e1869ced786",
+        "timestamp": "2026-11-18T00:03:04Z"
+      },
+      {
         "version": "0.9.2.12",
         "changelog": "Build for Jellyfin 12.x (.NET 10).\n\n- Dedicated Full-Page Search Experience: launch a dedicated full-screen Search Page immediately on mobile Search tap and on the first keystroke on desktop/Windows/TV, featuring sticky live search with instant filter tabs (All, Movies, Shows, Collections, Request), punctuation/hyphen-tolerant relevance ranking, live People/Cast & Genre quick-match chips, per-profile Recent Searches, Explore by Genre cards, and Netflix-mobile recommended rows",
         "targetAbi": "12.0.0.0",
