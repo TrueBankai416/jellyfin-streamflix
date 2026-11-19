@@ -276,8 +276,10 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages
             || cfg.AllowAdminFallbackLogin
             || cfg.AdminFallbackLanOnly
             || cfg.BypassLoginGateOnLan
+            || !cfg.TreatTailscaleAsLocalLan
             || !cfg.EnableGoogleSignIn
             || !cfg.EnableGuestPasses
+            || !cfg.EnableWatchTogether
             || !cfg.EnableStreamFlixUi
             || !cfg.ShowLibrariesInNav
             || (cfg.NavHiddenBuiltIns != null && cfg.NavHiddenBuiltIns.Count > 0)
@@ -444,6 +446,7 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages
                 AllowAdminFallbackLogin = BoolVal(root, nameof(PluginConfiguration.AllowAdminFallbackLogin), false),
                 AdminFallbackLanOnly = BoolVal(root, nameof(PluginConfiguration.AdminFallbackLanOnly), false),
                 BypassLoginGateOnLan = BoolVal(root, nameof(PluginConfiguration.BypassLoginGateOnLan), false),
+                TreatTailscaleAsLocalLan = BoolVal(root, nameof(PluginConfiguration.TreatTailscaleAsLocalLan), true),
                 FirstGoogleAccountClaimed = BoolVal(root, nameof(PluginConfiguration.FirstGoogleAccountClaimed), false),
                 AutoProvisionJellyfinUsers = BoolVal(root, nameof(PluginConfiguration.AutoProvisionJellyfinUsers), true),
                 ProfilesSeeded = BoolVal(root, nameof(PluginConfiguration.ProfilesSeeded), false),

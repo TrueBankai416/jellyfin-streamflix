@@ -1,7 +1,7 @@
 ---
 name: "StreamFlix"
 guid: "7cc1a505-91f6-4661-b4f9-7eee8be33b19"
-version: "0.9.2.13"
+version: "0.9.2.14"
 targetAbi: "12.0.0.0"
 framework: "net10.0"
 owner: "StreamFlix"
@@ -18,4 +18,4 @@ imageUrl: "https://raw.githubusercontent.com/streamflix-dev/jellyfin-streamflix/
 artifacts:
   - "Jellyfin.Plugin.StreamFlix.dll"
 changelog: >
-  - v0.9.2.12.5 Search Visual Alignment & Hover Preview Clipping Fix: unify the dedicated Search Page header, filter pills, genre pills, and search bar with StreamFlix's native frosted-glass .streamflix-subnav / .streamflix-FilterPills / .streamflix-search-box design language; eliminate sticky-header clipping; and hide the underlying 2:3 poster card while its 16:9 hover preview card is expanded so posters never poke above or clip into hover cards
+  - Local LAN & Tailscale Profile Sign-In Fix: keep explicit profile sign-in prompts open across 2.5s lifecycle checks and background config refreshes when Local LAN / Tailscale login bypass is enabled instead of snapping back to the Profile Picker before credentials can be entered (#21), add a Back to Profiles / Escape cancel option, allow desktop external-browser Google & OIDC poll flows to complete on LAN bypass and account-lock switches, and boot cleanly off Jellyfin's login page when re-selecting a profile after sign-out

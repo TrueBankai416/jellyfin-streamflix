@@ -179,6 +179,7 @@
         state.explicitPickerOpen = false;
         state.openedDirectlyToManage = false;
         state.manageMode = false;
+        state.explicitAuthPrompt = false;
         document.body.classList.remove('streamflix-gate-locked');
         var root = document.getElementById('streamflix-overlay-root');
         if (!root) {
@@ -832,7 +833,11 @@
                 });
 
                 state.activeProfile = null;
-                localStorage.removeItem(PROFILE_KEY);
+                try {
+                    localStorage.removeItem(PROFILE_KEY);
+                    localStorage.removeItem(LEGACY_PROFILE_KEY);
+                    sessionStorage.removeItem('streamflix_reload_uid');
+                } catch (eClrP) {}
 
                 if (res.jellyfinAccessToken && res.userId) {
                     if (res.isAdmin || adminOnly) {
@@ -851,6 +856,8 @@
                         user: res.user || null,
                         sessionInfo: res.sessionInfo || null
                     });
+                } else {
+                    clearLocalJellyfinAuth();
                 }
 
                 var pendingId = takePendingProfileId();
@@ -1090,7 +1097,21 @@
                 + '</div>';
         }
 
-        var root = setGateView(viewKey, '', stageHtml);
+        var authActionsHtml = (typeof canCancelExplicitAuthToPicker === 'function' && canCancelExplicitAuthToPicker())
+            ? ('<button type="button" class="streamflix-ghost-btn" id="streamflix-cancel-explicit-auth-btn">'
+                + icon('chevronLeft') + '<span>Back to Profiles</span></button>')
+            : '';
+
+        var root = setGateView(viewKey, authActionsHtml, stageHtml);
+
+        var cancelExplicitAuthBtn = root.querySelector('#streamflix-cancel-explicit-auth-btn');
+        if (cancelExplicitAuthBtn) {
+            cancelExplicitAuthBtn.addEventListener('click', function () {
+                if (typeof cancelExplicitAuthPrompt === 'function') {
+                    cancelExplicitAuthPrompt();
+                }
+            });
+        }
 
         var loginBtn = root.querySelector('#streamflix-google-login-btn');
         if (loginBtn) {

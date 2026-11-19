@@ -225,18 +225,20 @@
                 window.location.hash = '#/home';
                 return;
             }
-            if (isGateOpen() && !state.explicitPickerOpen && !state.manageMode && hasHouseholdAccess() && getActiveToken()) {
+            if (isGateOpen() && !state.explicitPickerOpen && !state.manageMode && !state.explicitAuthPrompt && hasHouseholdAccess() && getActiveToken()) {
                 closeOverlayGate();
             }
             return;
         }
 
-        var onJellyfinLoginPage = isOnJellyfinLoginPage();
+        var hashHasLogin = (window.location.hash || '').toLowerCase().indexOf('login') !== -1;
 
-        if (!hasHouseholdAccess()) {
+        if (!hasHouseholdAccess() || state.explicitAuthPrompt) {
             state.explicitPickerOpen = false;
             state.openedDirectlyToManage = false;
-            clearUserPreferencesEnhancements();
+            if (!hasHouseholdAccess()) {
+                clearUserPreferencesEnhancements();
+            }
             var stage = document.getElementById('streamflix-stage');
             var view = stage ? String(stage.getAttribute('data-view') || '') : '';
             var validAuthView = !state.configAttempted
@@ -287,7 +289,7 @@
             }
         }
 
-        if (!state.activeProfile || !state.activeProfile.id || !state.activeProfile.accessToken || onJellyfinLoginPage) {
+        if (!state.activeProfile || !state.activeProfile.id || !state.activeProfile.accessToken || hashHasLogin) {
             clearUserPreferencesEnhancements();
             var pickerStage = document.getElementById('streamflix-stage');
             var pickerView = pickerStage && pickerStage.getAttribute('data-view');
@@ -371,7 +373,7 @@
         }
 
         // Periodically refresh server config (revoked sessions, profile changes on other devices)
-        if (!document.hidden && Date.now() - lastConfigFetchAt > 5 * 60 * 1000 && !state.verifyingGoogle && !state.activatingProfileId) {
+        if (!document.hidden && Date.now() - lastConfigFetchAt > 5 * 60 * 1000 && !state.verifyingGoogle && !state.activatingProfileId && !state.explicitAuthPrompt) {
             fetchPublicConfig().then(function () {
                 rerenderPickerIfOpen();
                 scheduleLifecycleTick(0);
@@ -559,6 +561,13 @@
                         ev.preventDefault();
                         state.adminLoginExpanded = false;
                         renderGoogleAuthGate();
+                        return;
+                    }
+                    if ((gateView.indexOf('auth') === 0 || gateView === 'setup')
+                        && typeof canCancelExplicitAuthToPicker === 'function'
+                        && canCancelExplicitAuthToPicker()) {
+                        ev.preventDefault();
+                        cancelExplicitAuthPrompt();
                         return;
                     }
                     if (gateView === 'picker-manage' && state.manageMode) {
@@ -1351,6 +1360,9 @@
         if (guestCb) {
             fetchPublicConfig().then(function () {
                 if (guestCb.error) {
+                    if (hasHouseholdAccess()) {
+                        state.explicitAuthPrompt = true;
+                    }
                     renderGoogleAuthGate(null, guestCb.error);
                 } else {
                     completeGuestHandoff();
@@ -1363,6 +1375,9 @@
                         clearPendingOidcFlow();
                     }
                     takePendingProfileId();
+                    if (hasHouseholdAccess()) {
+                        state.explicitAuthPrompt = true;
+                    }
                     renderGoogleAuthGate(null, oidcCb.error);
                 } else {
                     completeOidcHandoff(oidcCb);
@@ -1372,9 +1387,15 @@
             fetchPublicConfig().then(function () {
                 if (!oauth.stateOk) {
                     takePendingProfileId();
+                    if (hasHouseholdAccess()) {
+                        state.explicitAuthPrompt = true;
+                    }
                     renderGoogleAuthGate(null, 'That sign-in attempt couldn\'t be verified. Please try again.');
                 } else if (oauth.error || !oauth.token) {
                     takePendingProfileId();
+                    if (hasHouseholdAccess()) {
+                        state.explicitAuthPrompt = true;
+                    }
                     renderGoogleAuthGate(null, oauth.error === 'access_denied' ? 'Google sign-in was cancelled.' : ('Google sign-in failed (' + oauth.error + ').'));
                 } else {
                     verifyGoogleAccessToken(oauth.token, oauth.desktopRelayStateId);
@@ -1383,13 +1404,11 @@
         } else {
             evaluateAuthAndProfileGate();
             fetchPublicConfig().then(function () {
-                if (!hasHouseholdAccess()) {
-                    if (typeof pollPendingOidcFlowIfActive === 'function') {
-                        pollPendingOidcFlowIfActive();
-                    }
-                    if (typeof pollPendingGoogleDesktopFlowIfActive === 'function') {
-                        pollPendingGoogleDesktopFlowIfActive();
-                    }
+                if (typeof pollPendingOidcFlowIfActive === 'function') {
+                    pollPendingOidcFlowIfActive();
+                }
+                if (typeof pollPendingGoogleDesktopFlowIfActive === 'function') {
+                    pollPendingGoogleDesktopFlowIfActive();
                 }
                 rerenderPickerIfOpen();
                 evaluateAuthAndProfileGate();
