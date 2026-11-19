@@ -1,6 +1,6 @@
 /* ==========================================================================
    STREAMFLIX — Netflix-style UI for Jellyfin: server-verified Google & OIDC SSO,
-   "Who's watching?" profiles, Guest Passes & Seerr (v0.9.2.14)
+   "Who's watching?" profiles, Guest Passes & Seerr (v0.9.2.15)
    ========================================================================== */
 (function () {
     'use strict';
@@ -10,7 +10,7 @@
     }
     window.__STREAMFLIX_BOOTSTRAPPED__ = true;
 
-    var VERSION = '0.9.2.14';
+    var VERSION = '0.9.2.15';
     // Household session issued by the server ({ token, authKind, providerName, email, username, userId, name, picture, isAdmin, guestPassId, lockedProfileId, expiresAt })
     var GOOGLE_KEY = 'streamflix_session_v7';
     var ADMIN_AUTH_KEY = 'streamflix_admin_auth_v1';
@@ -86,6 +86,7 @@
         isAdmin: false,
         enableGuestPasses: true,
         enableWatchTogether: true,
+        enableLiveTv: false,
         hasAnyAdultPin: false,
         isGuestPass: false,
         guestPassLabel: '',
@@ -166,6 +167,8 @@
         libraryBrowser: null,
         libraryBrowserSeq: 0,
         libraryViewData: {},
+        liveTvData: null,
+        liveTvUi: { tab: 'all', filter: '' },
         lastSurpriseId: '',
         activeDetailModal: null,
         itemCache: {},
@@ -687,8 +690,38 @@
         dockHot: '<rect x="3.4" y="6.2" width="14.2" height="11.6" rx="2.4"/><path d="M7.2 3.4h11.2a2.2 2.2 0 0 1 2.2 2.2v9.4"/><path d="M9.1 9.6v4.8l4.1-2.4z" fill="currentColor" stroke="none"/>',
         dockSearch: '<circle cx="10.8" cy="10.8" r="6.3"/><path d="M19.8 19.8l-4.1-4.1"/>',
         bookmark: '<path d="M6.2 4.2h11.6a1.3 1.3 0 0 1 1.3 1.3v14.8L12 16l-7.1 4.3V5.5a1.3 1.3 0 0 1 1.3-1.3z"/>',
+        calendar: '<rect x="3.5" y="5" width="17" height="15.5" rx="2.2"/><path d="M8 3.2v3.2M16 3.2v3.2M3.5 9.8h17M8 14h3M13 14h3"/>',
         seerrIcon: '<path d="M7.2 18.2h9.6a3.7 3.7 0 0 0 .55-7.36A5.2 5.2 0 0 0 7.1 9.4a3.5 3.5 0 0 0 .1 8.8z"/><path d="M12 10.6v5.2M9.4 13.2h5.2"/>'
     };
+
+    function isLiveTvEnabledForCurrentProfile() {
+        if (!state.config || state.config.enableLiveTv !== true) {
+            return false;
+        }
+        if (typeof isKidsProfileActive === 'function' && isKidsProfileActive()) {
+            return false;
+        }
+        var active = state.activeProfile;
+        if (active && active.isKids) {
+            return false;
+        }
+        if (active && active.id && typeof findProfileById === 'function') {
+            var serverProf = findProfileById(active.id);
+            if (serverProf && serverProf.allowLiveTv === false) {
+                return false;
+            }
+        }
+        if (active && active.allowLiveTv === false) {
+            return false;
+        }
+        try {
+            var ac = typeof resolveActiveApiClient === 'function' ? resolveActiveApiClient() : window.ApiClient;
+            if (ac && ac._currentUser && ac._currentUser.Policy && ac._currentUser.Policy.EnableLiveTvAccess === false) {
+                return false;
+            }
+        } catch (ePol) {}
+        return true;
+    }
 
     function icon(name, extraClass) {
         var safeExtra = extraClass ? sanitizeClassNames(extraClass) : '';
