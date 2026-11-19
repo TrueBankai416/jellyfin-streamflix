@@ -9,6 +9,30 @@
     "imageUrl": "https://raw.githubusercontent.com/streamflix-dev/jellyfin-streamflix/main/Jellyfin.Plugin.StreamFlix/thumb.png",
     "versions": [
       {
+        "version": "0.9.2.14",
+        "changelog": "Build for Jellyfin 12.x (.NET 10).\n\n- Local LAN & Tailscale Profile Sign-In Fix: keep explicit profile sign-in prompts open across 2.5s lifecycle checks and background config refreshes when Local LAN / Tailscale login bypass is enabled instead of snapping back to the Profile Picker before credentials can be entered (#21), add a Back to Profiles / Escape cancel option, allow desktop external-browser Google & OIDC poll flows to complete on LAN bypass and account-lock switches, and boot cleanly off Jellyfin's login page when re-selecting a profile after sign-out",
+        "targetAbi": "12.0.0.0",
+        "sourceUrl": "https://raw.githubusercontent.com/streamflix-dev/jellyfin-streamflix/main/dist/Jellyfin.Plugin.StreamFlix_0.9.2.14_12.0.0.zip",
+        "checksum": "78e369313607ac9e7450f7243a5c728c",
+        "timestamp": "2026-11-19T17:59:57Z"
+      },
+      {
+        "version": "0.9.2.14",
+        "changelog": "Build for Jellyfin 10.11.x (.NET 9).\n\n- Local LAN & Tailscale Profile Sign-In Fix: keep explicit profile sign-in prompts open across 2.5s lifecycle checks and background config refreshes when Local LAN / Tailscale login bypass is enabled instead of snapping back to the Profile Picker before credentials can be entered (#21), add a Back to Profiles / Escape cancel option, allow desktop external-browser Google & OIDC poll flows to complete on LAN bypass and account-lock switches, and boot cleanly off Jellyfin's login page when re-selecting a profile after sign-out",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://raw.githubusercontent.com/streamflix-dev/jellyfin-streamflix/main/dist/Jellyfin.Plugin.StreamFlix_0.9.2.14_10.11.0.zip",
+        "checksum": "69bb9c0e2121d810caeeb7ff96bb09ea",
+        "timestamp": "2026-11-19T17:59:57Z"
+      },
+      {
+        "version": "0.9.2.14",
+        "changelog": "Build for Jellyfin 10.9 - 10.10 (.NET 8).\n\n- Local LAN & Tailscale Profile Sign-In Fix: keep explicit profile sign-in prompts open across 2.5s lifecycle checks and background config refreshes when Local LAN / Tailscale login bypass is enabled instead of snapping back to the Profile Picker before credentials can be entered (#21), add a Back to Profiles / Escape cancel option, allow desktop external-browser Google & OIDC poll flows to complete on LAN bypass and account-lock switches, and boot cleanly off Jellyfin's login page when re-selecting a profile after sign-out",
+        "targetAbi": "10.9.0.0",
+        "sourceUrl": "https://raw.githubusercontent.com/streamflix-dev/jellyfin-streamflix/main/dist/Jellyfin.Plugin.StreamFlix_0.9.2.14_10.9.0.zip",
+        "checksum": "ae9a36a333fce68cd72e43603c84fa0c",
+        "timestamp": "2026-11-19T17:59:57Z"
+      },
+      {
         "version": "0.9.2.13",
         "changelog": "Build for Jellyfin 12.x (.NET 10).\n\n- v0.9.2.12.5 Search Visual Alignment & Hover Preview Clipping Fix: unify the dedicated Search Page header, filter pills, genre pills, and search bar with StreamFlix's native frosted-glass .streamflix-subnav / .streamflix-FilterPills / .streamflix-search-box design language; eliminate sticky-header clipping; and hide the underlying 2:3 poster card while its 16:9 hover preview card is expanded so posters never poke above or clip into hover cards",
         "targetAbi": "12.0.0.0",
