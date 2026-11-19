@@ -1,7 +1,7 @@
 ---
 name: "StreamFlix"
 guid: "7cc1a505-91f6-4661-b4f9-7eee8be33b19"
-version: "0.9.2.15"
+version: "0.9.2.16"
 targetAbi: "12.0.0.0"
 framework: "net10.0"
 owner: "StreamFlix"
@@ -18,4 +18,4 @@ imageUrl: "https://raw.githubusercontent.com/streamflix-dev/jellyfin-streamflix/
 artifacts:
   - "Jellyfin.Plugin.StreamFlix.dll"
 changelog: >
-  - Opt-In Live TV Compatibility (#19): add an opt-in "Enable Live TV in StreamFlix" toggle (off by default) in Dashboard -> Plugins -> StreamFlix -> Home & Hero; when turned on, adds a Live TV tab to the top navigation bar with live channels, On Now broadcasts with live progress bars, favorites, DVR recordings, instant Live TV channel search, upcoming channel schedules, and 1-click access to Jellyfin's full EPG TV Guide while respecting per-user Live TV permissions and Kids Mode safety
+  - Mobile App Search Bar Fix: prevent phone subnav declutter CSS from hiding the Search Page input bar (.bfx-sp-bar) and result filter pills (.bfx-sp-filter-pills) on Android/iOS phones, ensuring the full-width search bar always stays visible and immediately focusable beside the Back button in the mobile app
