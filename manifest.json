@@ -13,24 +13,24 @@
         "changelog": "Build for Jellyfin 12.x (.NET 10).\n\n- Mobile App Search Bar Fix: prevent phone subnav declutter CSS from hiding the Search Page input bar (.bfx-sp-bar) and result filter pills (.bfx-sp-filter-pills) on Android/iOS phones, ensuring the full-width search bar always stays visible and immediately focusable beside the Back button in the mobile app",
         "targetAbi": "12.0.0.0",
         "sourceUrl": "https://raw.githubusercontent.com/streamflix-dev/jellyfin-streamflix/main/dist/Jellyfin.Plugin.StreamFlix_0.9.2.16_12.0.0.zip",
-        "checksum": "babbb80e5bef5f4ff54ba0e9e367ec1e",
-        "timestamp": "2026-11-20T01:07:38Z"
+        "checksum": "efb6674b6fb890abe1906d0a6f564723",
+        "timestamp": "2026-11-19T20:24:07Z"
       },
       {
         "version": "0.9.2.16",
         "changelog": "Build for Jellyfin 10.11.x (.NET 9).\n\n- Mobile App Search Bar Fix: prevent phone subnav declutter CSS from hiding the Search Page input bar (.bfx-sp-bar) and result filter pills (.bfx-sp-filter-pills) on Android/iOS phones, ensuring the full-width search bar always stays visible and immediately focusable beside the Back button in the mobile app",
         "targetAbi": "10.11.0.0",
         "sourceUrl": "https://raw.githubusercontent.com/streamflix-dev/jellyfin-streamflix/main/dist/Jellyfin.Plugin.StreamFlix_0.9.2.16_10.11.0.zip",
-        "checksum": "acc72749e5190729a03f5f992ba89214",
-        "timestamp": "2026-11-20T01:07:38Z"
+        "checksum": "77d4603892efc3e529d42a207d4f558c",
+        "timestamp": "2026-11-19T20:24:07Z"
       },
       {
         "version": "0.9.2.16",
         "changelog": "Build for Jellyfin 10.9 - 10.10 (.NET 8).\n\n- Mobile App Search Bar Fix: prevent phone subnav declutter CSS from hiding the Search Page input bar (.bfx-sp-bar) and result filter pills (.bfx-sp-filter-pills) on Android/iOS phones, ensuring the full-width search bar always stays visible and immediately focusable beside the Back button in the mobile app",
         "targetAbi": "10.9.0.0",
         "sourceUrl": "https://raw.githubusercontent.com/streamflix-dev/jellyfin-streamflix/main/dist/Jellyfin.Plugin.StreamFlix_0.9.2.16_10.9.0.zip",
-        "checksum": "727151a75448c221f39f6609b26c967c",
-        "timestamp": "2026-11-20T01:07:38Z"
+        "checksum": "ad9c3e15f95ef0b2b7c3eb48d6b5ff86",
+        "timestamp": "2026-11-19T20:24:07Z"
       },
       {
         "version": "0.9.2.15",
