@@ -9,6 +9,30 @@
     "imageUrl": "https://raw.githubusercontent.com/streamflix-dev/jellyfin-streamflix/main/Jellyfin.Plugin.StreamFlix/thumb.png",
     "versions": [
       {
+        "version": "0.9.2.17",
+        "changelog": "Build for Jellyfin 12.x (.NET 10).\n\n- Live TV Compatibility Fix (#19): preserve enableLiveTv in client PublicConfig hydration (applyConfigFromServerResponse) so enabling Live TV in plugin settings immediately surfaces the Live TV navigation tab, Home row, Account Menu entry, Search filter, and #/livetv route; also auto-initialize EnableLiveTvAccess on pre-existing plugin-created adult household profiles when Live TV is enabled",
+        "targetAbi": "12.0.0.0",
+        "sourceUrl": "https://raw.githubusercontent.com/streamflix-dev/jellyfin-streamflix/main/dist/Jellyfin.Plugin.StreamFlix_0.9.2.17_12.0.0.zip",
+        "checksum": "be45470c03721805ece2389b5d4ffc4b",
+        "timestamp": "2026-11-20T01:24:38Z"
+      },
+      {
+        "version": "0.9.2.17",
+        "changelog": "Build for Jellyfin 10.11.x (.NET 9).\n\n- Live TV Compatibility Fix (#19): preserve enableLiveTv in client PublicConfig hydration (applyConfigFromServerResponse) so enabling Live TV in plugin settings immediately surfaces the Live TV navigation tab, Home row, Account Menu entry, Search filter, and #/livetv route; also auto-initialize EnableLiveTvAccess on pre-existing plugin-created adult household profiles when Live TV is enabled",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://raw.githubusercontent.com/streamflix-dev/jellyfin-streamflix/main/dist/Jellyfin.Plugin.StreamFlix_0.9.2.17_10.11.0.zip",
+        "checksum": "e6d9eeec5f666b2b70b5194373278544",
+        "timestamp": "2026-11-20T01:24:38Z"
+      },
+      {
+        "version": "0.9.2.17",
+        "changelog": "Build for Jellyfin 10.9 - 10.10 (.NET 8).\n\n- Live TV Compatibility Fix (#19): preserve enableLiveTv in client PublicConfig hydration (applyConfigFromServerResponse) so enabling Live TV in plugin settings immediately surfaces the Live TV navigation tab, Home row, Account Menu entry, Search filter, and #/livetv route; also auto-initialize EnableLiveTvAccess on pre-existing plugin-created adult household profiles when Live TV is enabled",
+        "targetAbi": "10.9.0.0",
+        "sourceUrl": "https://raw.githubusercontent.com/streamflix-dev/jellyfin-streamflix/main/dist/Jellyfin.Plugin.StreamFlix_0.9.2.17_10.9.0.zip",
+        "checksum": "7950779ebc6dc0101347c76eeabdc244",
+        "timestamp": "2026-11-20T01:24:38Z"
+      },
+      {
         "version": "0.9.2.16",
         "changelog": "Build for Jellyfin 12.x (.NET 10).\n\n- Mobile App Search Bar Fix: prevent phone subnav declutter CSS from hiding the Search Page input bar (.bfx-sp-bar) and result filter pills (.bfx-sp-filter-pills) on Android/iOS phones, ensuring the full-width search bar always stays visible and immediately focusable beside the Back button in the mobile app",
         "targetAbi": "12.0.0.0",
