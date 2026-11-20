@@ -570,7 +570,13 @@ public partial class StreamFlixController
 
             if (effectiveAdmin)
             {
+                var wasKids = existing.IsKids;
                 existing.IsKids = request.IsKids;
+                if (wasKids != existing.IsKids && existing.IsPluginCreatedJellyfinUser)
+                {
+                    existing.LiveTvPermissionInitialized = false;
+                }
+
                 if (request.KidsExitPinRequired.HasValue)
                 {
                     existing.KidsExitPinRequired = request.KidsExitPinRequired.Value;
@@ -1141,7 +1147,11 @@ public partial class StreamFlixController
 
     private async Task SyncProfilesAsync(PluginConfiguration config, bool force)
     {
-        if (!force && DateTime.UtcNow - _lastSyncUtc < TimeSpan.FromSeconds(60))
+        bool NeedsLiveTvPermSync() => config.EnableLiveTv
+            && (config.Profiles ?? new List<StreamFlixProfileConfig>())
+                .Any(p => p.IsPluginCreatedJellyfinUser && !p.IsKids && !p.LiveTvPermissionInitialized);
+
+        if (!force && !NeedsLiveTvPermSync() && DateTime.UtcNow - _lastSyncUtc < TimeSpan.FromSeconds(60))
         {
             return;
         }
@@ -1150,7 +1160,7 @@ public partial class StreamFlixController
         await SyncLock.WaitAsync().ConfigureAwait(false);
         try
         {
-            if (!force && DateTime.UtcNow - _lastSyncUtc < TimeSpan.FromSeconds(60))
+            if (!force && !NeedsLiveTvPermSync() && DateTime.UtcNow - _lastSyncUtc < TimeSpan.FromSeconds(60))
             {
                 return;
             }

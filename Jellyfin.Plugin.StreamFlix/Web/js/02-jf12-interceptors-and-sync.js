@@ -1229,6 +1229,8 @@
         var prevHeroLibsSig = Array.isArray(prevCfg.heroLibraryIds) ? prevCfg.heroLibraryIds.join(',') : '';
         var nextHeroLibsSig = nextHeroLibs.join(',');
 
+        var prevEnableLiveTv = Boolean(prevCfg.enableLiveTv);
+        var nextEnableLiveTv = Boolean(cfg.enableLiveTv);
         var nextShowLibsInNav = cfg.showLibrariesInNav !== false;
         var nextNavHiddenBuiltIns = Array.isArray(cfg.navHiddenBuiltIns)
             ? cfg.navHiddenBuiltIns.map(function (x) { return String(x || '').trim().toLowerCase(); }).filter(Boolean)
@@ -1237,9 +1239,10 @@
             ? cfg.navLibraryIds.map(function (x) { return String(x || '').trim(); }).filter(Boolean)
             : [];
         var prevNavSig = String(prevCfg.showLibrariesInNav !== false) + '|'
+            + String(prevEnableLiveTv) + '|'
             + (Array.isArray(prevCfg.navHiddenBuiltIns) ? prevCfg.navHiddenBuiltIns.join(',') : '') + '|'
             + (Array.isArray(prevCfg.navLibraryIds) ? prevCfg.navLibraryIds.join(',') : '');
-        var nextNavSig = String(nextShowLibsInNav) + '|' + nextNavHiddenBuiltIns.join(',') + '|' + nextNavLibraryIds.join(',');
+        var nextNavSig = String(nextShowLibsInNav) + '|' + String(nextEnableLiveTv) + '|' + nextNavHiddenBuiltIns.join(',') + '|' + nextNavLibraryIds.join(',');
 
         var nextTop10Mode = String(cfg.top10SelectionMode || 'most_played').toLowerCase();
         var nextHeroRot = cfg.heroRotationSeconds !== undefined && cfg.heroRotationSeconds !== null
@@ -1290,6 +1293,7 @@
             isAdmin: Boolean(cfg.isAdmin),
             enableGuestPasses: cfg.enableGuestPasses !== false,
             enableWatchTogether: cfg.enableWatchTogether !== false,
+            enableLiveTv: nextEnableLiveTv,
             hasAnyAdultPin: Boolean(cfg.hasAnyAdultPin),
             isGuestPass: Boolean(cfg.isGuestPass),
             guestPassLabel: typeof cfg.guestPassLabel === 'string' ? cfg.guestPassLabel : '',
@@ -1320,6 +1324,7 @@
                 if (normalizedProfiles[apIdx].id === state.activeProfile.id) {
                     state.activeProfile.isAdmin = normalizedProfiles[apIdx].isAdmin;
                     state.activeProfile.canManageGuestPasses = normalizedProfiles[apIdx].canManageGuestPasses;
+                    state.activeProfile.allowLiveTv = normalizedProfiles[apIdx].allowLiveTv;
                     saveJson(PROFILE_KEY, state.activeProfile);
                     break;
                 }
@@ -1389,15 +1394,30 @@
         replaceToolbarLogoInPlace();
         refreshNetflixBackdropWallInPlace();
 
-        if (hubSettingsChanged && state.hubData && state.hubData.loaded) {
-            if (prevHeroLibsSig !== nextHeroLibsSig) {
-                loadCinemaHubData(true);
-            } else {
-                recomputeHubDerivedLists();
-                if (document.getElementById('streamflix-cinema-hub')) {
-                    renderCinemaHubContents();
-                    restartHeroTimer();
+        if (prevEnableLiveTv !== nextEnableLiveTv) {
+            if (!nextEnableLiveTv) {
+                state.liveTvData = null;
+                if (state.activeCategory === 'livetv') {
+                    state.activeCategory = 'all';
                 }
+            } else if (typeof isLiveTvEnabledForCurrentProfile === 'function' && isLiveTvEnabledForCurrentProfile() && typeof ensureLiveTvHubDataLoaded === 'function') {
+                ensureLiveTvHubDataLoaded(false);
+            }
+        }
+
+        if (hubSettingsChanged) {
+            if (state.hubData && state.hubData.loaded) {
+                if (prevHeroLibsSig !== nextHeroLibsSig) {
+                    loadCinemaHubData(true);
+                } else {
+                    recomputeHubDerivedLists();
+                    if (document.getElementById('streamflix-cinema-hub')) {
+                        renderCinemaHubContents();
+                        restartHeroTimer();
+                    }
+                }
+            } else if (document.getElementById('streamflix-cinema-hub') && typeof renderCinemaHubContents === 'function') {
+                renderCinemaHubContents();
             }
         }
         return state.config;
