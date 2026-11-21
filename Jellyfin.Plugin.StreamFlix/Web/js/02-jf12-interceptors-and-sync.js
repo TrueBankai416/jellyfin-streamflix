@@ -235,12 +235,8 @@
                         } else {
                             clearAdminAuth();
                             clearLocalJellyfinAuth();
-                            state.activeProfile = null;
+                            clearActiveProfileState(false);
                             state.sessionVerifiedOnce = false;
-                            try {
-                                localStorage.removeItem(PROFILE_KEY);
-                                localStorage.removeItem(LEGACY_PROFILE_KEY);
-                            } catch (e401) {}
                             fetchPublicConfig().then(function () {
                                 scheduleLifecycleTick(0);
                             }).catch(function () {
@@ -1048,6 +1044,11 @@
             canManageGuestPasses: Boolean(p.canManageGuestPasses || (p.isAdmin && !p.isKids)),
             allowLiveTv: !p.isKids && p.allowLiveTv !== false,
             autoplayNextEpisode: p.autoplayNextEpisode !== false,
+            autoplayPreviews: p.autoplayPreviews !== false,
+            allowedLibraryIds: Array.isArray(p.allowedLibraryIds) ? p.allowedLibraryIds.slice() : [],
+            seerrRequestQuota: typeof p.seerrRequestQuota === 'number' ? p.seerrRequestQuota : 0,
+            bedtimeStart: String(p.bedtimeStart || ''),
+            bedtimeEnd: String(p.bedtimeEnd || ''),
             maxParentalRating: p.maturityRating || p.maxParentalRating || (p.isKids ? 'Older Kids (TV-Y7 / PG)' : 'TV-MA / R (All Maturity Levels)'),
             hasPin: Boolean(p.hasPin),
             pinLength: typeof p.pinLength === 'number' ? p.pinLength : 0,
@@ -1137,6 +1138,9 @@
             return false;
         }
         if (state.activeProfile && state.activeProfile.isKids && !cfg.seerrAllowKids) {
+            return false;
+        }
+        if (state.activeProfile && Number(state.activeProfile.seerrRequestQuota) < 0 && !isHouseholdAdmin()) {
             return false;
         }
         return Boolean(state.activeProfile && state.activeProfile.id);
@@ -1252,12 +1256,26 @@
         var nextHeroSel = String(cfg.heroSelectionMode || 'recent').toLowerCase();
         var nextHeroType = String(cfg.heroContentType || 'all').toLowerCase();
 
+        var prevEnableHeroTrailer = Boolean(prevCfg.enableHeroTrailerPreview);
+        var nextEnableHeroTrailer = Boolean(cfg.enableHeroTrailerPreview);
+        var nextHomeRowOrder = Array.isArray(cfg.homeRowOrder)
+            ? cfg.homeRowOrder.map(function (x) { return String(x || '').trim().toLowerCase(); }).filter(Boolean)
+            : [];
+        var nextHomeHiddenRows = Array.isArray(cfg.homeHiddenRows)
+            ? cfg.homeHiddenRows.map(function (x) { return String(x || '').trim().toLowerCase(); }).filter(Boolean)
+            : [];
+        var prevHomeRowsSig = (Array.isArray(prevCfg.homeRowOrder) ? prevCfg.homeRowOrder.join(',') : '') + '|'
+            + (Array.isArray(prevCfg.homeHiddenRows) ? prevCfg.homeHiddenRows.join(',') : '');
+        var nextHomeRowsSig = nextHomeRowOrder.join(',') + '|' + nextHomeHiddenRows.join(',');
+
         var hubSettingsChanged = prevCfg.top10SelectionMode !== nextTop10Mode
             || prevCfg.heroRotationSeconds !== nextHeroRot
             || prevCfg.heroSlideCount !== nextHeroCount
             || prevCfg.heroSelectionMode !== nextHeroSel
             || prevCfg.heroContentType !== nextHeroType
             || prevHeroLibsSig !== nextHeroLibsSig
+            || prevEnableHeroTrailer !== nextEnableHeroTrailer
+            || prevHomeRowsSig !== nextHomeRowsSig
             || prevNavSig !== nextNavSig;
 
         state.pluginDisabled = false;
@@ -1269,6 +1287,7 @@
             serverId: cfg.serverId || (prevCfg && prevCfg.serverId) || '',
             serverName: cfg.serverName || 'StreamFlix',
             customBrandName: typeof cfg.customBrandName === 'string' ? cfg.customBrandName.trim() : '',
+            customAccentColor: sanitizeHexColor(cfg.customAccentColor, '#E50914'),
             enableStreamFlixUi: cfg.enableStreamFlixUi !== false,
             requireGoogleAuth: requireGoogle,
             enableGoogleSignIn: cfg.enableGoogleSignIn !== false,
@@ -1309,12 +1328,16 @@
             heroSelectionMode: nextHeroSel,
             heroContentType: nextHeroType,
             heroLibraryIds: nextHeroLibs,
+            enableHeroTrailerPreview: nextEnableHeroTrailer,
+            homeRowOrder: nextHomeRowOrder,
+            homeHiddenRows: nextHomeHiddenRows,
             showLibrariesInNav: nextShowLibsInNav,
             navHiddenBuiltIns: nextNavHiddenBuiltIns,
             navLibraryIds: nextNavLibraryIds,
             approvedGoogleAccounts: Array.isArray(cfg.approvedGoogleAccounts) ? cfg.approvedGoogleAccounts : [],
             approvedOidcUsers: Array.isArray(cfg.approvedOidcUsers) ? cfg.approvedOidcUsers : [],
             serverUsers: Array.isArray(cfg.serverUsers) ? cfg.serverUsers : [],
+            serverLibraries: Array.isArray(cfg.serverLibraries) ? cfg.serverLibraries : [],
             showcaseItems: serverShowcase,
             profiles: normalizedProfiles
         };
@@ -1326,6 +1349,9 @@
                     state.activeProfile.canManageGuestPasses = normalizedProfiles[apIdx].canManageGuestPasses;
                     state.activeProfile.allowLiveTv = normalizedProfiles[apIdx].allowLiveTv;
                     saveJson(PROFILE_KEY, state.activeProfile);
+                    if (typeof saveSessionJson === 'function') {
+                        saveSessionJson(TAB_PROFILE_KEY, state.activeProfile);
+                    }
                     break;
                 }
             }
@@ -1370,15 +1396,15 @@
         if (!resolvedAccess) {
             clearAdminAuth();
             if (state.activeProfile) {
-                state.activeProfile = null;
+                clearActiveProfileState(true);
                 state.sessionVerifiedOnce = false;
-                try {
-                    localStorage.removeItem(PROFILE_KEY);
-                    localStorage.removeItem(LEGACY_PROFILE_KEY);
-                } catch (eProf) {}
             }
             clearLocalJellyfinAuth();
             scheduleLifecycleTick(0);
+        }
+
+        if (typeof applyBrandAccentTheme === 'function') {
+            applyBrandAccentTheme();
         }
 
         if (state.config.assetVersion) {
@@ -1393,6 +1419,10 @@
         }
         replaceToolbarLogoInPlace();
         refreshNetflixBackdropWallInPlace();
+
+        if (prevEnableHeroTrailer && !nextEnableHeroTrailer && typeof stopHeroVideoPreview === 'function') {
+            stopHeroVideoPreview();
+        }
 
         if (prevEnableLiveTv !== nextEnableLiveTv) {
             if (!nextEnableLiveTv) {

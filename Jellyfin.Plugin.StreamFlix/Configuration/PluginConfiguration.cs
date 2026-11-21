@@ -48,6 +48,26 @@ public class StreamFlixProfileConfig
 
     public bool AutoplayPreviews { get; set; } = true;
 
+    /// <summary>
+    /// Gets or sets optional Jellyfin Library/View IDs that this profile is permitted to access. Empty means all libraries.
+    /// </summary>
+    public List<string> AllowedLibraryIds { get; set; } = new();
+
+    /// <summary>
+    /// Gets or sets the Seerr request quota per rolling 7 days for this profile (<c>0</c> = unlimited, <c>-1</c> = disabled for this profile).
+    /// </summary>
+    public int SeerrRequestQuota { get; set; }
+
+    /// <summary>
+    /// Gets or sets optional daily bedtime lock start in 24-hour <c>HH:mm</c> local time (e.g. <c>20:30</c>). Empty disables bedtime lock.
+    /// </summary>
+    public string BedtimeStart { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gets or sets optional daily bedtime lock end in 24-hour <c>HH:mm</c> local time (e.g. <c>06:30</c>).
+    /// </summary>
+    public string BedtimeEnd { get; set; } = string.Empty;
+
     public string? JellyfinUserId { get; set; }
 
     public string? JellyfinUsername { get; set; }
@@ -112,6 +132,7 @@ public class PluginConfiguration : BasePluginConfiguration
     {
         EnableStreamFlixUi = true;
         CustomBrandName = string.Empty;
+        CustomAccentColor = "#E50914";
         RequireGoogleAuth = true;
         EnableGoogleSignIn = true;
         AllowStandardJellyfinLogin = false;
@@ -136,6 +157,9 @@ public class PluginConfiguration : BasePluginConfiguration
         HeroSelectionMode = "recent";
         HeroContentType = "all";
         HeroLibraryIds = new List<string>();
+        EnableHeroTrailerPreview = false;
+        HomeRowOrder = new List<string>();
+        HomeHiddenRows = new List<string>();
         ShowLibrariesInNav = true;
         NavHiddenBuiltIns = new List<string>();
         NavLibraryIds = new List<string>();
@@ -166,6 +190,11 @@ public class PluginConfiguration : BasePluginConfiguration
     /// Defaults to "STREAMFLIX" / "StreamFlix" when empty.
     /// </summary>
     public string CustomBrandName { get; set; }
+
+    /// <summary>
+    /// Gets or sets the primary brand accent hex color (defaults to Netflix Red <c>#E50914</c>).
+    /// </summary>
+    public string CustomAccentColor { get; set; }
 
     /// <summary>
     /// Gets or sets a value indicating whether the household sign-in gate is required before "Who's watching?".
@@ -273,6 +302,22 @@ public class PluginConfiguration : BasePluginConfiguration
     /// Gets or sets optional Jellyfin Library/View IDs allowed in the hero billboard. Empty means all libraries.
     /// </summary>
     public List<string> HeroLibraryIds { get; set; }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether opt-in muted local trailer previews play on the Home Hero Billboard after resting on a slide.
+    /// Defaults to <c>false</c> so administrators must explicitly turn it on.
+    /// </summary>
+    public bool EnableHeroTrailerPreview { get; set; }
+
+    /// <summary>
+    /// Gets or sets the server-default ordering of Home page rows (empty uses the built-in default order).
+    /// </summary>
+    public List<string> HomeRowOrder { get; set; }
+
+    /// <summary>
+    /// Gets or sets Home page row IDs hidden by default across the server.
+    /// </summary>
+    public List<string> HomeHiddenRows { get; set; }
 
     /// <summary>
     /// Gets or sets a value indicating whether configured Jellyfin media libraries appear as navigation pills in the top bar (respecting per-user library access).

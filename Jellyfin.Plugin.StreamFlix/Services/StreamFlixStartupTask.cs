@@ -836,12 +836,16 @@ public class StreamFlixStartupTask : IScheduledTask
 
                         if (!profile.PermissionsInitialized)
                         {
-                            if (InitializeNewPluginUserPermissions(user, primaryAdmin))
+                            if (InitializeNewPluginUserPermissions(user, primaryAdmin, profile.AllowedLibraryIds))
                             {
                                 needsUpdate = true;
                             }
 
                             profile.PermissionsInitialized = true;
+                        }
+                        else if (JellyfinCompat.SyncUserLibraryRestriction(user, profile.AllowedLibraryIds))
+                        {
+                            needsUpdate = true;
                         }
 
                         if (EnsureUserSyncPlayAccess(user, allowCreateAndJoin: !profile.IsKids))
@@ -905,30 +909,41 @@ public class StreamFlixStartupTask : IScheduledTask
     /// Does NOT grant <c>EnableContentDownloading</c>, inherits <c>EnableRemoteAccess</c> from the primary admin
     /// when available, and is never called on pre-existing (admin-managed) Jellyfin accounts.
     /// </summary>
-    public static bool InitializeNewPluginUserPermissions(object targetUser, object? sourceAdminUser)
+    public static bool InitializeNewPluginUserPermissions(
+        object targetUser,
+        object? sourceAdminUser,
+        IReadOnlyList<string>? allowedLibraryIds = null)
     {
         var changed = false;
+        var hasExplicitFolderRestriction = allowedLibraryIds != null
+            && allowedLibraryIds.Any(id => !string.IsNullOrWhiteSpace(id) && Guid.TryParse(id.Trim(), out var g) && g != Guid.Empty);
         try
         {
-            var enableAllProp = targetUser.GetType().GetProperty("EnableAllFolders", BindingFlags.Public | BindingFlags.Instance);
-            if (enableAllProp != null && enableAllProp.CanWrite)
+            if (!hasExplicitFolderRestriction)
             {
-                if (enableAllProp.GetValue(targetUser) is bool b && !b)
+                var enableAllProp = targetUser.GetType().GetProperty("EnableAllFolders", BindingFlags.Public | BindingFlags.Instance);
+                if (enableAllProp != null && enableAllProp.CanWrite)
                 {
-                    enableAllProp.SetValue(targetUser, true);
-                    changed = true;
+                    if (enableAllProp.GetValue(targetUser) is bool b && !b)
+                    {
+                        enableAllProp.SetValue(targetUser, true);
+                        changed = true;
+                    }
                 }
             }
 
             var requiredPermissions = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
             {
-                "EnableAllFolders",
                 "EnableAllDevices",
                 "EnableMediaPlayback",
                 "EnableAudioPlaybackTranscoding",
                 "EnableVideoPlaybackTranscoding",
                 "EnablePlaybackRemuxing",
             };
+            if (!hasExplicitFolderRestriction)
+            {
+                requiredPermissions.Add("EnableAllFolders");
+            }
 
             var adminPermsProp = sourceAdminUser?.GetType().GetProperty("Permissions", BindingFlags.Public | BindingFlags.Instance);
             var allowRemote = sourceAdminUser == null || HasUserPermissionCompat(sourceAdminUser, adminPermsProp, "EnableRemoteAccess");
@@ -1069,12 +1084,72 @@ public class StreamFlixStartupTask : IScheduledTask
             {
                 changed = true;
             }
+
+            if (targetUser is JUser typedUser && JellyfinCompat.SyncUserLibraryRestriction(typedUser, allowedLibraryIds))
+            {
+                changed = true;
+            }
         }
         catch
         {
         }
 
         return changed;
+    }
+
+    internal static void SetSingleUserPermissionCompat(object targetUser, string permissionName, bool value, ref bool changed)
+    {
+        try
+        {
+            var permsProp = targetUser.GetType().GetProperty("Permissions", BindingFlags.Public | BindingFlags.Instance);
+            if (permsProp?.GetValue(targetUser) is IEnumerable perms)
+            {
+                foreach (var perm in perms)
+                {
+                    if (perm == null)
+                    {
+                        continue;
+                    }
+
+                    var kindProp = perm.GetType().GetProperty("Kind", BindingFlags.Public | BindingFlags.Instance);
+                    var valProp = perm.GetType().GetProperty("Value", BindingFlags.Public | BindingFlags.Instance);
+                    var kindName = kindProp?.GetValue(perm)?.ToString();
+                    if (!string.IsNullOrEmpty(kindName) && string.Equals(kindName, permissionName, StringComparison.OrdinalIgnoreCase))
+                    {
+                        if (valProp != null && valProp.CanWrite && valProp.GetValue(perm) is bool curVal && curVal != value)
+                        {
+                            valProp.SetValue(perm, value);
+                            changed = true;
+                        }
+
+                        return;
+                    }
+                }
+            }
+
+            var instanceSetPerm = targetUser.GetType().GetMethod("SetPermission", BindingFlags.Public | BindingFlags.Instance);
+            if (instanceSetPerm != null)
+            {
+                var enumType = instanceSetPerm.GetParameters()[0].ParameterType;
+                if (Enum.TryParse(enumType, permissionName, ignoreCase: true, out var enumVal) && enumVal != null)
+                {
+                    instanceSetPerm.Invoke(targetUser, new object[] { enumVal, value });
+                    changed = true;
+                }
+            }
+            else if (_cachedExtSetPermMethod != null)
+            {
+                var enumType = _cachedExtSetPermMethod.GetParameters()[1].ParameterType;
+                if (Enum.TryParse(enumType, permissionName, ignoreCase: true, out var enumVal) && enumVal != null)
+                {
+                    _cachedExtSetPermMethod.Invoke(null, new object[] { targetUser, enumVal, value });
+                    changed = true;
+                }
+            }
+        }
+        catch
+        {
+        }
     }
 
     public static bool EnsureUserSyncPlayAccess(object targetUser, bool allowCreateAndJoin)

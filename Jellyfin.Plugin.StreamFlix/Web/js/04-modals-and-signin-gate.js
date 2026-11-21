@@ -177,9 +177,9 @@
 
     function closeOverlayGate() {
         state.explicitPickerOpen = false;
+        state.explicitAuthPrompt = false;
         state.openedDirectlyToManage = false;
         state.manageMode = false;
-        state.explicitAuthPrompt = false;
         document.body.classList.remove('streamflix-gate-locked');
         var root = document.getElementById('streamflix-overlay-root');
         if (!root) {
@@ -832,12 +832,7 @@
                     expiresAt: res.expiresAt || ''
                 });
 
-                state.activeProfile = null;
-                try {
-                    localStorage.removeItem(PROFILE_KEY);
-                    localStorage.removeItem(LEGACY_PROFILE_KEY);
-                    sessionStorage.removeItem('streamflix_reload_uid');
-                } catch (eClrP) {}
+                clearActiveProfileState(true);
 
                 if (res.jellyfinAccessToken && res.userId) {
                     if (res.isAdmin || adminOnly) {
@@ -1096,6 +1091,9 @@
                 + '  </div>'
                 + '</div>';
         }
+
+        var hasPendingOidcNow = typeof loadPendingOidcFlow === 'function' && Boolean(loadPendingOidcFlow());
+        transitionAppPhase(hasPendingOidcNow ? APP_PHASES.OIDC_PENDING : APP_PHASES.AUTH_REQUIRED);
 
         var authActionsHtml = (typeof canCancelExplicitAuthToPicker === 'function' && canCancelExplicitAuthToPicker())
             ? ('<button type="button" class="streamflix-ghost-btn" id="streamflix-cancel-explicit-auth-btn">'

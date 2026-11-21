@@ -1,7 +1,7 @@
 ---
 name: "StreamFlix"
 guid: "7cc1a505-91f6-4661-b4f9-7eee8be33b19"
-version: "0.9.2.17"
+version: "0.9.3.0"
 targetAbi: "12.0.0.0"
 framework: "net10.0"
 owner: "StreamFlix"
@@ -18,4 +18,9 @@ imageUrl: "https://raw.githubusercontent.com/streamflix-dev/jellyfin-streamflix/
 artifacts:
   - "Jellyfin.Plugin.StreamFlix.dll"
 changelog: >
-  - Live TV Compatibility Fix (#19): preserve enableLiveTv in client PublicConfig hydration (applyConfigFromServerResponse) so enabling Live TV in plugin settings immediately surfaces the Live TV navigation tab, Home row, Account Menu entry, Search filter, and #/livetv route; also auto-initialize EnableLiveTvAccess on pre-existing plugin-created adult household profiles when Live TV is enabled
+  - Single-Request Hub Bootstrap & Instant SWR Cache (/StreamFlix/Hub/Bootstrap)
+  - Inline 3-Hour Live TV EPG Timeline Grid + 1-Click DVR Recording (Opt-In)
+  - Customizable Home Row Order & Visibility (Server Defaults + Per-Profile Overrides)
+  - Upgraded 4-Tab New & Popular Hub (All, Trending, Coming Soon, Just Added)
+  - Opt-In Muted Hero Billboard Trailer Previews
+  - Per-Profile Library Restrictions, Kids Bedtime Schedule, Custom Brand Accent Color, Per-Tab Profile Isolation, Weekly Seerr Quotas & Notification Bell, and Admin Health Check + Config Backup/Import

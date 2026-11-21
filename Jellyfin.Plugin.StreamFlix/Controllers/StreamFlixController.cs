@@ -51,6 +51,7 @@ namespace Jellyfin.Plugin.StreamFlix.Controllers;
 /// </remarks>
 [ApiController]
 [Route("StreamFlix")]
+[StreamFlixErrorEnvelope]
 public partial class StreamFlixController : ControllerBase
 {
     private const int MaxProfilesCount = 24;
@@ -207,6 +208,10 @@ public partial class StreamFlixController : ControllerBase
             config.EnableStreamFlixUi = request.EnableStreamFlixUi;
             var brand = (request.CustomBrandName ?? string.Empty).Trim();
             config.CustomBrandName = brand.Length > 32 ? brand.Substring(0, 32).Trim() : brand;
+            if (!string.IsNullOrWhiteSpace(request.CustomAccentColor))
+            {
+                config.CustomAccentColor = SanitizeHexColor(request.CustomAccentColor);
+            }
 
             // Household sign-in before "Who's watching?" is always enforced for security
             config.RequireGoogleAuth = true;
@@ -265,20 +270,7 @@ public partial class StreamFlixController : ControllerBase
             config.ShowLibrariesInNav = request.ShowLibrariesInNav;
             if (request.NavHiddenBuiltIns != null)
             {
-                var allowedBuiltIns = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-                {
-                    "series",
-                    "movies",
-                    "livetv",
-                    "collections",
-                    "top10",
-                    "mylist",
-                };
-                config.NavHiddenBuiltIns = request.NavHiddenBuiltIns
-                    .Where(id => !string.IsNullOrWhiteSpace(id) && allowedBuiltIns.Contains(id.Trim()))
-                    .Select(id => id.Trim().ToLowerInvariant())
-                    .Distinct(StringComparer.OrdinalIgnoreCase)
-                    .ToList();
+                config.NavHiddenBuiltIns = NormalizeNavHiddenBuiltIns(request.NavHiddenBuiltIns);
             }
 
             if (request.NavLibraryIds != null)
@@ -288,6 +280,17 @@ public partial class StreamFlixController : ControllerBase
                     .Select(id => id.Trim())
                     .Distinct(StringComparer.OrdinalIgnoreCase)
                     .ToList();
+            }
+
+            config.EnableHeroTrailerPreview = request.EnableHeroTrailerPreview;
+            if (request.HomeRowOrder != null)
+            {
+                config.HomeRowOrder = NormalizeHomeRowIds(request.HomeRowOrder);
+            }
+
+            if (request.HomeHiddenRows != null)
+            {
+                config.HomeHiddenRows = NormalizeHomeRowIds(request.HomeHiddenRows);
             }
 
             config.EnableCustomOidc = request.EnableCustomOidc;
@@ -722,6 +725,7 @@ public partial class StreamFlixController : ControllerBase
             serverId = _appHost.SystemId,
             serverName = _appHost.FriendlyName,
             customBrandName = (config.CustomBrandName ?? string.Empty).Trim(),
+            customAccentColor = SanitizeHexColor(config.CustomAccentColor),
             enableStreamFlixUi = config.EnableStreamFlixUi,
             requireGoogleAuth = true,
             enableGoogleSignIn = config.EnableGoogleSignIn,
@@ -774,15 +778,72 @@ public partial class StreamFlixController : ControllerBase
             heroSelectionMode = NormalizeHeroSelectionMode(config.HeroSelectionMode),
             heroContentType = NormalizeHeroContentType(config.HeroContentType),
             heroLibraryIds = heroLibrariesSnapshot,
+            enableHeroTrailerPreview = config.EnableHeroTrailerPreview,
+            homeRowOrder = NormalizeHomeRowIds(config.HomeRowOrder),
+            homeHiddenRows = NormalizeHomeRowIds(config.HomeHiddenRows),
             showLibrariesInNav = config.ShowLibrariesInNav,
             navHiddenBuiltIns = navHiddenBuiltInsSnapshot,
             navLibraryIds = navLibraryIdsSnapshot,
             approvedGoogleAccounts = hasAccess && effectiveAdmin ? approvedSnapshot : new List<string>(),
             approvedOidcUsers = hasAccess && effectiveAdmin ? approvedOidcSnapshot : new List<string>(),
             serverUsers,
+            serverLibraries = hasAccess ? JellyfinCompat.GetServerMediaLibraries(_libraryManager) : new List<object>(),
             profiles = hasAccess ? profilesSnapshot.Select(p => MapProfilePublic(config, p, caller)).ToList() : new List<object>(),
             showcaseItems = hasAccess && !isGuestPass ? GetShowcaseItemsCached(_libraryManager) : new List<object>(),
         };
+    }
+
+    internal static List<string> NormalizeNavHiddenBuiltIns(IEnumerable<string?>? raw)
+    {
+        if (raw == null)
+        {
+            return new List<string>();
+        }
+
+        var allowedBuiltIns = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "series",
+            "movies",
+            "hot",
+            "livetv",
+            "collections",
+            "top10",
+            "mylist",
+        };
+        return raw
+            .Where(id => !string.IsNullOrWhiteSpace(id) && allowedBuiltIns.Contains(id!.Trim()))
+            .Select(id => id!.Trim().ToLowerInvariant())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
+    internal static List<string> NormalizeHomeRowIds(IEnumerable<string?>? raw)
+    {
+        if (raw == null)
+        {
+            return new List<string>();
+        }
+
+        var allowedRowIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "resume",
+            "nextup",
+            "livetv",
+            "personal",
+            "top10",
+            "mylist",
+            "acclaimed",
+            "movies",
+            "series",
+            "gems",
+            "collections",
+            "watchagain",
+        };
+        return raw
+            .Where(id => !string.IsNullOrWhiteSpace(id) && allowedRowIds.Contains(id!.Trim()))
+            .Select(id => id!.Trim().ToLowerInvariant())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
     }
 
     private void SetNoStoreSecurityHeaders()
@@ -798,6 +859,7 @@ public partial class StreamFlixController : ControllerBase
             version = Plugin.VersionString,
             enableStreamFlixUi = config.EnableStreamFlixUi,
             customBrandName = config.CustomBrandName ?? string.Empty,
+            customAccentColor = SanitizeHexColor(config.CustomAccentColor),
             requireGoogleAuth = true,
             enableGoogleSignIn = config.EnableGoogleSignIn,
             allowStandardJellyfinLogin = config.AllowStandardJellyfinLogin,
@@ -817,6 +879,9 @@ public partial class StreamFlixController : ControllerBase
             heroSelectionMode = NormalizeHeroSelectionMode(config.HeroSelectionMode),
             heroContentType = NormalizeHeroContentType(config.HeroContentType),
             heroLibraryIds = (config.HeroLibraryIds ?? new List<string>()).ToList(),
+            enableHeroTrailerPreview = config.EnableHeroTrailerPreview,
+            homeRowOrder = NormalizeHomeRowIds(config.HomeRowOrder),
+            homeHiddenRows = NormalizeHomeRowIds(config.HomeHiddenRows),
             showLibrariesInNav = config.ShowLibrariesInNav,
             navHiddenBuiltIns = (config.NavHiddenBuiltIns ?? new List<string>()).ToList(),
             navLibraryIds = (config.NavLibraryIds ?? new List<string>()).ToList(),

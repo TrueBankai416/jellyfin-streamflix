@@ -835,13 +835,17 @@ public partial class StreamFlixController
 
             if (!profile.PermissionsInitialized)
             {
-                if (StreamFlixStartupTask.InitializeNewPluginUserPermissions(user, primaryAdmin))
+                if (StreamFlixStartupTask.InitializeNewPluginUserPermissions(user, primaryAdmin, profile.AllowedLibraryIds))
                 {
                     needsUpdate = true;
                 }
 
                 profile.PermissionsInitialized = true;
                 Plugin.Instance?.SaveConfiguration();
+            }
+            else if (JellyfinCompat.SyncUserLibraryRestriction(user, profile.AllowedLibraryIds))
+            {
+                needsUpdate = true;
             }
 
             if (StreamFlixStartupTask.EnsureUserSyncPlayAccess(user, allowCreateAndJoin: !profile.IsKids))

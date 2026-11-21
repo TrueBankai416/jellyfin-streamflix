@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Text.Json.Serialization;
+using Jellyfin.Plugin.StreamFlix.Configuration;
 
 namespace Jellyfin.Plugin.StreamFlix.Controllers;
 
@@ -173,6 +174,14 @@ public class SaveProfileRequest
 
     public bool AutoplayPreviews { get; set; } = true;
 
+    public List<string>? AllowedLibraryIds { get; set; }
+
+    public int? SeerrRequestQuota { get; set; }
+
+    public string? BedtimeStart { get; set; }
+
+    public string? BedtimeEnd { get; set; }
+
     public string? JellyfinUserId { get; set; }
 
     public string? JellyfinUsername { get; set; }
@@ -197,6 +206,8 @@ public class SaveAdminConfigRequest
     public bool EnableStreamFlixUi { get; set; } = true;
 
     public string? CustomBrandName { get; set; }
+
+    public string? CustomAccentColor { get; set; }
 
     public bool RequireGoogleAuth { get; set; } = true;
 
@@ -242,6 +253,12 @@ public class SaveAdminConfigRequest
 
     public List<string>? NavLibraryIds { get; set; }
 
+    public bool EnableHeroTrailerPreview { get; set; }
+
+    public List<string>? HomeRowOrder { get; set; }
+
+    public List<string>? HomeHiddenRows { get; set; }
+
     public bool EnableCustomOidc { get; set; }
 
     public string? OidcProviderName { get; set; }
@@ -277,6 +294,87 @@ public class SaveAdminConfigRequest
     public bool SeerrAllowKids { get; set; }
 
     public bool SeerrAllowGuests { get; set; }
+}
+
+public class ImportConfigBackupRequest
+{
+    public string? CustomBrandName { get; set; }
+
+    public string? CustomAccentColor { get; set; }
+
+    public bool? EnableStreamFlixUi { get; set; }
+
+    public bool? EnableGoogleSignIn { get; set; }
+
+    public bool? AllowStandardJellyfinLogin { get; set; }
+
+    public bool? AllowAdminFallbackLogin { get; set; }
+
+    public bool? AdminFallbackLanOnly { get; set; }
+
+    public bool? BypassLoginGateOnLan { get; set; }
+
+    public bool? TreatTailscaleAsLocalLan { get; set; }
+
+    public bool? AutoProvisionJellyfinUsers { get; set; }
+
+    public List<string>? ApprovedGoogleAccounts { get; set; }
+
+    public int? SessionLifetimeDays { get; set; }
+
+    public string? Top10SelectionMode { get; set; }
+
+    public int? HeroRotationSeconds { get; set; }
+
+    public int? HeroSlideCount { get; set; }
+
+    public string? HeroSelectionMode { get; set; }
+
+    public string? HeroContentType { get; set; }
+
+    public List<string>? HeroLibraryIds { get; set; }
+
+    public bool? ShowLibrariesInNav { get; set; }
+
+    public List<string>? NavHiddenBuiltIns { get; set; }
+
+    public List<string>? NavLibraryIds { get; set; }
+
+    public bool? EnableHeroTrailerPreview { get; set; }
+
+    public List<string>? HomeRowOrder { get; set; }
+
+    public List<string>? HomeHiddenRows { get; set; }
+
+    public bool? EnableCustomOidc { get; set; }
+
+    public string? OidcProviderName { get; set; }
+
+    public string? OidcIssuerUrl { get; set; }
+
+    public string? OidcClientId { get; set; }
+
+    public bool? OidcRequireAllowlist { get; set; }
+
+    public List<string>? ApprovedOidcUsers { get; set; }
+
+    public bool? EnableGuestPasses { get; set; }
+
+    public List<string>? GuestPassManagerProfileIds { get; set; }
+
+    public bool? EnableWatchTogether { get; set; }
+
+    public bool? EnableLiveTv { get; set; }
+
+    public bool? EnableSeerr { get; set; }
+
+    public string? SeerrUrl { get; set; }
+
+    public bool? SeerrAllowKids { get; set; }
+
+    public bool? SeerrAllowGuests { get; set; }
+
+    public List<StreamFlixProfileConfig>? Profiles { get; set; }
 }
 
 public class CreateGuestPassRequest

@@ -115,8 +115,7 @@
             cache: 'no-store'
         }).then(function (res) {
             if (res.status === 401) {
-                state.activeProfile = null;
-                localStorage.removeItem(PROFILE_KEY);
+                clearActiveProfileState(false);
                 scheduleLifecycleTick(0);
                 return null;
             }
@@ -174,7 +173,17 @@
 
         ensureHeaderWidgets();
 
+        if (state.embeddedAdminModalOpen) {
+            transitionAppPhase(APP_PHASES.EMBEDDED_ADMIN);
+            return;
+        }
+
         if (isAdminConfigRoute()) {
+            state.wasOnAdminRoute = true;
+            transitionAppPhase(APP_PHASES.ADMIN_ROUTE);
+            if (typeof removeBedtimeLockOverlay === 'function') {
+                removeBedtimeLockOverlay();
+            }
             clearUserPreferencesEnhancements();
             var existingHubOnAdmin = document.getElementById('streamflix-cinema-hub');
             if (existingHubOnAdmin) {
@@ -225,10 +234,24 @@
                 window.location.hash = '#/home';
                 return;
             }
-            if (isGateOpen() && !state.explicitPickerOpen && !state.manageMode && !state.explicitAuthPrompt && hasHouseholdAccess() && getActiveToken()) {
+            if (isGateOpen() && !isUserProtectedOverlayPhase() && hasHouseholdAccess() && getActiveToken()) {
                 closeOverlayGate();
             }
             return;
+        }
+
+        // Bug fix: when returning from Dashboard / Plugin Settings to Home on a non-admin profile,
+        // immediately restore the active profile's Jellyfin credentials so the tab doesn't stay logged in as Admin.
+        if (state.wasOnAdminRoute) {
+            state.wasOnAdminRoute = false;
+            if (state.activeProfile && state.activeProfile.accessToken && state.activeProfile.jellyfinUserId) {
+                applyJellyfinServerCredentials({
+                    serverId: state.activeProfile.serverId || (state.config && state.config.serverId),
+                    userId: state.activeProfile.jellyfinUserId,
+                    accessToken: state.activeProfile.accessToken,
+                    user: null
+                });
+            }
         }
 
         var hashHasLogin = (window.location.hash || '').toLowerCase().indexOf('login') !== -1;
@@ -237,8 +260,13 @@
             state.explicitPickerOpen = false;
             state.openedDirectlyToManage = false;
             if (!hasHouseholdAccess()) {
+                if (typeof removeBedtimeLockOverlay === 'function') {
+                    removeBedtimeLockOverlay();
+                }
                 clearUserPreferencesEnhancements();
             }
+            var hasPendingOidc = typeof loadPendingOidcFlow === 'function' && Boolean(loadPendingOidcFlow());
+            transitionAppPhase(hasPendingOidc ? APP_PHASES.OIDC_PENDING : APP_PHASES.AUTH_REQUIRED);
             var stage = document.getElementById('streamflix-stage');
             var view = stage ? String(stage.getAttribute('data-view') || '') : '';
             var validAuthView = !state.configAttempted
@@ -266,8 +294,7 @@
             var sp = findProfileById(state.activeProfile.id);
             if (!sp && getProfiles().length > 0) {
                 // The active profile was deleted on another device
-                state.activeProfile = null;
-                localStorage.removeItem(PROFILE_KEY);
+                clearActiveProfileState(true);
             } else if (sp) {
                 state.activeProfile.name = sp.name || state.activeProfile.name;
                 state.activeProfile.color = sp.color || state.activeProfile.color;
@@ -275,7 +302,14 @@
                 state.activeProfile.isKids = Boolean(sp.isKids);
                 state.activeProfile.kidsExitPinRequired = sp.kidsExitPinRequired !== false;
                 state.activeProfile.isAdmin = Boolean(sp.isAdmin);
+                state.activeProfile.autoplayNextEpisode = sp.autoplayNextEpisode !== false;
+                state.activeProfile.autoplayPreviews = sp.autoplayPreviews !== false;
+                state.activeProfile.bedtimeStart = sp.bedtimeStart || '';
+                state.activeProfile.bedtimeEnd = sp.bedtimeEnd || '';
+                state.activeProfile.allowedLibraryIds = Array.isArray(sp.allowedLibraryIds) ? sp.allowedLibraryIds.slice() : [];
+                state.activeProfile.seerrRequestQuota = typeof sp.seerrRequestQuota === 'number' ? sp.seerrRequestQuota : 0;
                 state.activeProfile.jellyfinUsername = sp.jellyfinUsername || state.activeProfile.jellyfinUsername;
+                saveSessionJson(TAB_PROFILE_KEY, state.activeProfile);
                 if (!state.explicitPickerOpen
                     && !state.manageMode
                     && !isGateOpen()
@@ -290,7 +324,11 @@
         }
 
         if (!state.activeProfile || !state.activeProfile.id || !state.activeProfile.accessToken || hashHasLogin) {
+            if (typeof removeBedtimeLockOverlay === 'function') {
+                removeBedtimeLockOverlay();
+            }
             clearUserPreferencesEnhancements();
+            transitionAppPhase(APP_PHASES.PICKER_REQUIRED);
             var pickerStage = document.getElementById('streamflix-stage');
             var pickerView = pickerStage && pickerStage.getAttribute('data-view');
             if (!isGateOpen() || !pickerView || pickerView.indexOf('picker') !== 0) {
@@ -322,6 +360,11 @@
         installGlobalCardClickInterceptor();
 
         if (!isGateOpen()) {
+            if (typeof enforceBedtimeLockOverlay === 'function' && enforceBedtimeLockOverlay()) {
+                transitionAppPhase(APP_PHASES.BEDTIME_LOCKED);
+                return;
+            }
+            transitionAppPhase(isVideoPlayerActive() ? APP_PHASES.VIDEO_PLAYER : APP_PHASES.HUB_BROWSE);
             ensureHeaderWidgets();
             enhanceItemDetailPage();
             enhanceLibraryListPages();
@@ -333,6 +376,7 @@
                 processPendingWatchPartyIfReady();
             }
         } else {
+            transitionAppPhase(APP_PHASES.PICKER_OVERLAY);
             clearUserPreferencesEnhancements();
         }
     }
@@ -383,8 +427,8 @@
         evaluateAuthAndProfileGate();
     }
 
-    var OWN_UI_SELECTOR = '#streamflix-overlay-root, #streamflix-overlay-root-closing, #streamflix-cinema-hub, #streamflix-account-dropdown, '
-        + '#streamflix-header-profile-btn, #bfx-exit-kids-btn, #bfx-kids-brand-pill, #streamflix-mobile-dock, #streamflix-toast-host, .streamflix-modal-backdrop, #streamflix-library-page-fallback, #bfx-hover-preview, '
+    var OWN_UI_SELECTOR = '#streamflix-overlay-root, #streamflix-overlay-root-closing, #streamflix-cinema-hub, #streamflix-account-dropdown, #streamflix-notif-dropdown, '
+        + '#streamflix-header-profile-btn, #streamflix-header-bell-btn, #bfx-exit-kids-btn, #bfx-kids-brand-pill, #bfx-bedtime-lock-overlay, #bfx-embedded-admin-modal, #streamflix-mobile-dock, #streamflix-toast-host, .streamflix-modal-backdrop, #streamflix-library-page-fallback, #bfx-hover-preview, '
         + '#streamflix-osd-episodes, #streamflix-osd-tracks, #streamflix-osd-upnext, #streamflix-osd-paused, #streamflix-osd-flash, #bfx-wp-osd-banner, #bfx-wp-autoplay-unlock';
 
     function isOwnNode(node) {
@@ -1326,6 +1370,9 @@
         });
     };
     window.__STREAMFLIX_OPEN_GUEST_PASSES__ = openGuestPassesModal;
+    window.__STREAMFLIX_GET_APP_PHASE__ = function () {
+        return state.appPhase;
+    };
     window.__STREAMFLIX_SIGN_OUT_LOCAL__ = function (skipGateRender) {
         signOutHousehold({ skipServerLogout: true, silent: true, skipGateRender: Boolean(skipGateRender) });
     };

@@ -229,12 +229,7 @@
                     picture: res.picture || '',
                     expiresAt: res.expiresAt || ''
                 });
-                state.activeProfile = null;
-                try {
-                    localStorage.removeItem(PROFILE_KEY);
-                    localStorage.removeItem(LEGACY_PROFILE_KEY);
-                    sessionStorage.removeItem('streamflix_reload_uid');
-                } catch (eClr) {}
+                clearActiveProfileState(true);
                 clearLocalJellyfinAuth();
                 var pendingId = res.pendingProfileId || takePendingProfileId();
                 fetchPublicConfig().then(function () {
@@ -418,12 +413,7 @@
                 expiresAt: res.expiresAt || ''
             });
             // Netflix-style: always choose who's watching after signing in
-            state.activeProfile = null;
-            try {
-                localStorage.removeItem(PROFILE_KEY);
-                localStorage.removeItem(LEGACY_PROFILE_KEY);
-                sessionStorage.removeItem('streamflix_reload_uid');
-            } catch (eClrG) {}
+            clearActiveProfileState(true);
             clearLocalJellyfinAuth();
 
             var pendingId = takePendingProfileId();
@@ -661,12 +651,7 @@
             expiresAt: res.expiresAt || ''
         });
 
-        state.activeProfile = null;
-        try {
-            localStorage.removeItem(PROFILE_KEY);
-            localStorage.removeItem(LEGACY_PROFILE_KEY);
-            sessionStorage.removeItem('streamflix_reload_uid');
-        } catch (eClrO) {}
+        clearActiveProfileState(true);
         clearLocalJellyfinAuth();
 
         var pendingId = res.pendingProfileId || takePendingProfileId();
@@ -831,9 +816,7 @@
             activated.accessToken = act.accessToken;
             activated.serverId = act.serverId || (state.config && state.config.serverId) || '';
 
-            state.activeProfile = activated;
-            saveJson(PROFILE_KEY, activated);
-            saveJson(LEGACY_PROFILE_KEY, activated);
+            saveActiveProfileState(activated, true);
 
             applyJellyfinServerCredentials({
                 serverId: activated.serverId,
@@ -857,8 +840,7 @@
             });
         }
 
-        state.activeProfile = null;
-        localStorage.removeItem(PROFILE_KEY);
+        clearActiveProfileState(true);
         return fetchPublicConfig().then(function () {
             var locked = res.lockedProfileId ? findProfileById(res.lockedProfileId) : (getProfiles()[0] || null);
             if (locked) {
@@ -1117,9 +1099,7 @@
             activated.accessToken = res.accessToken;
             activated.serverId = res.serverId || (state.config && state.config.serverId) || '';
 
-            state.activeProfile = activated;
-            saveJson(PROFILE_KEY, activated);
-            saveJson(LEGACY_PROFILE_KEY, activated);
+            saveActiveProfileState(activated, true);
 
             if (activated.isAdmin && activated.accessToken && activated.jellyfinUserId && !isGuestPassSession()) {
                 saveAdminAuth({
