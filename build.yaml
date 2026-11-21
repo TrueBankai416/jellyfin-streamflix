@@ -1,7 +1,7 @@
 ---
 name: "StreamFlix"
 guid: "7cc1a505-91f6-4661-b4f9-7eee8be33b19"
-version: "0.9.3.0"
+version: "0.9.3.1"
 targetAbi: "12.0.0.0"
 framework: "net10.0"
 owner: "StreamFlix"
@@ -18,9 +18,4 @@ imageUrl: "https://raw.githubusercontent.com/streamflix-dev/jellyfin-streamflix/
 artifacts:
   - "Jellyfin.Plugin.StreamFlix.dll"
 changelog: >
-  - Single-Request Hub Bootstrap & Instant SWR Cache (/StreamFlix/Hub/Bootstrap)
-  - Inline 3-Hour Live TV EPG Timeline Grid + 1-Click DVR Recording (Opt-In)
-  - Customizable Home Row Order & Visibility (Server Defaults + Per-Profile Overrides)
-  - Upgraded 4-Tab New & Popular Hub (All, Trending, Coming Soon, Just Added)
-  - Opt-In Muted Hero Billboard Trailer Previews
-  - Per-Profile Library Restrictions, Kids Bedtime Schedule, Custom Brand Accent Color, Per-Tab Profile Isolation, Weekly Seerr Quotas & Notification Bell, and Admin Health Check + Config Backup/Import
+  - Official YouTube Trailers on Hero Billboard & Detail Modal: resolves Jellyfin RemoteTrailers + automatic embeddable YouTube Official Trailer search (verified via YouTube oEmbed), served through an Error-153-safe /StreamFlix/Trailers/Embed relay with live Mute/Unmute on the Hero Billboard (enabled by default) and an on-demand Trailer button inside every Detail Modal.

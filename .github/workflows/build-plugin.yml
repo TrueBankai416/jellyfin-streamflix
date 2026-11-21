@@ -15,18 +15,16 @@ permissions:
   contents: write
 
 env:
-  PLUGIN_VERSION: "0.9.3.0"
+  PLUGIN_VERSION: "0.9.3.1"
   PLUGIN_GUID: "7cc1a505-91f6-4661-b4f9-7eee8be33b19"
   PLUGIN_NAME: "StreamFlix"
   PLUGIN_OVERVIEW: "Netflix-style UI, Household Profiles, Guest Passes & Seerr Requests for Jellyfin"
   PLUGIN_DESCRIPTION: "Transforms Jellyfin Web into StreamFlix: a Netflix-style cinema UI with flexible Google/OIDC/Jellyfin sign-in, dedicated Kids profiles, real-time synced Watch Together, opt-in Live TV compatibility, toggleable QR Guest Passes, optional Seerr/Jellyseerr search requests, automatic WebGPU Player support, and 'Who's watching?' profiles mapped to real Jellyfin users."
   PLUGIN_CHANGELOG: |
-    - **Single-Request Hub Bootstrap & Instant SWR Cache**: Consolidated 8 parallel Home startup requests into `/StreamFlix/Hub/Bootstrap` with stale-while-revalidate `sessionStorage` caching for near-instant startup and tab switches.
-    - **Inline 3-Hour Live TV EPG Timeline Grid & 1-Click DVR Recording**: Added an interactive `TV Guide` sub-tab inside `Live TV` with a scrollable 3-hour dark timeline, sticky channel logos, live `NOW` playhead, `Earlier / Now / Later` navigation, `REC` timer badges, and 1-click DVR program scheduling/cancellation in the detail modal (opt-in via `Enable Live TV`).
-    - **Customizable Home Row Order & Visibility**: Reorder or hide any Home screen row server-wide in Plugin Settings (`Home Page Row Order & Visibility`), plus per-profile row customization inside `Customize Navigation & Home Layout`.
-    - **Upgraded 4-Tab "New & Popular" Hub**: Interactive `All`, `Trending`, `Coming Soon` (combining Jellyfin `/Shows/Upcoming` episodes and pending/approved Seerr requests), and `Just Added` views.
-    - **Opt-In Muted Hero Trailer Previews**: Optional muted local trailer playback on the Home Hero Billboard (`EnableHeroTrailerPreview`, off by default, respecting per-profile Autoplay Previews, Reduced Motion, and Data Saver).
-    - **Household & Admin Power Upgrades**: Per-profile Jellyfin library restrictions, Kids Bedtime schedules, custom brand accent color picker, per-tab profile isolation (`BroadcastChannel` sign-out sync), weekly Seerr request quotas + in-app Notification Bell, mobile Recommended Search detail modal fix, and 1-click Admin Health Check + JSON Config Export/Import.
+    - **YouTube Hero Billboard Trailer Previews (Enabled by Default)**: Replaces local-only trailer checks with `/StreamFlix/Trailers/Resolve` — checking Jellyfin `RemoteTrailers` first and automatically falling back to verified embeddable YouTube Official Trailer search (`oembed` checked so non-embeddable studio uploads are skipped), crossfading smoothly after ~1.5s with a live **Mute / Unmute** toggle.
+    - **Error-153-Safe YouTube Embed Relay (`/StreamFlix/Trailers/Embed/{youtubeId}`)**: Serves YouTube `youtube-nocookie.com` embeds through a lightweight same-origin HTML5 relay with `Referrer-Policy: strict-origin-when-cross-origin` and bidirectional `postMessage` state/audio sync so trailers play reliably in Jellyfin Web (despite `<meta name="referrer" content="no-referrer">`), Jellyfin Media Player, and iOS/Android mobile WebViews.
+    - **On-Demand Detail Modal `Trailer` Button**: Adds a **Trailer** button next to **Play** inside the StreamFlix Detail Modal on desktop, TV, and mobile phones for full-audio inline YouTube trailer playback.
+    - **Fixed Initial Slide 0 Preview Race**: Ensures Hero Billboard previews always schedule on Slide 0 even when the Cinema Hub hydrates from SWR cache before `PublicConfig` completes or after closing a Detail Modal.
 
 jobs:
   build-and-publish:
