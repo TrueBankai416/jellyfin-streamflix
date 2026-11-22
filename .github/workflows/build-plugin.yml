@@ -15,16 +15,15 @@ permissions:
   contents: write
 
 env:
-  PLUGIN_VERSION: "0.9.3.1"
+  PLUGIN_VERSION: "0.9.3.2"
   PLUGIN_GUID: "7cc1a505-91f6-4661-b4f9-7eee8be33b19"
   PLUGIN_NAME: "StreamFlix"
   PLUGIN_OVERVIEW: "Netflix-style UI, Household Profiles, Guest Passes & Seerr Requests for Jellyfin"
   PLUGIN_DESCRIPTION: "Transforms Jellyfin Web into StreamFlix: a Netflix-style cinema UI with flexible Google/OIDC/Jellyfin sign-in, dedicated Kids profiles, real-time synced Watch Together, opt-in Live TV compatibility, toggleable QR Guest Passes, optional Seerr/Jellyseerr search requests, automatic WebGPU Player support, and 'Who's watching?' profiles mapped to real Jellyfin users."
   PLUGIN_CHANGELOG: |
-    - **YouTube Hero Billboard Trailer Previews (Enabled by Default)**: Replaces local-only trailer checks with `/StreamFlix/Trailers/Resolve` — checking Jellyfin `RemoteTrailers` first and automatically falling back to verified embeddable YouTube Official Trailer search (`oembed` checked so non-embeddable studio uploads are skipped), crossfading smoothly after ~1.5s with a live **Mute / Unmute** toggle.
-    - **Error-153-Safe YouTube Embed Relay (`/StreamFlix/Trailers/Embed/{youtubeId}`)**: Serves YouTube `youtube-nocookie.com` embeds through a lightweight same-origin HTML5 relay with `Referrer-Policy: strict-origin-when-cross-origin` and bidirectional `postMessage` state/audio sync so trailers play reliably in Jellyfin Web (despite `<meta name="referrer" content="no-referrer">`), Jellyfin Media Player, and iOS/Android mobile WebViews.
-    - **On-Demand Detail Modal `Trailer` Button**: Adds a **Trailer** button next to **Play** inside the StreamFlix Detail Modal on desktop, TV, and mobile phones for full-audio inline YouTube trailer playback.
-    - **Fixed Initial Slide 0 Preview Race**: Ensures Hero Billboard previews always schedule on Slide 0 even when the Cinema Hub hydrates from SWR cache before `PublicConfig` completes or after closing a Detail Modal.
+    - **Fix Remote & Existing Jellyfin User Sign-In (#22)**: Eliminates the `SF-REQ-743` (`not_household_member`) block when remote or existing Jellyfin accounts authenticate with valid Jellyfin credentials (`AllowStandardJellyfinLogin`). StreamFlix now automatically links an existing matching profile or provisions a dedicated StreamFlix profile (`IsPluginCreatedJellyfinUser = false`, preserving 100% of the user's Jellyfin permissions, libraries, and password).
+    - **Scoped Remote Account Privacy & `EnableRemoteAccess` Enforcement**: Auto-provisioned Jellyfin user profiles are locked to their Jellyfin account (`AccountLockKind = "jellyfin"`) so remote/personal users don't clutter shared LAN-bypass household pickers (while remaining fully manageable by Administrators in Manage Profiles), and external WAN logins strictly honor Jellyfin's per-user `EnableRemoteAccess` permission (`SF-AUTH-111`).
+    - **Seamless Single-Profile Auto-Activation**: Non-admin Jellyfin users with a single linked profile (and no separate profile PIN) now enter StreamFlix Home directly upon signing in across Web, Mobile Apps, and Jellyfin Media Player, plus a `Sign in` button on LAN-bypass profile pickers.
 
 jobs:
   build-and-publish:
